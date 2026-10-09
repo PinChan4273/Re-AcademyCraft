@@ -1,6 +1,7 @@
 name: Re:AcademyCraft 1.20.1 build
 on:
-  # 手動実行と、releaseのtag（例: 1.20.1-v1.0.0）で動く。tagのcommitから作ったJARを公開する。
+  # 手動実行と、releaseのtag（例: 1.20.1-v1.0.0）で動く。tagのcommitからclean buildし、JARのSHA-256をログとStep Summaryに残す。
+  # JARはArtifactとして保存しない（公式のJARはCurseForgeだけで配布する）。
   workflow_dispatch:
   push:
     tags:
@@ -28,10 +29,3 @@ jobs:
           sha256sum re-academycraft-forge-1.20.1-*.jar > SHA256SUMS
           cat SHA256SUMS
           { echo '```'; cat SHA256SUMS; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
-      - uses: actions/upload-artifact@v7
-        with:
-          name: re-academycraft-forge-1.20.1
-          if-no-files-found: error
-          path: |
-            build/libs/re-academycraft-forge-1.20.1-*.jar
-            build/libs/SHA256SUMS
