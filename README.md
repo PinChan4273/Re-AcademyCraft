@@ -5,9 +5,9 @@
 > **Minecraftの公式製品ではありません。Mojang・Microsoftの承認を受けておらず、提携もしていません。**
 > 原作者、Lambda Innovation、MohistMC、関連作品の権利者から公認・承認・支援を受けたものでも、提携するものでもありません。
 
-このブランチ（`main`）は案内だけを置いています。製品のsourceは、Minecraftの版ごとのブランチにあります。
+このブランチ（`main`）は案内だけを置いています。製品のsourceは、Minecraftのバージョンごとのブランチにあります。
 
-## 対応している版
+## 対応バージョン
 
 | Minecraft | ローダー | Re:AcademyCraft | sourceのブランチ | release |
 | --- | --- | --- | --- | --- |
@@ -15,7 +15,7 @@
 
 - releaseの一覧: <https://github.com/PinChan4273/Re-AcademyCraft/releases>
 - 導入方法・動作要件・既知の問題は、各ブランチの`README.md`を見てください。
-- tagは`<Minecraftの版>-v<Re:AcademyCraftの版>`の形です（例: `1.20.1-v1.0.0`）。
+- tagは`<Minecraftのバージョン>-v<Re:AcademyCraftのバージョン>`の形です（例: `1.20.1-v1.0.0`）。
 
 ## 不具合の報告・要望
 
