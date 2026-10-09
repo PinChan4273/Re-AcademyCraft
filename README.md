@@ -1,13 +1,13 @@
 # Re:AcademyCraft — Minecraft 1.20.1 / Forge
 
-**Re:AcademyCraft**は、Lambda InnovationのMOD「AcademyCraft」（Minecraft 1.12.2）を、**Minecraft 1.20.1 / Forge**へ移植した**非公式**の版です。
+**Re:AcademyCraft**は、Lambda InnovationのMOD「AcademyCraft」（Minecraft 1.12.2）の、**Minecraft 1.20.1 / Forge**向けの**非公式**移植版です。
 
 > **Minecraftの公式製品ではありません。Mojang・Microsoftの承認を受けておらず、提携もしていません。**
 > 原作者、Lambda Innovation、MohistMC、関連作品の権利者から公認・承認・支援を受けたものでも、提携するものでもありません。
 
 | | |
 | --- | --- |
-| 版 | 1.0.0 |
+| バージョン | 1.0.0 |
 | このブランチ | `1.20.1`（Minecraft 1.20.1 / Forge版のsource） |
 | tag | `1.20.1-v1.0.0` |
 
@@ -29,7 +29,7 @@
    - 配布ファイルの確認には、同じreleaseの`SHA256SUMS`を使えます。
 3. 更新の前に、ワールドと設定をバックアップしてください。
    - 以前の試験版で遊んだワールドは、開いたときに能力データなどを新しい保存の形へ移します。移した後のワールドは、以前の試験版では正しく読めません。
-   - クライアントとサーバーは同じ版を使用してください。互換性のない通信プロトコルは接続時に拒否されます。
+   - クライアントとサーバーは同じバージョンを使用してください。互換性のない通信プロトコルは接続時に拒否されます。
 4. 他のAcademyCraftや、以前の試験版のJAR（`academycraft-forge-1.20.1-…`）と同時に入れないでください。mod IDが同じ`academy`です。
 
 ## 含まれるもの
@@ -60,7 +60,7 @@
 ## 既存のワールド
 
 - 鉱石と虚相位液体の湖は、**新しく生成されるチャンクにだけ**置かれます。
-- MODを入れる前や、以前の版で生成したチャンクには出ません。新しいチャンクを探索してください。
+- MODを入れる前や、以前のバージョンで生成したチャンクには出ません。新しいチャンクを探索してください。
 
 ## 言語
 
@@ -83,7 +83,7 @@
 
 - GitHub Issues: <https://github.com/PinChan4273/Re-AcademyCraft/issues>
 - 次を添えてください:
-  - Re:AcademyCraftの版、Forgeの版、一緒に入れているMOD
+  - Re:AcademyCraftのバージョン、Forgeのバージョン、一緒に入れているMOD
   - 再現の手順
   - 関係するログ（`logs/latest.log`、あればクラッシュレポート）
 - **公開のIssueに、個人情報・秘密情報・権利を証明する資料を書かないでください。**
@@ -113,6 +113,6 @@
 - 原作: [LambdaInnovation/AcademyCraft](https://github.com/LambdaInnovation/AcademyCraft)。sourceの履歴に、WeAthFolD、KSkun、Paindarほかの名前があります。
 - 比較・参考: [MohistMC/AcademyCraft](https://github.com/MohistMC/AcademyCraft)。MohistMC/AcademyCraftは現代版の比較・参考実装として利用しました。公開版Re:AcademyCraftの直接のコード・データ形式・モデルの出所にはしていません。
 - クレジットの全体は`CREDITS.md`、ライセンスと帰属・改変の表示は`NOTICE.md`、素材ごとの出所と状態は`ASSET_PROVENANCE.tsv`、権利の申立ては`RIGHTS_CLAIMS.md`にあります。
-- **コード**: 原作のREADMEは「All versions of AcademyCraft are licensed under GPLv3」と述べ、あわせて販売の禁止とLambda Innovationの権利の留保を述べる追加の文言を置いています。GPLv3の全文は`LICENSE`に、原作のREADMEの原文は`licenses/`にあります。この版は、GPLv3と追加の文言の関係を判断していません。
+- **コード**: 原作のREADMEは「All versions of AcademyCraft are licensed under GPLv3」と述べ、あわせて販売の禁止とLambda Innovationの権利の留保を述べる追加の文言を置いています。GPLv3の全文は`LICENSE`に、原作のREADMEの原文は`licenses/`にあります。Re:AcademyCraftは、GPLv3と追加の文言の関係を判断していません。
 - **素材**: 画像・モデル・シェーダー・音の多くは原作由来です。そのうち一部は、合理的な調査でも作者・権利者・再配布の条件を特定できていません。`ASSET_PROVENANCE.tsv`で`UNRESOLVED`としており、使用許諾や権利の処理が済んでいるという意味ではありません。
-- この版は無料で配布します。有料のダウンロード、有料の能力・アイテムはありません。
+- Re:AcademyCraftは無料で配布します。有料のダウンロード、有料の能力・アイテムはありません。
