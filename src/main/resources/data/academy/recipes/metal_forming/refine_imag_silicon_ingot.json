@@ -1,0 +1,12 @@
+{
+  "type": "academy:metal_forming",
+  "operation": "refine",
+  "ingredient": {
+    "item": "academy:imagsil_ore"
+  },
+  "amount": 1,
+  "result": {
+    "item": "academy:imag_silicon_ingot",
+    "count": 4
+  }
+}

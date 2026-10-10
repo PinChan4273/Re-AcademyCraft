@@ -1,0 +1,23 @@
+{
+  "parent": "academy:getting_phase",
+  "display": {
+    "icon": {
+      "item": "academy:phase_gen"
+    },
+    "title": {
+      "translate": "advancements.general.phase_generator"
+    },
+    "description": {
+      "translate": "advancements.general.phase_generator.desc"
+    },
+    "frame": "task",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "impossible": {
+      "trigger": "minecraft:impossible"
+    }
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "type": "academy:metal_forming",
+  "operation": "plate",
+  "ingredient": {
+    "tag": "forge:ingots/iron"
+  },
+  "amount": 1,
+  "result": {
+    "item": "academy:reinforced_iron_plate",
+    "count": 1
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "parent": "academy:open_misaka_cloud",
+  "display": {
+    "icon": {
+      "item": "academy:terminal_installer"
+    },
+    "title": {
+      "translate": "advancements.general.terminal_installed"
+    },
+    "description": {
+      "translate": "advancements.general.terminal_installed.desc"
+    },
+    "frame": "task",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "impossible": {
+      "trigger": "minecraft:impossible"
+    }
+  }
+}

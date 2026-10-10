@@ -1,0 +1,23 @@
+{
+  "parent": "academy:root",
+  "display": {
+    "icon": {
+      "item": "academy:data_chip"
+    },
+    "title": {
+      "translate": "advancements.general.open_misaka_cloud"
+    },
+    "description": {
+      "translate": "advancements.general.open_misaka_cloud.desc"
+    },
+    "frame": "task",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "impossible": {
+      "trigger": "minecraft:impossible"
+    }
+  }
+}

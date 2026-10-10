@@ -1,0 +1,35 @@
+modLoader="javafml"
+loaderVersion="[47,48)"
+license="GPLv3 with upstream additional terms; see LICENSE and META-INF/licenses"
+issueTrackerURL="https://github.com/PinChan4273/Re-AcademyCraft/issues"
+
+[[mods]]
+modId="academy"
+version="${version}"
+displayName="Re:AcademyCraft"
+displayURL="https://github.com/PinChan4273/Re-AcademyCraft"
+authors="Lambda Innovation; Re:AcademyCraft contributors"
+description='''
+AcademyCraft（Lambda Innovation）を Minecraft 1.20.1 / Forge へ移植した非公式の版です。
+電撃使い・原子崩し・テレポート・ベクトル操作の4系統の能力、能力開発、機械、素材、無線エネルギー、データ端末とゲーム内の教程を含みます。
+既知の制限は README.md を見てください。原作者・Lambda Innovation・MohistMC の公認ではありません。
+
+An unofficial port of AcademyCraft (Lambda Innovation) to Minecraft 1.20.1 / Forge: four ability categories
+(Electromaster, Meltdowner, Teleporter, Vector Manipulation), ability development, machines, materials,
+wireless energy, the data terminal and the in-game tutorial. See README.md for known limitations.
+Not endorsed by the original authors, Lambda Innovation or MohistMC.
+'''
+
+[[dependencies.academy]]
+modId="forge"
+mandatory=true
+versionRange="[47.4.10,48)"
+ordering="NONE"
+side="BOTH"
+
+[[dependencies.academy]]
+modId="minecraft"
+mandatory=true
+versionRange="[1.20.1,1.20.2)"
+ordering="NONE"
+side="BOTH"

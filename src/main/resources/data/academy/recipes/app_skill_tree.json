@@ -1,0 +1,24 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    "T",
+    "D",
+    "I"
+  ],
+  "key": {
+    "T": {
+      "item": "minecraft:compass"
+    },
+    "D": {
+      "item": "academy:data_chip"
+    },
+    "I": {
+      "item": "academy:info_component"
+    }
+  },
+  "result": {
+    "item": "academy:app_skill_tree",
+    "count": 1
+  }
+}

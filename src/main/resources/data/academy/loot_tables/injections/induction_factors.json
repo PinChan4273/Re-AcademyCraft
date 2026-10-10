@@ -1,0 +1,23 @@
+{
+  "type": "minecraft:chest",
+  "pools": [
+    {
+      "name": "academy:induction_factors",
+      "rolls": 4,
+      "bonus_rolls": 0,
+      "entries": [
+        {
+          "type": "minecraft:loot_table",
+          "name": "academy:injections/factor_category",
+          "weight": 10,
+          "quality": 1
+        },
+        {
+          "type": "minecraft:empty",
+          "weight": 90,
+          "quality": 1
+        }
+      ]
+    }
+  ]
+}

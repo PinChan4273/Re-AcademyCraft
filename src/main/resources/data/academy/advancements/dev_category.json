@@ -1,0 +1,23 @@
+{
+  "parent": "academy:ac_developer",
+  "display": {
+    "icon": {
+      "item": "academy:crystal_low"
+    },
+    "title": {
+      "translate": "advancements.general.dev_category"
+    },
+    "description": {
+      "translate": "advancements.general.dev_category.desc"
+    },
+    "frame": "task",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "impossible": {
+      "trigger": "minecraft:impossible"
+    }
+  }
+}

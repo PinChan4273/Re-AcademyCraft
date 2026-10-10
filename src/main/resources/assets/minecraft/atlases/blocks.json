@@ -1,0 +1,52 @@
+{
+  "sources": [
+    {
+      "type": "single",
+      "resource": "academy:models/maghook"
+    },
+    {
+      "type": "single",
+      "resource": "academy:models/ip_gen0"
+    },
+    {
+      "type": "single",
+      "resource": "academy:models/ip_gen1"
+    },
+    {
+      "type": "single",
+      "resource": "academy:models/ip_gen2"
+    },
+    {
+      "type": "single",
+      "resource": "academy:models/ip_gen3"
+    },
+    {
+      "type": "single",
+      "resource": "academy:models/ip_gen4"
+    },
+    {
+      "type": "single",
+      "resource": "academy:models/solar"
+    },
+    {
+      "type": "single",
+      "resource": "academy:models/silbarn"
+    },
+    {
+      "type": "single",
+      "resource": "academy:models/matrix"
+    },
+    {
+      "type": "single",
+      "resource": "academy:models/developer_normal"
+    },
+    {
+      "type": "single",
+      "resource": "academy:models/developer_advanced"
+    },
+    {
+      "type": "single",
+      "resource": "academy:models/developer_portable"
+    }
+  ]
+}

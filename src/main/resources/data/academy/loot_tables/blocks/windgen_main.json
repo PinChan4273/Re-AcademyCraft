@@ -1,0 +1,11 @@
+{
+  "type": "minecraft:block",
+  "pools": [{
+    "rolls": 1,
+    "entries": [{ "type": "minecraft:item", "name": "academy:windgen_main" }],
+    "conditions": [
+      { "condition": "minecraft:block_state_property", "block": "academy:windgen_main", "properties": { "part": "0" } },
+      { "condition": "minecraft:survives_explosion" }
+    ]
+  }]
+}

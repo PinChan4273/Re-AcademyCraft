@@ -1,0 +1,23 @@
+{
+  "display": {
+    "icon": {
+      "item": "academy:factor_electromaster"
+    },
+    "title": {
+      "translate": "advancements.general.root"
+    },
+    "description": {
+      "translate": "advancements.general.root.desc"
+    },
+    "frame": "task",
+    "show_toast": false,
+    "announce_to_chat": false,
+    "hidden": false,
+    "background": "academy:textures/block/reso_ore.png"
+  },
+  "criteria": {
+    "impossible": {
+      "trigger": "minecraft:impossible"
+    }
+  }
+}

@@ -1,0 +1,3 @@
+# Not in the original, which binds textures/models/maghook.png itself; Forge's OBJ loader takes it from here.
+newmtl Material01
+map_Kd academy:models/maghook

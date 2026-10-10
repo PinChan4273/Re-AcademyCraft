@@ -1,0 +1,8 @@
+{
+  "feature": "academy:phase_pool",
+  "placement": [
+    {
+      "type": "minecraft:biome"
+    }
+  ]
+}

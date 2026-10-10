@@ -1,0 +1,23 @@
+{
+  "parent": "academy:ac_level_3",
+  "display": {
+    "icon": {
+      "item": "academy:crystal_pure"
+    },
+    "title": {
+      "translate": "advancements.general.ac_level_5"
+    },
+    "description": {
+      "translate": "advancements.general.ac_level_5.desc"
+    },
+    "frame": "task",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "impossible": {
+      "trigger": "minecraft:impossible"
+    }
+  }
+}

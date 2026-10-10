@@ -1,0 +1,27 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    " R ",
+    "rFr",
+    "DRD"
+  ],
+  "key": {
+    "R": {
+      "item": "academy:reso_crystal"
+    },
+    "r": {
+      "item": "minecraft:redstone"
+    },
+    "F": {
+      "item": "academy:machine_frame"
+    },
+    "D": {
+      "item": "academy:data_chip"
+    }
+  },
+  "result": {
+    "item": "academy:wireless_matrix",
+    "count": 1
+  }
+}

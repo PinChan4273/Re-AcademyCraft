@@ -1,0 +1,60 @@
+AcademyCraft (Forge 1.20.1 port) - adding music to the Media Player
+====================================================================
+
+The three songs and CD covers that the original AcademyCraft shipped are commercial works.
+This port does not include them, and never downloads them. The Media Player, the media items
+and the loading of your own music all work; add only music you are entitled to use.
+
+1. Your own music (no resource pack)
+   - Put an Ogg Vorbis file in:   .minecraft/acmedia/source/<name>.ogg
+   - Optional cover (PNG) in:     .minecraft/acmedia/cover/<name>.png   (same <name>)
+   - Restart the game, open the Media Player app in the data terminal. The song is listed
+     under <name>; the pencils beside it let you change its name and description.
+
+2. The three original media items, through a personal resource pack
+   The media items "only my railgun", "LEVEL5-judgelight-" and "sister's noise" play these
+   files when a resource pack provides them:
+     .minecraft/resourcepacks/<your pack folder>/pack.mcmeta
+     .minecraft/resourcepacks/<your pack folder>/assets/academy/sounds/media/only_my_railgun.ogg
+     .minecraft/resourcepacks/<your pack folder>/assets/academy/sounds/media/level5_judgelight.ogg
+     .minecraft/resourcepacks/<your pack folder>/assets/academy/sounds/media/sisters_noise.ogg
+   Optional covers (PNG):
+     .minecraft/resourcepacks/<your pack folder>/assets/academy/textures/media/cover/<same name>.png
+   pack.mcmeta for Minecraft 1.20.1:
+     {"pack": {"pack_format": 15, "description": "my media"}}
+   Enable the pack in Options > Resource Packs. Use the media item (with the Media Player app
+   installed) to add it to your player; it is then listed and playable. Without the file it is
+   listed as "sound not installed".
+
+Keep these files for yourself: do not add them to a shared pack or to this project.
+
+--------------------------------------------------------------------
+
+AcademyCraft（Forge 1.20.1移植版）メディアプレイヤーに曲を追加する方法
+====================================================================
+
+原作AcademyCraftが同梱していた3曲とCDジャケットは市販の著作物です。この移植版には含まれておらず、
+自動でダウンロードすることもありません。メディアプレイヤー、メディアアイテム、自分の曲の読み込みは
+そのまま使えます。利用する権利のある曲だけを追加してください。
+
+1. 自分の曲を置く（リソースパック不要）
+   - Ogg Vorbis形式のファイルを置く場所:  .minecraft/acmedia/source/<名前>.ogg
+   - ジャケット（PNG、任意）を置く場所:    .minecraft/acmedia/cover/<名前>.png（同じ<名前>）
+   - ゲームを再起動し、データ端末のメディアプレイヤーを開くと<名前>で一覧に出ます。
+     横の鉛筆で名前と説明を変更できます。
+
+2. 原作の3つのメディアアイテム用に、個人用リソースパックで追加する
+   メディアアイテム「only my railgun」「LEVEL5-judgelight-」「sister's noise」は、
+   リソースパックが次のファイルを持っているときに再生できます:
+     .minecraft/resourcepacks/<パックのフォルダ>/pack.mcmeta
+     .minecraft/resourcepacks/<パックのフォルダ>/assets/academy/sounds/media/only_my_railgun.ogg
+     .minecraft/resourcepacks/<パックのフォルダ>/assets/academy/sounds/media/level5_judgelight.ogg
+     .minecraft/resourcepacks/<パックのフォルダ>/assets/academy/sounds/media/sisters_noise.ogg
+   ジャケット（PNG、任意）:
+     .minecraft/resourcepacks/<パックのフォルダ>/assets/academy/textures/media/cover/<同じ名前>.png
+   Minecraft 1.20.1用のpack.mcmeta:
+     {"pack": {"pack_format": 15, "description": "my media"}}
+   「設定 > リソースパック」でパックを有効にし、メディアプレイヤーアプリを入れた状態でメディアアイテムを
+   使うと一覧に出て再生できます。ファイルが無いときは「音源未導入」と表示されます。
+
+これらのファイルは個人用です。共有するパックやこのプロジェクトには入れないでください。

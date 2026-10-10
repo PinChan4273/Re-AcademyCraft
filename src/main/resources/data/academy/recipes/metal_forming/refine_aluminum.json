@@ -1,0 +1,28 @@
+{
+  "type": "academy:metal_forming",
+  "conditions": [
+    {
+      "type": "forge:not",
+      "value": {
+        "type": "forge:tag_empty",
+        "tag": "forge:ores/aluminum"
+      }
+    },
+    {
+      "type": "forge:not",
+      "value": {
+        "type": "forge:tag_empty",
+        "tag": "forge:ingots/aluminum"
+      }
+    }
+  ],
+  "operation": "refine",
+  "ingredient": {
+    "tag": "forge:ores/aluminum"
+  },
+  "amount": 1,
+  "result": {
+    "tag": "forge:ingots/aluminum",
+    "count": 2
+  }
+}

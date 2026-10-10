@@ -1,0 +1,10 @@
+{
+  "loader": "forge:obj",
+  "model": "academy:models/maghook.obj",
+  "automatic_culling": false,
+  "shade_quads": true,
+  "flip_v": true,
+  "textures": {
+    "particle": "academy:models/maghook"
+  }
+}

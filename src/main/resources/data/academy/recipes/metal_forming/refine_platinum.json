@@ -1,0 +1,28 @@
+{
+  "type": "academy:metal_forming",
+  "conditions": [
+    {
+      "type": "forge:not",
+      "value": {
+        "type": "forge:tag_empty",
+        "tag": "forge:ores/platinum"
+      }
+    },
+    {
+      "type": "forge:not",
+      "value": {
+        "type": "forge:tag_empty",
+        "tag": "forge:ingots/platinum"
+      }
+    }
+  ],
+  "operation": "refine",
+  "ingredient": {
+    "tag": "forge:ores/platinum"
+  },
+  "amount": 1,
+  "result": {
+    "tag": "forge:ingots/platinum",
+    "count": 2
+  }
+}

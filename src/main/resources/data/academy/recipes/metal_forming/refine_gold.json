@@ -1,0 +1,12 @@
+{
+  "type": "academy:metal_forming",
+  "operation": "refine",
+  "ingredient": {
+    "tag": "forge:ores/gold"
+  },
+  "amount": 1,
+  "result": {
+    "item": "minecraft:gold_ingot",
+    "count": 2
+  }
+}

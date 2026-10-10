@@ -1,0 +1,88 @@
+plugins {
+    id 'java'
+    id 'eclipse'
+    id 'idea'
+    id 'net.minecraftforge.gradle' version '[6.0,6.2)'
+}
+
+group = 'io.github.pinchan4273.reacademycraft'
+version = '1.0.0'
+base { archivesName = 're-academycraft-forge-1.20.1' }
+
+java {
+    toolchain.languageVersion = JavaLanguageVersion.of(17)
+    withSourcesJar()
+}
+
+minecraft {
+    mappings channel: 'official', version: '1.20.1'
+    accessTransformer = file('src/main/resources/META-INF/accesstransformer.cfg')
+    copyIdeResources = true
+    runs {
+        configureEach {
+            workingDirectory project.file('run')
+            property 'forge.logging.console.level', 'info'
+            mods {
+                academy { source sourceSets.main }
+            }
+        }
+        client {
+            if (project.hasProperty('dedicatedSmokeTest')) {
+                workingDirectory project.file('run/dedicated-client')
+                property 'academy.dedicatedSmokeTest', 'true'
+                args '--username', 'AcademySmoke'
+                jvmArgs '-Xmx1536m'
+                mods { academy { source sourceSets.test } }
+            }
+            if (project.hasProperty('runtimeSmokeTest')) {
+                workingDirectory project.file('run/client-smoke')
+                property 'academy.runtimeSmokeTest', 'true'
+                mods { academy { source sourceSets.test } }
+            }
+        }
+        server { args '--nogui' }
+        gameTestServer {
+            workingDirectory project.file('run/gametest')
+            property 'forge.enabledGameTestNamespaces', 'academy'
+            mods { academy { source sourceSets.test } }
+        }
+    }
+}
+
+dependencies {
+    minecraft 'net.minecraftforge:forge:1.20.1-47.4.10'
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    options.release = 17
+}
+
+tasks.named('processResources', ProcessResources).configure {
+    // mods.tomlなどをOSの既定の文字コード（Windowsではcp932）でなくUTF-8として展開する。
+    filteringCharset = 'UTF-8'
+    inputs.property 'version', project.version
+    filesMatching('META-INF/mods.toml') { expand version: project.version }
+}
+
+tasks.named('jar', Jar).configure {
+    from('LICENSE')
+    from('NOTICE.md')
+    from('licenses') { into 'META-INF/licenses' }
+    manifest {
+        attributes 'Implementation-Title': 'Re:AcademyCraft',
+                   'Implementation-Version': project.version
+    }
+    finalizedBy 'reobfJar'
+}
+
+tasks.named('sourcesJar', Jar).configure {
+    from('LICENSE')
+    from('NOTICE.md')
+    from('licenses') { into 'META-INF/licenses' }
+}
+
+tasks.withType(AbstractArchiveTask).configureEach {
+    preserveFileTimestamps = false
+    reproducibleFileOrder = true
+}

@@ -1,0 +1,11 @@
+{
+  "loader": "forge:obj",
+  "model": "academy:models/ip_gen.obj",
+  "automatic_culling": false,
+  "shade_quads": true,
+  "flip_v": true,
+  "textures": {
+    "texture": "academy:models/ip_gen0",
+    "particle": "academy:models/ip_gen0"
+  }
+}

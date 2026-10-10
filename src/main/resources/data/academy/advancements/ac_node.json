@@ -1,0 +1,23 @@
+{
+  "parent": "academy:phase_generator",
+  "display": {
+    "icon": {
+      "item": "academy:node_basic"
+    },
+    "title": {
+      "translate": "advancements.general.ac_node"
+    },
+    "description": {
+      "translate": "advancements.general.ac_node.desc"
+    },
+    "frame": "task",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "impossible": {
+      "trigger": "minecraft:impossible"
+    }
+  }
+}

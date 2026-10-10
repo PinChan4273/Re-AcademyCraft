@@ -1,0 +1,23 @@
+{
+  "parent": "academy:ac_node",
+  "display": {
+    "icon": {
+      "item": "academy:wireless_matrix"
+    },
+    "title": {
+      "translate": "advancements.general.ac_matrix"
+    },
+    "description": {
+      "translate": "advancements.general.ac_matrix.desc"
+    },
+    "frame": "task",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "impossible": {
+      "trigger": "minecraft:impossible"
+    }
+  }
+}

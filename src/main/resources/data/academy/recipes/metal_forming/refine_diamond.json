@@ -1,0 +1,12 @@
+{
+  "type": "academy:metal_forming",
+  "operation": "refine",
+  "ingredient": {
+    "tag": "forge:ores/diamond"
+  },
+  "amount": 1,
+  "result": {
+    "item": "minecraft:diamond",
+    "count": 2
+  }
+}

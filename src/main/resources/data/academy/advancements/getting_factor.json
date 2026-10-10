@@ -1,0 +1,23 @@
+{
+  "parent": "academy:root",
+  "display": {
+    "icon": {
+      "item": "academy:factor_electromaster"
+    },
+    "title": {
+      "translate": "advancements.general.getting_factor"
+    },
+    "description": {
+      "translate": "advancements.general.getting_factor.desc"
+    },
+    "frame": "task",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "impossible": {
+      "trigger": "minecraft:impossible"
+    }
+  }
+}

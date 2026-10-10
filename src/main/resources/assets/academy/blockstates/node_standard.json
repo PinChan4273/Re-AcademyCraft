@@ -1,0 +1,34 @@
+{
+  "variants": {
+    "connected=false,energy=0": {
+      "model": "academy:block/node_standard_0_off"
+    },
+    "connected=true,energy=0": {
+      "model": "academy:block/node_standard_0_on"
+    },
+    "connected=false,energy=1": {
+      "model": "academy:block/node_standard_1_off"
+    },
+    "connected=true,energy=1": {
+      "model": "academy:block/node_standard_1_on"
+    },
+    "connected=false,energy=2": {
+      "model": "academy:block/node_standard_2_off"
+    },
+    "connected=true,energy=2": {
+      "model": "academy:block/node_standard_2_on"
+    },
+    "connected=false,energy=3": {
+      "model": "academy:block/node_standard_3_off"
+    },
+    "connected=true,energy=3": {
+      "model": "academy:block/node_standard_3_on"
+    },
+    "connected=false,energy=4": {
+      "model": "academy:block/node_standard_4_off"
+    },
+    "connected=true,energy=4": {
+      "model": "academy:block/node_standard_4_on"
+    }
+  }
+}

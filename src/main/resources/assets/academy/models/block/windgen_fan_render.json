@@ -1,0 +1,12 @@
+{
+  "loader": "forge:obj",
+  "model": "academy:models/windgen_fan.obj",
+  "automatic_culling": false,
+  "shade_quads": true,
+  "flip_v": true,
+  "textures": {
+    "texture": "academy:block/windgen_fan",
+    "particle": "academy:block/windgen_fan"
+  },
+  "render_type": "minecraft:cutout"
+}

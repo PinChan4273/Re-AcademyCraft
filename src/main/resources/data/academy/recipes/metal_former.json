@@ -1,0 +1,30 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    " S ",
+    "CFC",
+    "PMP"
+  ],
+  "key": {
+    "S": {
+      "item": "minecraft:shears"
+    },
+    "C": {
+      "item": "academy:calc_chip"
+    },
+    "F": {
+      "item": "academy:machine_frame"
+    },
+    "P": {
+      "item": "academy:constraint_plate"
+    },
+    "M": {
+      "item": "academy:matter_unit"
+    }
+  },
+  "result": {
+    "item": "academy:metal_former",
+    "count": 1
+  }
+}

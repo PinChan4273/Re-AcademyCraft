@@ -1,0 +1,28 @@
+{
+  "type": "academy:metal_forming",
+  "conditions": [
+    {
+      "type": "forge:not",
+      "value": {
+        "type": "forge:tag_empty",
+        "tag": "forge:ores/iridium"
+      }
+    },
+    {
+      "type": "forge:not",
+      "value": {
+        "type": "forge:tag_empty",
+        "tag": "forge:ingots/iridium"
+      }
+    }
+  ],
+  "operation": "refine",
+  "ingredient": {
+    "tag": "forge:ores/iridium"
+  },
+  "amount": 1,
+  "result": {
+    "tag": "forge:ingots/iridium",
+    "count": 2
+  }
+}

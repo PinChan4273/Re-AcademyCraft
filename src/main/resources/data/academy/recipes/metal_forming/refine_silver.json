@@ -1,0 +1,28 @@
+{
+  "type": "academy:metal_forming",
+  "conditions": [
+    {
+      "type": "forge:not",
+      "value": {
+        "type": "forge:tag_empty",
+        "tag": "forge:ores/silver"
+      }
+    },
+    {
+      "type": "forge:not",
+      "value": {
+        "type": "forge:tag_empty",
+        "tag": "forge:ingots/silver"
+      }
+    }
+  ],
+  "operation": "refine",
+  "ingredient": {
+    "tag": "forge:ores/silver"
+  },
+  "amount": 1,
+  "result": {
+    "tag": "forge:ingots/silver",
+    "count": 2
+  }
+}

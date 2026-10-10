@@ -1,0 +1,20 @@
+.gradle/
+build/
+run/
+.idea/
+*.iml
+logs/
+.local-ci/
+__pycache__/
+*-ci.log
+forge-dedicated-installer.jar.log
+focus.log
+client-local.log
+
+# 原作の市販楽曲とそのジャケット画像、および個人のメディアは、このリポジトリに入れない。
+# ゲームがそれらを読む場所は、ここでは空のままにする。
+src/main/resources/assets/academy/sounds/media/
+src/main/resources/assets/academy/textures/media/
+src/main/resources/assets/academy/media/source/
+src/main/resources/assets/academy/media/cover/
+acmedia/

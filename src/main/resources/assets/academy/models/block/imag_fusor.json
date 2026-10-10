@@ -1,0 +1,9 @@
+{
+  "parent": "minecraft:block/orientable_with_bottom",
+  "textures": {
+    "front": "academy:block/ief_off",
+    "side": "academy:block/machine_side",
+    "top": "academy:block/machine_top",
+    "bottom": "academy:block/machine_bottom"
+  }
+}

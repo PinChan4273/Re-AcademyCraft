@@ -1,0 +1,12 @@
+{
+  "type": "academy:metal_forming",
+  "operation": "incise",
+  "ingredient": {
+    "item": "academy:wafer"
+  },
+  "amount": 1,
+  "result": {
+    "item": "academy:imag_silicon_piece",
+    "count": 4
+  }
+}

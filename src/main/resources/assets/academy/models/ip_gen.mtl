@@ -1,0 +1,4 @@
+# Not in the original, which binds textures/models/ip_gen0..4 itself by the tank level; each
+# model file names the one it draws with.
+newmtl 02___Default
+map_Kd #texture

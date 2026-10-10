@@ -1,0 +1,19 @@
+{
+  "loader": "forge:obj",
+  "model": "academy:models/windgen_pillar.obj",
+  "automatic_culling": false,
+  "shade_quads": true,
+  "flip_v": true,
+  "transform": {
+    "translation": [
+      0.5,
+      0,
+      0.5
+    ]
+  },
+  "textures": {
+    "texture": "academy:block/windgen_pillar",
+    "particle": "academy:block/windgen_pillar"
+  },
+  "render_type": "minecraft:cutout"
+}

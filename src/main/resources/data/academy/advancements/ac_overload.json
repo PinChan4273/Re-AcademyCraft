@@ -1,0 +1,23 @@
+{
+  "parent": "academy:ac_learning_skill",
+  "display": {
+    "icon": {
+      "item": "academy:cat_engine"
+    },
+    "title": {
+      "translate": "advancements.general.ac_overload"
+    },
+    "description": {
+      "translate": "advancements.general.ac_overload.desc"
+    },
+    "frame": "task",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "impossible": {
+      "trigger": "minecraft:impossible"
+    }
+  }
+}

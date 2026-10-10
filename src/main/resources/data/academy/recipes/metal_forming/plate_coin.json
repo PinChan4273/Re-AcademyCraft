@@ -1,0 +1,12 @@
+{
+  "type": "academy:metal_forming",
+  "operation": "plate",
+  "ingredient": {
+    "item": "academy:reinforced_iron_plate"
+  },
+  "amount": 2,
+  "result": {
+    "item": "academy:coin",
+    "count": 3
+  }
+}

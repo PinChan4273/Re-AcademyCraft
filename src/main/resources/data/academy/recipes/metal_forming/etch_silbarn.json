@@ -1,0 +1,12 @@
+{
+  "type": "academy:metal_forming",
+  "operation": "etch",
+  "ingredient": {
+    "item": "academy:wafer"
+  },
+  "amount": 1,
+  "result": {
+    "item": "academy:silbarn",
+    "count": 1
+  }
+}

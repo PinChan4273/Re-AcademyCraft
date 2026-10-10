@@ -1,0 +1,26 @@
+{
+  "parent": "minecraft:item/generated",
+  "textures": {
+    "layer0": "academy:item/matter_unit_phase_liquid_0"
+  },
+  "overrides": [
+    {
+      "predicate": {
+        "academy:frame": 0.25
+      },
+      "model": "academy:item/matter_unit_phase_liquid_1"
+    },
+    {
+      "predicate": {
+        "academy:frame": 0.5
+      },
+      "model": "academy:item/matter_unit_phase_liquid_2"
+    },
+    {
+      "predicate": {
+        "academy:frame": 0.75
+      },
+      "model": "academy:item/matter_unit_phase_liquid_3"
+    }
+  ]
+}

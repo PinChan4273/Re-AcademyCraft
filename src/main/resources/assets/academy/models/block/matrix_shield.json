@@ -1,0 +1,16 @@
+{
+  "loader": "forge:obj",
+  "model": "academy:models/matrix.obj",
+  "automatic_culling": false,
+  "shade_quads": true,
+  "flip_v": true,
+  "textures": {
+    "particle": "academy:models/matrix"
+  },
+  "visibility": {
+    "Main": false,
+    "Core": false,
+    "Duplicate01": false,
+    "Duplicate02": false
+  }
+}
