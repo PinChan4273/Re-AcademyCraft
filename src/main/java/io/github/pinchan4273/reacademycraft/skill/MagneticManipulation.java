@@ -100,7 +100,7 @@ public final class MagneticManipulation {
         var creature = ProjectileHitSeam.first(p.level(), p, from, hit.getLocation());
         var aim = creature == null ? hit.getLocation() : creature.point().add(0, creature.entity().getEyeHeight() * .6, 0);
         var delta = aim.subtract(s.entity.position());
-        if (delta.lengthSqr() < 1.0e-8 || !d.consume(ID, ArcGen.lerp(140, 270, s.proficiency), ArcGen.lerp(35, 20, s.proficiency), p.getAbilities().instabuild)) return;
+        if (delta.lengthSqr() < 1.0e-8 || !d.consume(ID, ArcGen.lerp(140, 270, s.proficiency), ArcGen.lerp(36, 20, s.proficiency), p.getAbilities().instabuild)) return;
         s.entity.throwFrom(p, delta.normalize().scale(ArcGen.lerp(.5f, 1, s.proficiency)));
         // すべてのクライアントでの原作c_perform: 術者の位置でem.mag_manip。
         p.level().playSound(null, p, io.github.pinchan4273.reacademycraft.world.AcademySounds.EM_MAG_MANIP.get(), net.minecraft.sounds.SoundSource.AMBIENT, 1f, 1f);

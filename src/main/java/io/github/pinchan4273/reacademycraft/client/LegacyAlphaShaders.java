@@ -8,6 +8,7 @@ import com.mojang.blaze3d.vertex.VertexFormat;
 import java.io.IOException;
 import javax.annotation.Nullable;
 import net.minecraft.client.particle.ParticleRenderType;
+import net.minecraft.client.renderer.GameRenderer;
 import net.minecraft.client.renderer.ShaderInstance;
 import net.minecraft.client.renderer.texture.TextureAtlas;
 import net.minecraft.client.renderer.texture.TextureManager;
@@ -36,14 +37,27 @@ public final class LegacyAlphaShaders {
     }
     /** position-tex-colour（alphaテストなし）。 */
     @Nullable public static ShaderInstance positionTexColor() { return positionTexColor; }
+    /**
+     * ワールドの中の効果に使うposition-tex-colour。ふだんはalphaテストなしの版（positionTexColor）。
+     * Oculusがシェーダーパックを使っている間は、Minecraft自身のものを返す: Oculusはそれだけをシェーダーパックのプログラムへ
+     * 置き換えるので、独自の版で描いたものは画面に出ない（ShaderPackCompat）。その間、淡いtexelの扱いはシェーダーパックに従う。
+     */
+    @Nullable public static ShaderInstance worldPositionTexColor() {
+        return ShaderPackCompat.inUse() ? GameRenderer.getPositionTexColorShader() : positionTexColor;
+    }
     /** Minecraftのparticleのシェーダー（alphaテストなし）。 */
     @Nullable public static ShaderInstance particle() { return particle; }
+    /**
+     * ワールドの粒子に使うparticleのシェーダー。ふだんはalphaテストなしの版。Oculusがシェーダーパックを使っている間は、独自の版では
+     * 何も書かれないので（ShaderPackCompat）、Minecraft自身のもの（Oculusがシェーダーパックのプログラムへ置き換える）を返す。
+     */
+    @Nullable public static ShaderInstance worldParticle() { return ShaderPackCompat.inUse() ? GameRenderer.getParticleShader() : particle; }
 
     /** Minecraftの半透明の粒子のシート（alphaテストなし）。 */
     public static final ParticleRenderType PARTICLE_SHEET_TRANSLUCENT = new ParticleRenderType() {
         @Override public void begin(BufferBuilder buffer, TextureManager textures) {
             RenderSystem.depthMask(true);
-            RenderSystem.setShader(LegacyAlphaShaders::particle);
+            RenderSystem.setShader(LegacyAlphaShaders::worldParticle);
             RenderSystem.setShaderTexture(0, TextureAtlas.LOCATION_PARTICLES);
             RenderSystem.enableBlend();
             RenderSystem.defaultBlendFunc();

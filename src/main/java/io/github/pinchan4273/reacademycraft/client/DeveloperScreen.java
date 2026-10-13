@@ -32,6 +32,7 @@ import net.minecraft.client.renderer.ShaderInstance;
 import net.minecraft.client.resources.language.I18n;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.network.chat.Style;
 import net.minecraft.util.Mth;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.entity.player.Inventory;
@@ -52,6 +53,8 @@ import org.lwjgl.glfw.GLFW;
 public final class DeveloperScreen extends AbstractContainerScreen<DeveloperMenu> {
     static final float MAIN_W = 400, MAIN_H = 187;
     static final float RIGHT_X = 118, AREA_X = RIGHT_X + 10, AREA_Y = 18, AREA_W = 257, AREA_H = 139;
+    /** コンソールの文字: 大きさ（9で等倍）、行の間隔、上の余白。 */
+    static final float CONSOLE_SIZE = 9, CONSOLE_LINE = 10, CONSOLE_TOP = 5;
     static final float LEFT_X = 4, LEFT_W = 108.5f;
     static final float ABILITY_X = LEFT_X + 2, ABILITY_Y = (MAIN_H - 32) / 2 - 10;
     static final float UPGRADE_X = ABILITY_X + 60, UPGRADE_Y = ABILITY_Y + 14.5f, UPGRADE_W = 186.014f * .26f, UPGRADE_H = 59.524f * .26f;
@@ -104,7 +107,8 @@ public final class DeveloperScreen extends AbstractContainerScreen<DeveloperMenu
         super.init();
         // 原作CGUIはページを自身の大きさで中央に描く。画面が小さいときは全体を縮める。
         scale = Math.min(1, Math.min((width - 8) / MAIN_W, (height - 8) / MAIN_H));
-        ox = (width - MAIN_W * scale) / 2; oy = (height - MAIN_H * scale) / 2;
+        // 位置は整数に丸める: 半端な位置では、文字の画素が2つの画素にまたがってにじむ。
+        ox = Math.round((width - MAIN_W * scale) / 2); oy = Math.round((height - MAIN_H * scale) / 2);
         if (built == 0) rebuild();
     }
     /** 原作RebuildEvent: ページを作り直し、フェードインをやり直す。 */
@@ -402,6 +406,13 @@ public final class DeveloperScreen extends AbstractContainerScreen<DeveloperMenu
         // Escだけで閉じる: ここではインベントリのキーは文字の入力になる。原作のページもすべてのキーを受け取っていた。
         return true;
     }
+    @Override public boolean mouseScrolled(double x, double y, double delta) {
+        // コンソールの上でホイールを回すと、折り返して入りきらなかった古い行へ遡る。
+        if (linkPage == null && console != null && delta != 0 && inside(localX(x), localY(y), AREA_X, AREA_Y, AREA_W, AREA_H)) {
+            console.scroll(delta); return true;
+        }
+        return super.mouseScrolled(x, y, delta);
+    }
     @Override public boolean charTyped(char character, int modifiers) {
         if (linkPage != null) { linkPage.panel.charTyped(character); return true; }
         if (console != null && SharedConstants.isAllowedChatCharacter(character)) console.type(character);
@@ -621,6 +632,8 @@ public final class DeveloperScreen extends AbstractContainerScreen<DeveloperMenu
         private final Deque<Task> tasks = new ArrayDeque<>();
         @Nullable private Task current;
         private String input = "";
+        /** 表示を下端から何行遡っているか。新しい出力で0へ戻る。 */
+        private int scroll, maxScroll;
         private final Task inputTask = new Task() { @Override void begin() { output("OS >"); } @Override boolean finished() { return false; } };
         final boolean emergency;
         Console(String player, boolean emergency) {
@@ -645,27 +658,53 @@ public final class DeveloperScreen extends AbstractContainerScreen<DeveloperMenu
         }
         void draw(GuiGraphics g) {
             step();
-            int y = 5;
+            // 原作は各行を大きさ8で描き、はみ出してもそのまま描く。ここではゲームの字形を等倍（大きさ9）で描き、端数の倍率で
+            // 字形が潰れないようにする。コンソールより長い行は、表示だけ幅で折り返す（outputsとコマンドはそのまま）。
+            var visual = new ArrayList<String>();
             var lines = new ArrayList<>(outputs);
+            boolean typing = current == inputTask;
             for (int i = 0; i < lines.size(); i++) {
                 String line = lines.get(i);
-                if (i == lines.size() - 1 && current == inputTask) line += input + ((Util.getMillis() % 1000) < 500 ? "_" : "");
-                // 原作は各行を大きさ8で描き、はみ出してもそのまま描く。ゲームの字形はTrueTypeフォントより幅が広いので、
-                // コンソールからはみ出す行は小さくして収める。
-                for (var part : line.split("\n", -1)) {
-                    float room = AREA_W - 10, size = 8, w = font.width(part) * size / 9f;
-                    if (w > room && w > 0) size *= room / w;
-                    text(g, part, AREA_X + 5, AREA_Y + y, size, Align.LEFT, 0xffffffff);
-                }
-                y += 10;
+                // 折り返す位置はカーソルを含めて決める。点滅で行の幅が変わっても、折り返しが動かない。
+                if (i == lines.size() - 1 && typing) line += input + "_";
+                for (var part : line.split("\n", -1)) visual.addAll(wrap(part));
+            }
+            if (typing && (Util.getMillis() % 1000) >= 500 && !visual.isEmpty()) {
+                String last = visual.remove(visual.size() - 1);
+                visual.add(last.substring(0, last.length() - 1));
+            }
+            // 入りきらないときは、新しい行が下に見えるように送る。ホイールで遡れる。
+            int capacity = (int) ((AREA_H - CONSOLE_TOP) / CONSOLE_LINE);
+            maxScroll = Math.max(0, visual.size() - capacity);
+            scroll = Mth.clamp(scroll, 0, maxScroll);
+            int start = visual.size() - Math.min(capacity, visual.size()) - scroll;
+            for (int k = 0; k < Math.min(capacity, visual.size()); k++)
+                text(g, visual.get(start + k), AREA_X + 5, AREA_Y + CONSOLE_TOP + k * CONSOLE_LINE, CONSOLE_SIZE, Align.LEFT, 0xffffffff);
+            if (maxScroll > 0) {
+                // どこを見ているかを、右端の細い帯で示す。
+                float track = AREA_H - 2 * CONSOLE_TOP, bar = Math.max(6, track * capacity / visual.size());
+                float at = (track - bar) * (maxScroll - scroll) / maxScroll;
+                rect(g.pose(), AREA_X + AREA_W - 3, AREA_Y + CONSOLE_TOP + at, 1, bar, 1, 1, 1, .35f);
             }
         }
+        /** 表示の1行を、コンソールの幅で折り返す。空の行も1行として残す。 */
+        private List<String> wrap(String line) {
+            var parts = new ArrayList<String>();
+            for (var part : font.getSplitter().splitLines(line, (int) (AREA_W - 10), Style.EMPTY)) parts.add(part.getString());
+            if (parts.isEmpty()) parts.add("");
+            return parts;
+        }
+        /** ホイールの1段: 正なら古い行へ。 */
+        void scroll(double delta) { scroll = Mth.clamp(scroll + (delta > 0 ? 1 : -1), 0, maxScroll); }
+        /** 遡っている行数（0なら最新の行と入力行が見えている）。 */
+        int scrolled() { return scroll; }
         void key(int key) {
             if (current != inputTask) return;
-            if (key == GLFW.GLFW_KEY_BACKSPACE) { if (!input.isEmpty()) input = input.substring(0, input.length() - 1); }
+            // 遡って読んでいる間に入力を変えたら、入力行とカーソルが見えるよう下端へ戻る（L-178-01）。読むだけなら戻さない。
+            if (key == GLFW.GLFW_KEY_BACKSPACE) { if (!input.isEmpty()) { input = input.substring(0, input.length() - 1); scroll = 0; } }
             else if (key == GLFW.GLFW_KEY_ENTER || key == GLFW.GLFW_KEY_KP_ENTER) { String command = input; input = ""; parse(command); }
         }
-        void type(char c) { if (current == inputTask) input += c; }
+        void type(char c) { if (current == inputTask) { input += c; scroll = 0; } }
         private void parse(String command) {
             // 原作は、開発機があるときだけlearnを登録する。
             if (!emergency && !menu.viewer() && command.equals("learn")) develop(DevelopmentSession.ACQUIRE, "dev_begin", "dev_succ", "dev_fail");
@@ -711,6 +750,7 @@ public final class DeveloperScreen extends AbstractContainerScreen<DeveloperMenu
         }
         /** 原作の出力: \bで1文字消し、\nで改行し、最大10行を保つ。 */
         void output(String content) {
+            scroll = 0;
             var current = new StringBuilder(outputs.isEmpty() ? "" : outputs.removeLast());
             for (char c : content.toCharArray()) {
                 if (c == '\b') current.setLength(Math.max(0, current.length() - 1));
@@ -772,5 +812,7 @@ public final class DeveloperScreen extends AbstractContainerScreen<DeveloperMenu
     public boolean consoleReady() { return console != null && console.idle(); }
     public boolean consoleShown() { return console != null; }
     public List<String> consoleLines() { return console == null ? List.of() : List.copyOf(console.outputs); }
+    /** テスト用: コンソールが遡っている行数。 */
+    public int consoleScroll() { return console == null ? 0 : console.scrolled(); }
     public float pageScale() { return scale; }
 }

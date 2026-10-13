@@ -153,7 +153,8 @@ public final class ScatterBomb {
                     orb.session(), start, end));
             player.level().playSound(null, start.x, start.y, start.z, io.github.pinchan4273.reacademycraft.world.AcademySounds.MD_RAY_SMALL.get(), net.minecraft.sounds.SoundSource.AMBIENT, .8f, 1f);
         }
-        if (!session.orbs.isEmpty()) data.addProficiency(ID, .001f * session.orbs.size());
+        // 止める前にリスナーやカテゴリの変更が技能を外していたら、熟練度は与えない（M-110-02。addProficiencyは未習得を拒否する）。
+        if (!session.orbs.isEmpty() && data.hasLearned(ID)) data.addProficiency(ID, .001f * session.orbs.size());
     }
 
     private static void fire(ServerPlayer player, net.minecraft.server.level.ServerLevel level,

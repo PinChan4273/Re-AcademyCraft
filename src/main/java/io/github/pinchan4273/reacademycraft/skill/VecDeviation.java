@@ -65,7 +65,7 @@ public final class VecDeviation {
                 && AbilityCategory.VECMANIP.id().equals(data.getAbility()) && data.hasLearned(ID);
     }
     public static float normalOverload(float exp) { return ArcGen.lerp(.5f, .2f, exp); }
-    public static float stopConsumption(float exp) { return ArcGen.lerp(15, 12, exp); }
+    public static float stopConsumption(float exp) { return ArcGen.lerp(16, 12, exp); }
     public static float startOverload(float exp) { return ArcGen.lerp(80, 50, exp); }
     /** 原作reduceDamageの削り。 */
     public static float reduction(float exp) { return ArcGen.lerp(.4f, .9f, exp); }
@@ -100,16 +100,25 @@ public final class VecDeviation {
         if (data(player) != null) AbilitySyncEvents.sync(player, true);
     }
 
+    /** このtickもモードを続けてよいか（tickの始めと、熟練度のイベントの後に確かめる）。 */
+    private static boolean continues(ServerPlayer player, PlayerAbilityData data, Session session) {
+        return data != null && allowed(player, data) && !(session.level != player.level() || data.getCurrentPreset() != session.preset
+                || !ID.equals(data.getSlot(session.preset, session.slot)));
+    }
     private static void tick(ServerPlayer player) {
         var session = ACTIVE.get(player.getUUID());
         if (session == null) return;
         var data = data(player);
-        if (!allowed(player, data) || session.level != player.level() || data.getCurrentPreset() != session.preset
-                || !ID.equals(data.getSlot(session.preset, session.slot))) { stop(player); return; }
+        if (!continues(player, data, session)) { stop(player); return; }
         boolean creative = player.getAbilities().instabuild;
         float exp = session.exp;
         // 原作s_tickのCPとg_tickのCP: このtickの始めに精算した維持コスト。
         if (!data.upkeepHeld(session.upkeep)) { stop(player); return; }
+        data.upkeepEarn(session.upkeep);
+        // 熟練度のイベントのリスナーが、モードを終えた・置き換えた・続けられなくした（能力、スロット、プリセット）かもしれない:
+        // このtickを古いセッションで続けない（M-110-01）。
+        if (ACTIVE.get(player.getUUID()) != session) return;
+        if (!continues(player, data, session) || !data.upkeepHeld(session.upkeep)) { stop(player); return; }
         if (data.getOverload() < session.overloadKeep) data.setOverload(session.overloadKeep);
         var origin = player.position();
         var level = (ServerLevel) player.level();
@@ -119,6 +128,8 @@ public final class VecDeviation {
             float difficulty = EntityAffection.difficulty(entity);
             if (difficulty < 0) continue;
             data.consumeWithForce(ID, stopConsumption(exp), 0, creative);
+            // 対象を止めたtickは待機ではない。
+            data.upkeepActed(session.upkeep);
             if (entity instanceof LargeFireball fireball) {
                 int power = fireball.saveWithoutId(new CompoundTag()).getByte("ExplosionPower");
                 fireball.discard();
@@ -146,9 +157,13 @@ public final class VecDeviation {
     @SubscribeEvent public static void hurt(LivingHurtEvent event) {
         if (!(event.getEntity() instanceof ServerPlayer player) || !ACTIVE.containsKey(player.getUUID()) || event.getAmount() > 9999) return;
         var data = data(player);
-        if (data == null || data.isReadOnly()) return;
+        // 技能が外された（次のtickでモードが終わる前の被弾）なら何もしない。熟練度の加算は未習得を拒否する（M-110-02）。
+        if (data == null || data.isReadOnly() || !data.hasLearned(ID)) return;
         float exp = data.getProficiency(ID);
         data.consumeInMode(ID, Math.min(data.getCp(), stopConsumption(exp)), 0, player.getAbilities().instabuild);
+        // 被弾を軽減したtickは待機ではない。
+        var session = ACTIVE.get(player.getUUID());
+        if (session != null) data.upkeepActed(session.upkeep);
         data.addProficiency(ID, event.getAmount() * .0006f);
         event.setAmount(event.getAmount() * (1 - reduction(exp)));
         // 原作MSG_PLAY: 術者の立っている所で。原作の止めたエンティティの音は決して鳴らない（クライアントがサーバーにしか無い印を確かめるため）

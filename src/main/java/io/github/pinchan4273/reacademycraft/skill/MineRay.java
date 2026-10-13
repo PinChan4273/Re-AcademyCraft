@@ -121,7 +121,8 @@ public final class MineRay {
         if (session == null) return;
         var data = data(player);
         if (data == null || data.isReadOnly()) return;
-        data.setCooldown(session.variant.id(), session.variant.cooldown(session.exp));
+        // 習得していない技能（止める前にリスナーやカテゴリの変更が外した）にはクールダウンを書かない（M-110-02）。
+        if (data.hasLearned(session.variant.id())) data.setCooldown(session.variant.id(), session.variant.cooldown(session.exp));
     }
 
     public static boolean holding(ServerPlayer player) { return ACTIVE.containsKey(player.getUUID()); }

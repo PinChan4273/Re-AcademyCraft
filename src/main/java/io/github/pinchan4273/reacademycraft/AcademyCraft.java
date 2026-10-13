@@ -24,6 +24,8 @@ public final class AcademyCraft {
     public AcademyCraft(FMLJavaModLoadingContext context) {
         IEventBus modBus = context.getModEventBus();
         // 設定はワールドごとではなく、ゲームのインスタンスにつき1つのファイル（config/academy-common.toml）。
+        // 新しい容量の項目をForgeが足す前に、1.0.0のファイルを一度だけ写す（Forgeは足すときにバックアップを取らない）。
+        io.github.pinchan4273.reacademycraft.config.CapacityConfigMigration.backUpBeforeLoad(net.minecraftforge.fml.loading.FMLPaths.CONFIGDIR.get());
         context.registerConfig(net.minecraftforge.fml.config.ModConfig.Type.COMMON, io.github.pinchan4273.reacademycraft.config.AcademyConfig.SPEC,
                 io.github.pinchan4273.reacademycraft.config.AcademyConfig.FILE);
         modBus.addListener(io.github.pinchan4273.reacademycraft.network.AcademyRulesSync::rulesOnConfigReload);

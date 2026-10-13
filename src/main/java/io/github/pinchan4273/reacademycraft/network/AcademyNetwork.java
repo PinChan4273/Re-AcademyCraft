@@ -14,9 +14,11 @@ import net.minecraftforge.network.simple.SimpleChannel;
 public final class AcademyNetwork {
     /**
      * 通信の版。通知の並びが変わったら上げる。61: プリセットの編集を1操作ずつにし、金属成形・融合のレシピの並びを独自にした。
+     * 62: Storm Wingの推進の入力（StormWingInput）と状態の番号を足し、Light Shieldを押し続けからトグルにした（古いクライアントは
+     * 心拍とキーアップでLight Shieldを動かすので、新しいサーバーへ繋がせない）。
      * 版が違う相手とは、ログインの時点で接続を断る（古い通知を誤って読むところまで進ませない）。
      */
-    public static final String VERSION = "61";
+    public static final String VERSION = "62";
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             ResourceLocation.fromNamespaceAndPath("academy", "main"), () -> VERSION, AcademyNetwork::accepts, AcademyNetwork::accepts);
 
@@ -221,6 +223,9 @@ public final class AcademyNetwork {
                 .encoder(AcademyRulesSnapshot::encode).decoder(AcademyRulesSnapshot::decode)
                 .consumerMainThread((packet, context) -> DistExecutor.unsafeRunWhenOn(Dist.CLIENT,
                         () -> () -> io.github.pinchan4273.reacademycraft.client.ClientAcademyRules.receive(packet))).add();
+        CHANNEL.messageBuilder(StormWingInput.class, 49, NetworkDirection.PLAY_TO_SERVER)
+                .encoder(StormWingInput::encode).decoder(StormWingInput::decode)
+                .consumerMainThread((packet, context) -> packet.handle(context.get().getSender())).add();
     }
 
     public static void lightning(net.minecraft.server.level.ServerLevel level, net.minecraft.world.phys.Vec3 position) {

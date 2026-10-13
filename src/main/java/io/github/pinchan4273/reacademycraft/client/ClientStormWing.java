@@ -1,6 +1,8 @@
 package io.github.pinchan4273.reacademycraft.client;
 
 import io.github.pinchan4273.reacademycraft.capability.AbilityCapabilities;
+import io.github.pinchan4273.reacademycraft.network.AcademyNetwork;
+import io.github.pinchan4273.reacademycraft.network.StormWingInput;
 import io.github.pinchan4273.reacademycraft.network.StormWingState;
 import io.github.pinchan4273.reacademycraft.skill.StormWing;
 import net.minecraft.client.KeyMapping;
@@ -21,23 +23,77 @@ import net.minecraftforge.fml.common.Mod;
  * 落下速度を上向き0.1にし、無ければ重力に逆らって0.078を足す。発動すると、移動キーで方向を選ぶ（術者自身の
  * 前後左右で、ピッチを含む）。毎tick、速度の各軸を、その方向に原作の速さを掛けた値へ最大0.16ずつ近づける。
  * 最後に押したキーが優先され、離すと静止に戻る。風の音と粒子は移植していない。
+ *
+ * <p>推進しているか（方向キーを押しているか）は、変わるたびにサーバーへ伝える（{@link StormWingInput}）。サーバーは推進の費用を
+ * 払えないとき滞空だけを許し（stalled）、その間は方向キーで動かさない。画面を開いた・ウィンドウのフォーカスが外れたときは、
+ * 押していたキーを放したものとして推進をやめる。そのとき押していたキーは、離されたのを見るまで押下として数えない（{@link Keys}）。
  */
 @Mod.EventBusSubscriber(modid = "academy", value = Dist.CLIENT)
 public final class ClientStormWing {
     /** 原作ACCEL。 */
     public static final double ACCEL = .16;
-    private static int state = -1;
-    private static KeyMapping held;
-    private static Vec3 heldDirection;
-    private static final boolean[] DOWN = new boolean[4];
+    private static int state = -1, epoch;
+    private static boolean stalled, sentThrust;
+    /** 前・後・左・右の、術者自身の向きでの方向。 */
+    private static final Vec3[] LOCAL = { new Vec3(0, 0, 1), new Vec3(0, 0, -1), new Vec3(1, 0, 0), new Vec3(-1, 0, 0) };
+    private static final Keys KEYS = new Keys();
+
+    /**
+     * 方向キーの押下の状態機械。最後に押したキーが優先され、そのキーを離すと静止に戻る。
+     *
+     * <p>操作できない間（画面・フォーカスなし）は、押していたキーを放したものとする。そのとき押していたキーは、戻った後も
+     * 押されたままと報告される限り新しい押下として数えず、一度離されたのを見てから数える。フォーカスの外で離したキーの離しが
+     * 届かず押されたままに見えても、推進を勝手に再開しない。操作できない間に押していなかったキーは、戻ってすぐ効く。
+     */
+    public static final class Keys {
+        private final boolean[] down = new boolean[4], stale = new boolean[4];
+        private int held = -1;
+        /** 推進している方向（0前・1後・2左・3右）。無ければ-1。 */
+        public int held() { return held; }
+        /** モードの始まりと終わり: すべて離した状態から数え直す（始まったときに押しているキーは、すぐ推進する）。 */
+        public void reset() { held = -1; java.util.Arrays.fill(down, false); java.util.Arrays.fill(stale, false); }
+        /** 操作できないtick。 */
+        public void suspend() {
+            for (int i = 0; i < 4; i++) { stale[i] |= down[i]; down[i] = false; }
+            held = -1;
+        }
+        /** 操作できるtick: 各方向のキーが押されていると報告されているか。 */
+        public void read(boolean[] pressed) {
+            for (int i = 0; i < 4; i++) {
+                if (!pressed[i]) stale[i] = false;
+                boolean now = pressed[i] && !stale[i];
+                if (now && !down[i]) held = i;
+                else if (!now && down[i] && held == i) held = -1;
+                down[i] = now;
+            }
+        }
+    }
 
     private ClientStormWing() { }
     public static int state() { return state; }
     /** 飛んでいる方向のキー。無ければnull。原作の適用中のキーで、KeyHintが光らせる。 */
-    @javax.annotation.Nullable public static KeyMapping held() { return held; }
+    @javax.annotation.Nullable public static KeyMapping held() {
+        var options = Minecraft.getInstance().options;
+        return switch (KEYS.held()) { case 0 -> options.keyUp; case 1 -> options.keyDown; case 2 -> options.keyLeft; case 3 -> options.keyRight; default -> null; };
+    }
+    /** サーバーが伝えた今のモードの番号（推進の入力に付けて返す）。 */
+    public static int epoch() { return epoch; }
+    /** サーバーが推進を払えず、滞空だけを許しているか。 */
+    public static boolean stalled() { return stalled; }
     public static void receive(StormWingState packet) {
-        state = packet.state();
-        if (state != StormWing.ACTIVE_STATE) { held = null; heldDirection = null; java.util.Arrays.fill(DOWN, false); }
+        boolean fresh = packet.epoch() != epoch || state != StormWing.ACTIVE_STATE;
+        state = packet.state(); epoch = packet.epoch(); stalled = packet.stalled();
+        if (state != StormWing.ACTIVE_STATE) { release(); sentThrust = false; }
+        else if (fresh) { release(); sentThrust = false; send(); }
+    }
+    private static void release() { KEYS.reset(); }
+    private static boolean thrusting() { return KEYS.held() >= 0; }
+    /** 推進の入力が変わったらサーバーへ伝える。 */
+    private static void send() {
+        if (state != StormWing.ACTIVE_STATE || Minecraft.getInstance().getConnection() == null) return;
+        boolean thrust = thrusting();
+        AcademyNetwork.CHANNEL.sendToServer(new StormWingInput(epoch, thrust));
+        sentThrust = thrust;
     }
 
     private static double move(double from, double to, double limit) {
@@ -49,18 +105,14 @@ public final class ClientStormWing {
         if (event.phase != TickEvent.Phase.START || state < 0) return;
         var client = Minecraft.getInstance(); var player = client.player;
         if (player == null) return;
-        if (state == StormWing.ACTIVE_STATE && client.screen == null) {
+        if (state == StormWing.ACTIVE_STATE && (client.screen != null || !client.isWindowActive())) KEYS.suspend();
+        else if (state == StormWing.ACTIVE_STATE) {
             var options = client.options;
-            KeyMapping[] keys = { options.keyUp, options.keyDown, options.keyLeft, options.keyRight };
-            Vec3[] local = { new Vec3(0, 0, 1), new Vec3(0, 0, -1), new Vec3(1, 0, 0), new Vec3(-1, 0, 0) };
-            for (int i = 0; i < 4; i++) {
-                boolean down = keys[i].isDown();
-                if (down && !DOWN[i]) { held = keys[i]; heldDirection = local[i]; }
-                else if (!down && DOWN[i] && held == keys[i]) { held = null; heldDirection = null; }
-                DOWN[i] = down;
-            }
+            KEYS.read(new boolean[] { options.keyUp.isDown(), options.keyDown.isDown(), options.keyLeft.isDown(), options.keyRight.isDown() });
         }
-        if (heldDirection != null) {
+        if (state == StormWing.ACTIVE_STATE && thrusting() != sentThrust) send();
+        if (thrusting() && !stalled) {
+            var heldDirection = LOCAL[KEYS.held()];
             var data = player.getCapability(AbilityCapabilities.PLAYER_ABILITY).orElse(null);
             double speed = StormWing.speed(data == null ? 0 : data.getProficiency(StormWing.ID));
             var expected = StormWing.worldSpace(heldDirection, player.getYHeadRot(), player.getXRot()).scale(speed);
@@ -77,6 +129,6 @@ public final class ClientStormWing {
         player.fallDistance = 0;
     }
     @SubscribeEvent public static void loggedOut(ClientPlayerNetworkEvent.LoggingOut event) {
-        state = -1; held = null; heldDirection = null; java.util.Arrays.fill(DOWN, false);
+        state = -1; stalled = false; sentThrust = false; release();
     }
 }

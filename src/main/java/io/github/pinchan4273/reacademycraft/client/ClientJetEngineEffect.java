@@ -137,8 +137,14 @@ public final class ClientJetEngineEffect {
         }
         if (FLIGHTS.isEmpty()) return;
         // 原作は菱形の盾をalphaテストなしで描いた（LegacyAlphaShaders）。
-        RenderSystem.setShader(LegacyAlphaShaders::positionTexColor);
+        RenderSystem.setShader(LegacyAlphaShaders::worldPositionTexColor);
         RenderSystem.setShaderTexture(0, TEXTURE);
+        // シェーダーパックの間はMinecraftのシェーダー（alpha 0.1未満を捨てる）で描くので、盾の淡い外周がtexelの段差で切れ、斜めの輪郭が
+        // ギザギザになる（T178-01）。その間だけテクスチャを線形補間で読み、切れ目をtexelの境でなく滑らかな線にする。形・色・位置は変えない。
+        // 線形補間では、三角形の継ぎ目（テクスチャの端）で反対側の端の透明なtexelが混ざり細い線が出るので、その間は端で止める。
+        boolean smooth = ShaderPackCompat.inUse();
+        var texture = smooth ? client.getTextureManager().getTexture(TEXTURE) : null;
+        int[] before = texture == null ? null : smoothen(texture);
         RenderSystem.enableBlend(); RenderSystem.defaultBlendFunc(); RenderSystem.disableCull();
         // 原作は盾を深度テストなしで描く。1.20.1では、ここで明示的に切る必要がある。
         RenderSystem.disableDepthTest();
@@ -161,8 +167,35 @@ public final class ClientJetEngineEffect {
                     drawnTriangles += TRIANGLES.length / 3;
                 } finally { pose.popPose(); }
             }
-        } finally { RenderSystem.enableCull(); RenderSystem.enableDepthTest(); }
+        } finally {
+            RenderSystem.enableCull(); RenderSystem.enableDepthTest();
+            if (texture != null) restore(texture, before);
+        }
     }
+
+    /** {@link #smoothen}が読み書きするGLのテクスチャの値: 縮小・拡大の補間、横・縦のwrap。 */
+    private static final int[] SAMPLING = { org.lwjgl.opengl.GL11.GL_TEXTURE_MIN_FILTER, org.lwjgl.opengl.GL11.GL_TEXTURE_MAG_FILTER,
+            org.lwjgl.opengl.GL11.GL_TEXTURE_WRAP_S, org.lwjgl.opengl.GL11.GL_TEXTURE_WRAP_T };
+    /**
+     * テクスチャを線形補間・端で止めて読むようにし、変える前の値を返す（{@link #restore}へ渡す）。前の値はGLから読む:
+     * リソースパックの.mcmetaが指定した補間は、AbstractTextureの記録（setFilter・restoreLastBlurMipmap）を通らずにGLへ直接入るので、
+     * その記録へ戻すと失われる。AbstractTextureの記録には触れない。
+     */
+    public static int[] smoothen(net.minecraft.client.renderer.texture.AbstractTexture texture) {
+        texture.bind();
+        int[] before = new int[SAMPLING.length];
+        for (int i = 0; i < SAMPLING.length; i++) before[i] = org.lwjgl.opengl.GL11.glGetTexParameteri(org.lwjgl.opengl.GL11.GL_TEXTURE_2D, SAMPLING[i]);
+        int[] smooth = { org.lwjgl.opengl.GL11.GL_LINEAR, org.lwjgl.opengl.GL11.GL_LINEAR, org.lwjgl.opengl.GL12.GL_CLAMP_TO_EDGE, org.lwjgl.opengl.GL12.GL_CLAMP_TO_EDGE };
+        for (int i = 0; i < SAMPLING.length; i++) RenderSystem.texParameter(org.lwjgl.opengl.GL11.GL_TEXTURE_2D, SAMPLING[i], smooth[i]);
+        return before;
+    }
+    /** {@link #smoothen}が返した値へ、補間とwrapをそのまま戻す。 */
+    public static void restore(net.minecraft.client.renderer.texture.AbstractTexture texture, int[] before) {
+        texture.bind();
+        for (int i = 0; i < SAMPLING.length; i++) RenderSystem.texParameter(org.lwjgl.opengl.GL11.GL_TEXTURE_2D, SAMPLING[i], before[i]);
+    }
+    /** テスト用: 盾のテクスチャ。 */
+    public static net.minecraft.resources.ResourceLocation texture() { return TEXTURE; }
 
     private static void clear() { FLIGHTS.clear(); MARKS.clear(); }
     @SubscribeEvent public static void loggedOut(ClientPlayerNetworkEvent.LoggingOut event) { clear(); world = null; }

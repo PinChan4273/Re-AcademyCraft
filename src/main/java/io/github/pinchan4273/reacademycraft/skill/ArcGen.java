@@ -19,7 +19,8 @@ import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 
 /**
- * 原作ArcGen（LambdaInnovation、WeAthFolD・KSkun）。判定はサーバーで行い、コスト・射程・ダメージ・経験値・クールダウンは原作のもの。
+ * 原作ArcGen（LambdaInnovation、WeAthFolD・KSkun）。判定はサーバーで行い、コスト・射程・ダメージ・経験値・クールダウンは原作のもの
+ * （オーバーロードの終端だけ、1.1.0の基準値の偶数化で11から12）。
  */
 public final class ArcGen {
     public static final ResourceLocation ID = ResourceLocation.fromNamespaceAndPath("academy", "arc_gen");
@@ -27,6 +28,12 @@ public final class ArcGen {
     private static long nextPresentationSession;
     private ArcGen() {}
     public static float lerp(float from, float to, float progress) { return from + (to - from) * progress; }
+    /**
+     * 発動1回のCP（熟練度0%で30、100%で70）とオーバーロード（18から12）。Electron Bombも同じ式で払う（1.1.0、T178-11）。
+     * オーバーロードの終端は原作の11を、基準値を偶数にする方針（T178-12）で12にした。
+     */
+    public static float consumption(float exp) { return lerp(30, 70, exp); }
+    public static float overload(float exp) { return lerp(18, 12, exp); }
 
     /** 翻訳キーを返す。発動に成功したとき（外れを含む）は空。 */
     public static String cast(ServerPlayer player, PlayerAbilityData data) {
@@ -41,7 +48,7 @@ public final class ArcGen {
         // 入力パケットは任意の位置を要求したり、遠くのchunkを生成させたりできない。
         for (int i = 0; i <= Math.ceil(range); i++)
             if (!level.hasChunkAt(BlockPos.containing(start.add(direction.scale(Math.min(i, range)))))) return "academy.cast.unloaded";
-        if (!data.consume(ID, lerp(30, 70, exp), lerp(18, 11, exp), player.getAbilities().instabuild)) return "academy.cast.cp";
+        if (!data.consume(ID, consumption(exp), overload(exp), player.getAbilities().instabuild)) return "academy.cast.cp";
 
         // 原作blockFilter: 水（静止・流水）またはfilNormal（当たり判定の箱）。溶岩は電弧を止めない。
         var block = level.clip(new ClipContext(start, end, ClipContext.Block.COLLIDER, ClipContext.Fluid.WATER, player));

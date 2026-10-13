@@ -35,7 +35,7 @@ public final class ThunderBolt {
         if(data.getCooldown(ID)>0)return "academy.cast.cooldown";
         float exp=data.getProficiency(ID);var level=player.serverLevel();var start=player.getEyePosition();var direction=player.getLookAngle();var end=start.add(direction.scale(RANGE));
         for(int i=0;i<=RANGE;i++)if(!level.hasChunkAt(BlockPos.containing(start.add(direction.scale(i)))))return "academy.cast.unloaded";
-        if(!data.consume(ID, (int)ArcGen.lerp(280,420,exp),ArcGen.lerp(50,27,exp),player.getAbilities().instabuild))return "academy.cast.cp";
+        if(!data.consume(ID, (int)ArcGen.lerp(280,420,exp),ArcGen.lerp(50,28,exp),player.getAbilities().instabuild))return "academy.cast.cp";
         var block=level.clip(new ClipContext(start,end,ClipContext.Block.COLLIDER,ClipContext.Fluid.NONE,player));
         Vec3 impact=block.getType()==HitResult.Type.MISS?end:block.getLocation();double nearest=start.distanceToSqr(impact);Entity target=null;
         for(var entity:level.getEntities(player,player.getBoundingBox().expandTowards(direction.scale(RANGE)).inflate(1),e->e.isAlive()&&ProjectileHitSeam.hittable(e)&&!e.isSpectator())) {

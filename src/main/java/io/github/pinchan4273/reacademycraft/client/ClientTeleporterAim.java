@@ -186,13 +186,21 @@ public final class ClientTeleporterAim {
          * 位置・色・テクスチャだけを使い、ModelPartの他の頂点要素はbufferが読み飛ばす。
          */
         static final RenderType[] FIGURE = new RenderType[MARK_FRAMES];
+        /** シェーダーパックの間の同じ描画: position-tex-colourの頂点とMinecraftのシェーダー（ShaderPackCompat）。 */
+        static final RenderType[] FIGURE_PACK = new RenderType[MARK_FRAMES];
         static {
-            for (int i = 0; i < MARK_FRAMES; i++)
+            for (int i = 0; i < MARK_FRAMES; i++) {
                 FIGURE[i] = create("academy_tp_mark_" + i, DefaultVertexFormat.POSITION_COLOR_TEX, VertexFormat.Mode.QUADS, 256, false, true,
                         CompositeState.builder().setShaderState(POSITION_COLOR_TEX_SHADER)
                                 .setTextureState(new TextureStateShard(MARK_TEXTURES[i], false, false))
                                 .setTransparencyState(TRANSLUCENT_TRANSPARENCY).setCullState(NO_CULL)
                                 .setDepthTestState(NO_DEPTH_TEST).setWriteMaskState(COLOR_WRITE).createCompositeState(false));
+                FIGURE_PACK[i] = create("academy_tp_mark_pack_" + i, DefaultVertexFormat.POSITION_TEX_COLOR, VertexFormat.Mode.QUADS, 256, false, true,
+                        CompositeState.builder().setShaderState(new ShaderStateShard(net.minecraft.client.renderer.GameRenderer::getPositionTexColorShader))
+                                .setTextureState(new TextureStateShard(MARK_TEXTURES[i], false, false))
+                                .setTransparencyState(TRANSLUCENT_TRANSPARENCY).setCullState(NO_CULL)
+                                .setDepthTestState(NO_DEPTH_TEST).setWriteMaskState(COLOR_WRITE).createCompositeState(false));
+            }
         }
     }
     private static final MultiBufferSource.BufferSource BUFFERS = MultiBufferSource.immediate(new BufferBuilder(2048));
@@ -273,14 +281,17 @@ public final class ClientTeleporterAim {
         // 原作MarkRender: tp_markの(ticksExisted / 2.5) % 7番目の絵を、白、空きが無い所では赤で描く。
         int frame = (int) ((mark.age() / 2.5) % MARK_FRAMES);
         var at = previous.lerp(mark.position(), partial).subtract(camera);
-        var type = Types.FIGURE[frame];
+        boolean pack = ShaderPackCompat.inUse();
+        var type = pack ? Types.FIGURE_PACK[frame] : Types.FIGURE[frame];
         pose.pushPose();
         try {
             pose.translate(at.x, at.y, at.z);
             pose.mulPose(Axis.YP.rotationDegrees(-mark.yaw()));
             pose.scale(-1, -1, 1);
             float g = mark.available() ? 1 : .2f;
-            figure().renderToBuffer(pose, BUFFERS.getBuffer(type), 0xF000F0, OverlayTexture.NO_OVERLAY, 1, g, g, 1);
+            com.mojang.blaze3d.vertex.VertexConsumer buffer = BUFFERS.getBuffer(type);
+            if (pack) buffer = new ShaderPackCompat.TexColorOrder(buffer);
+            figure().renderToBuffer(pose, buffer, 0xF000F0, OverlayTexture.NO_OVERLAY, 1, g, g, 1);
             endBatch(type, true);
             figures++;
         } finally { pose.popPose(); }

@@ -76,7 +76,7 @@ public final class CurrentCharging {
         if (player.containerMenu != player.inventoryMenu) return "academy.cast.unlearned";
         if (ACTIVE.containsKey(player.getUUID())) return "";
         float exp = data.getProficiency(ID);
-        if (!data.consume(ID, 0, ArcGen.lerp(65, 48, exp), player.getAbilities().instabuild)) return "academy.cast.cp";
+        if (!data.consume(ID, 0, ArcGen.lerp(66, 48, exp), player.getAbilities().instabuild)) return "academy.cast.cp";
         var session = new Session(player, data, slot);
         ACTIVE.put(player.getUUID(), session); broadcast(session, true); return "";
     }

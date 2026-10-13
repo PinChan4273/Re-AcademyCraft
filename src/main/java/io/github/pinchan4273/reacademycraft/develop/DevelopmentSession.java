@@ -113,7 +113,7 @@ public final class DevelopmentSession {
             // 減らす前に解決する: 空になったスタックからはカテゴリが分からない。
             data().setAbility(AbilityCategory.byFactor(factor).id()); data().setLevel(1); data().recoverAfterDeath();
             factor.shrink(1); // 原作の完了はクリエイティブでも因子を消費する。
-        } else if (action == LEVEL_UP) data().setLevel(startingLevel + 1);
+        } else if (action == LEVEL_UP) data().advanceLevel(startingLevel + 1);
         else if (action == RESET) {
             // 原作onLearnedはまずTransformCategoryEventを送り、何も取り消さなかったときだけ、新しいカテゴリ（技能はすべて忘れる）、
             // 1つ下のレベル、手に持ったコイルと因子のスタック全体の消費を行う。

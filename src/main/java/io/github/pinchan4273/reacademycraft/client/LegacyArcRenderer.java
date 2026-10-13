@@ -34,6 +34,13 @@ public final class LegacyArcRenderer {
                         .setTextureState(new TextureStateShard(TEXTURE, false, false))
                         .setTransparencyState(TRANSLUCENT_TRANSPARENCY).setDepthTestState(LEQUAL_DEPTH_TEST)
                         .setCullState(NO_CULL).setWriteMaskState(COLOR_WRITE).createCompositeState(false));
+        /** シェーダーパックの間の同じ描画: position-tex-colourの頂点とMinecraftのシェーダー（ShaderPackCompat）。 */
+        private static final RenderType ARC_PACK = create("academy_legacy_arc_pack", DefaultVertexFormat.POSITION_TEX_COLOR,
+                VertexFormat.Mode.QUADS, LegacyArcMesh.MAX_VERTICES * 24, false, false,
+                CompositeState.builder().setShaderState(new ShaderStateShard(net.minecraft.client.renderer.GameRenderer::getPositionTexColorShader))
+                        .setTextureState(new TextureStateShard(TEXTURE, false, false))
+                        .setTransparencyState(TRANSLUCENT_TRANSPARENCY).setDepthTestState(LEQUAL_DEPTH_TEST)
+                        .setCullState(NO_CULL).setWriteMaskState(COLOR_WRITE).createCompositeState(false));
     }
 
     private LegacyArcRenderer() { }
@@ -55,14 +62,17 @@ public final class LegacyArcRenderer {
         float[] color = RenderSystem.getShaderColor().clone();
         try {
             RenderSystem.setShaderColor(1, 1, 1, 1);
-            var buffer = BUFFERS.getBuffer(Types.ARC);
+            boolean pack = ShaderPackCompat.inUse();
+            var type = pack ? Types.ARC_PACK : Types.ARC;
+            com.mojang.blaze3d.vertex.VertexConsumer buffer = BUFFERS.getBuffer(type);
+            if (pack) buffer = new ShaderPackCompat.TexColorOrder(buffer);
             Matrix4f matrix = pose.last().pose();
             for (var quad : mesh.quads()) {
                 float alpha = quad.alpha() * opacity;
                 vertex(buffer, matrix, quad.first(), alpha); vertex(buffer, matrix, quad.second(), alpha);
                 vertex(buffer, matrix, quad.third(), alpha); vertex(buffer, matrix, quad.fourth(), alpha);
             }
-            BUFFERS.endBatch(Types.ARC);
+            BUFFERS.endBatch(type);
         } finally {
             // RenderType.clearRenderStateはバニラの既定へ戻すもので、入ってきたときの任意の状態へは戻さない。
             RenderSystem.depthFunc(function); RenderSystem.depthMask(mask);

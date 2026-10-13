@@ -49,7 +49,7 @@ public final class BloodRetrograde {
     }
     public static float damage(float exp) { return ArcGen.lerp(30, 60, exp); }
     public static float consumption(float exp) { return ArcGen.lerp(280, 350, exp); }
-    public static float overload(float exp) { return ArcGen.lerp(55, 40, exp); }
+    public static float overload(float exp) { return ArcGen.lerp(56, 40, exp); }
 
     public static String start(ServerPlayer player, PlayerAbilityData data, int slot) {
         if (slot < 0 || slot >= 4 || !ID.equals(data.getSlot(data.getCurrentPreset(), slot))

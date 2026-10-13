@@ -64,7 +64,7 @@ public final class ClientVecAccelParabola {
         pose.pushPose();
         pose.translate(origin.x, origin.y, origin.z);
         // 原作は放物線をalphaテストなしで描いた（LegacyAlphaShaders）。
-        RenderSystem.setShader(LegacyAlphaShaders::positionTexColor);
+        RenderSystem.setShader(LegacyAlphaShaders::worldPositionTexColor);
         RenderSystem.setShaderTexture(0, TEXTURE);
         RenderSystem.enableBlend(); RenderSystem.defaultBlendFunc(); RenderSystem.disableCull();
         var m = pose.last().pose(); var buffer = Tesselator.getInstance().getBuilder();

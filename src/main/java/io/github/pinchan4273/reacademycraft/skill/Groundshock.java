@@ -66,7 +66,7 @@ public final class Groundshock {
     public static double energy(float exp) { return ArcGen.lerp(60, 120, exp); }
     public static float damage(float exp) { return ArcGen.lerp(4, 6, exp); }
     public static float consumption(float exp) { return ArcGen.lerp(80, 150, exp); }
-    public static float overload(float exp) { return ArcGen.lerp(15, 10, exp); }
+    public static float overload(float exp) { return ArcGen.lerp(16, 10, exp); }
     public static int steps(float exp) { return (int) ArcGen.lerp(10, 25, exp); }
     public static int cooldown(float exp) { return (int) ArcGen.lerp(80, 40, exp); }
     public static float dropRate(float exp) { return ArcGen.lerp(.3f, 1, exp); }

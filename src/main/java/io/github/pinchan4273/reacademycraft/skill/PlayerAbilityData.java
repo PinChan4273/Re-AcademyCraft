@@ -63,8 +63,11 @@ public final class PlayerAbilityData {
         net.minecraftforge.common.MinecraftForge.EVENT_BUS.post(calc);
         return Float.isFinite(calc.value) ? Math.max(0, calc.value) : value;
     }
-    /** 原作getInitCP / getInitOverload: レベルの値にコースのボーナスを加え、イベントを通したもの。 */
-    private float initialCp() { return calc(io.github.pinchan4273.reacademycraft.event.AbilityEvent.MaxCP::new, io.github.pinchan4273.reacademycraft.config.AcademyConfig.initCp(level) + GenericSkills.cpBonus(this)); }
+    /**
+     * 原作getInitCP / getInitOverload: レベルの値（オーバーロードはコースのボーナスを加える）をイベントに通したもの。
+     * 1.0.0の後の仕様では、コースは最大CPを増やさない（docs/CP_RECOVERY_TOGGLE_SPEC_JA.md）。
+     */
+    private float initialCp() { return calc(io.github.pinchan4273.reacademycraft.event.AbilityEvent.MaxCP::new, io.github.pinchan4273.reacademycraft.config.AcademyConfig.initCp(level)); }
     private float initialOverload() { return calc(io.github.pinchan4273.reacademycraft.event.AbilityEvent.MaxOverload::new, io.github.pinchan4273.reacademycraft.config.AcademyConfig.initOverload(level) + GenericSkills.overloadBonus(this)); }
 
     public @Nullable ResourceLocation getAbility() { return ability; }
@@ -110,6 +113,25 @@ public final class PlayerAbilityData {
         requireWritable();
         int next = hasAbility() ? Math.max(1, Math.min(5, value)) : 0;
         if (level != next) { level = next; levelExperience = 0; recalculateLimits(false); post(io.github.pinchan4273.reacademycraft.event.AbilityEvent.LevelChange::new); }
+    }
+
+    /**
+     * 通常の昇級（能力開発機のレベルアップ）。育てた最大CPを昇級で減らさない: 昇級後の最大CP = max(新レベルの基礎, 昇級直前の最大CP)、
+     * 新レベルの成長済みCP = 昇級後の最大CP − 新レベルの基礎（新レベルの成長枠まで）。成長分を新しい基礎へそのまま足すのではない。
+     * CPを満たし、オーバーロードとその成長を戻すのは従来の昇級のまま。上げないとき（同じ・下げる）はsetLevelと同じで、
+     * 降級・コマンドによるレベルの設定・カテゴリの変更にはこの規則を使わない。
+     */
+    public void advanceLevel(int value) {
+        requireWritable();
+        int next = hasAbility() ? Math.max(1, Math.min(5, value)) : 0;
+        if (next <= level) { setLevel(value); return; }
+        float before = maxCp;
+        level = next; levelExperience = 0;
+        recalculateLimits(false);
+        float base = maxCp;
+        bonusCp = Math.max(0, Math.min(io.github.pinchan4273.reacademycraft.config.AcademyConfig.addCp(level), before - base));
+        maxCp = base + bonusCp; cp = maxCp;
+        post(io.github.pinchan4273.reacademycraft.event.AbilityEvent.LevelChange::new);
     }
 
     public void setMaxCp(float value) {
@@ -232,19 +254,30 @@ public final class PlayerAbilityData {
      * 実際のゲームプレイでの獲得。原作addSkillExpは100%でも加工前の量を数える。
      * デバッグのsetProficiencyは、意図的にレベルの経験値を生まない。
      */
-    public void addProficiency(ResourceLocation skill, float amount) {
+    public void addProficiency(ResourceLocation skill, float amount) { gain(skill, amount, true); }
+    /**
+     * 熟練度だけの獲得（1.1.0、T178-10）: モードを待機のまま維持している間の微量。技能の熟練度だけを増やし、能力レベルの経験値は
+     * 増やさない（待機の放置でレベルが上がらないように）。それ以外（技能ごとの倍率、0〜1、イベント、読み取り専用・未習得・カテゴリの
+     * 拒否）はaddProficiencyと同じ。
+     */
+    public void addProficiencyOnly(ResourceLocation skill, float amount) { gain(skill, amount, false); }
+    private void gain(ResourceLocation skill, float amount, boolean progresses) {
         requireWritable(); requireNonnegativeFinite(amount);
-        SkillCatalog.Definition definition = SkillCatalog.find(skill);
-        if (definition == null || !definition.offeredTo(ability) || !hasLearned(skill) || GenericSkills.isPassive(skill))
-            throw new IllegalArgumentException("Unknown or unlearned gameplay skill");
+        if (!gainable(skill)) throw new IllegalArgumentException("Unknown or unlearned gameplay skill");
         amount = (float) (amount * io.github.pinchan4273.reacademycraft.config.AcademyConfig.skillExpSpeed(skill));
         skills.put(skill, (float) Math.min(1, (double) getProficiency(skill) + amount));
-        double progression = amount * io.github.pinchan4273.reacademycraft.config.AcademyConfig.progressionMultiplier(ability);
-        levelExperience = (float) Math.min(Float.MAX_VALUE, (double) levelExperience + progression);
+        if (progresses) {
+            double progression = amount * io.github.pinchan4273.reacademycraft.config.AcademyConfig.progressionMultiplier(ability);
+            levelExperience = (float) Math.min(Float.MAX_VALUE, (double) levelExperience + progression);
+        }
         final float added = amount;
         // 原作AbilityData.addSkillExpはSkillExpChangedEvent、次にSkillExpAddedEventを送る。
         post(p -> new io.github.pinchan4273.reacademycraft.event.AbilityEvent.SkillExpChanged(p, skill));
         post(p -> new io.github.pinchan4273.reacademycraft.event.AbilityEvent.SkillExpAdded(p, skill, added));
+    }
+    private boolean gainable(ResourceLocation skill) {
+        SkillCatalog.Definition definition = SkillCatalog.find(skill);
+        return definition != null && definition.offeredTo(ability) && hasLearned(skill) && !GenericSkills.isPassive(skill);
     }
     /**
      * 原作AbilityData.addSkillExpそのもの。まだ習得していない技能は、レベルや前提条件を確かめず（カテゴリが提供するかだけを確かめ）、
@@ -318,19 +351,28 @@ public final class PlayerAbilityData {
         // 設定の倍率と並ぶ倍率として、SkillAttackはSkillCombat.attack()でAcademyConfig.DAMAGE_SCALE（calc_global.damage_scale）の前に使う。
     }
 
-    /** 既定値と式は1.12.2のCPData/default.confと同じ。tickはサーバーでだけ行う。 */
+    /**
+     * tickはサーバーでだけ行う。オーバーロードの式は1.12.2のCPData/default.confと同じ。CPの回復は1.0.0の後に承認した定量
+     * （{@link #recovery}）。回復待ちの長さは習得した最上位のコースで決まる。
+     */
     public void tick() {
         if (readOnly || !hasAbility()) return;
         cooldowns.replaceAll((id, ticks) -> ticks - 1);
         cooldowns.values().removeIf(ticks -> ticks <= 0);
-        float rawCp = Math.max(0, maxCp - bonusCp);
         float rawOverload = Math.max(0, maxOverload - bonusOverload);
         if (overload == 0 && overloadRecoveryDelay == 0) overloadLocked = false;
         boolean waiting = cpRecoveryDelay > 0;
         if (waiting) cpRecoveryDelay--;
-        if (upkeeps.isEmpty()) { if (!waiting && rawCp > 0) cp = (float) Math.min(maxCp, cp + recovery(rawCp)); }
-        else settleUpkeep(rawCp, waiting);
+        float hover = -1;
+        if (upkeeps.isEmpty()) { if (!waiting && maxCp > 0) cp = (float) Math.min(maxCp, cp + recovery()); }
+        else hover = settleUpkeep(waiting);
         if (overloadRecoveryDelay > 0) overloadRecoveryDelay--;
+        else if (hover >= 0) {
+            // Storm Wingの推進しない滞空: 通常のオーバーロード回復の代わりに、滞空の回復（熟練度で2〜4/秒）。
+            overload = (float) Math.max(0, overload - io.github.pinchan4273.reacademycraft.config.AcademyConfig.OVERLOAD_RECOVER_SPEED_MULTIPLIER.get()
+                    * calc(io.github.pinchan4273.reacademycraft.event.AbilityEvent.OverloadRecoverSpeed::new, 1) * hover);
+            if (overload == 0) overloadLocked = false;
+        }
         else if (rawOverload > 0) {
             overload = (float) Math.max(0, overload - io.github.pinchan4273.reacademycraft.config.AcademyConfig.OVERLOAD_RECOVER_SPEED_MULTIPLIER.get()
                     * calc(io.github.pinchan4273.reacademycraft.event.AbilityEvent.OverloadRecoverSpeed::new, 1)
@@ -339,10 +381,15 @@ public final class PlayerAbilityData {
         }
     }
 
-    /** 最大値で切る前の、このtickの原作のCP回復: 待ちが無いときにもたらす量。 */
-    private double recovery(float rawCp) {
+    /**
+     * 最大値で切る前の、このtickのCP回復: 待ちが無いときにもたらす量。定量で、CPの残量にも容量にもよらない:
+     * (50 × 能力レベル + 50 × 習得したコース数) CP/秒 = 2.5 × (レベル + コース数) CP/tick（標準設定、20TPS）。
+     * 管理者の倍率とCPRecoverSpeedイベントは、その後で1回ずつ掛ける。
+     */
+    private double recovery() {
         return io.github.pinchan4273.reacademycraft.config.AcademyConfig.CP_RECOVER_SPEED_MULTIPLIER.get()
-                * calc(io.github.pinchan4273.reacademycraft.event.AbilityEvent.CPRecoverSpeed::new, 1) * GenericSkills.recoveryMultiplier(this) * 0.0003f * rawCp * (1 + cp / rawCp);
+                * calc(io.github.pinchan4273.reacademycraft.event.AbilityEvent.CPRecoverSpeed::new, 1)
+                * io.github.pinchan4273.reacademycraft.config.AcademyConfig.cpRecoveryPerTick(level, GenericSkills.courses(this));
     }
 
     /**
@@ -352,8 +399,24 @@ public final class PlayerAbilityData {
     public static final class Upkeep {
         private final ResourceLocation skill;
         private final java.util.function.BooleanSupplier exempt;
+        /** 前の精算から、このモードが行動した（攻撃・防御・反射・ワープ・推進）。次の精算で待機として扱わない。 */
+        private boolean acted;
+        /** 常に行動しているモード（Jet Engineは入力が無くても推進し、Body Intensifyのバフは常に効く）。待機にならない。 */
+        private boolean alwaysActing;
+        /** Storm Wing: 推進しない滞空で失うCPと、そのときのオーバーロードの回復（熟練度ごと、1tickあたり）。 */
+        private @Nullable java.util.function.DoubleUnaryOperator idleLoss, hoverRecovery;
+        /** このtickの精算が払い終えた維持の種類（{@link #upkeepEarn}が1回だけ受け取る）: 0は無し、1は待機、2は行動。 */
+        private int earned;
         private Upkeep(ResourceLocation skill, java.util.function.BooleanSupplier exempt) { this.skill = skill; this.exempt = exempt; }
         public ResourceLocation skill() { return skill; }
+        public Upkeep alwaysActing() { alwaysActing = true; return this; }
+        /**
+         * 滞空の資源（Storm Wing）: 待機中のCPは回復待ちに関係なく正味でidleLossずつ減り（熟練度100%で単独なら回復の一部が残る）、
+         * 行動中（推進）は回復を止める。推進そのものの費用は技能が払う。待機中はオーバーロードがhoverRecoveryずつ回復する。
+         */
+        public Upkeep flight(java.util.function.DoubleUnaryOperator idleLoss, java.util.function.DoubleUnaryOperator hoverRecovery) {
+            this.idleLoss = idleLoss; this.hoverRecovery = hoverRecovery; return this;
+        }
     }
     /** このデータが置き換えられた、または能力が変わった回数: リスナーがどちらかを行った精算は止まる。 */
     private int loads;
@@ -373,39 +436,80 @@ public final class PlayerAbilityData {
     public boolean upkeepHeld(@Nullable Upkeep upkeep) { return upkeep != null && upkeeps.get(upkeep.skill) == upkeep; }
     /** この要求だけを終える: 古いセッションの遅れた停止は、新しいセッションの要求に手を出さない。 */
     public void endUpkeep(@Nullable Upkeep upkeep) { if (upkeepHeld(upkeep)) upkeeps.remove(upkeep.skill); }
+    /** このモードがこのtickに行動した（攻撃・防御・反射・ワープ・推進）: 次の精算は待機の特典を与えない。 */
+    public void upkeepActed(@Nullable Upkeep upkeep) { if (upkeepHeld(upkeep)) upkeep.acted = true; }
     public int upkeepCount() { return upkeeps.size(); }
 
     /**
-     * 維持コストの取り決め: このtickに待ち無しでもたらされる回復Rを1回求める。各モードはSkillPerformを通して
-     * cp_consume_speed * (R + E * (1 - 熟練度))を払い、待ちが回復を止めている間もRを代わりに使う。CPと与えられた回復ですべてを
-     * 払えないときは、払えるまで新しいモードから外れる。残りは1つの差分として精算するので、熟練度最大のモード1つだけならCPは
-     * 満タンかどうかに関わらず元の値のまま。どちらの回復待ちも動かさない。
+     * 維持による熟練度（1.1.0、T178-10、TRIAL_DEFAULT）。20 tick/秒で、待機は+0.004パーセントポイント/秒、行動（推進・バフ・吸収・
+     * 射撃などの効果を出したtick、常に行動するモード）は+0.020パーセントポイント/秒。効果ごとの成功の熟練度は各技能がこれとは別に与える。
      */
-    private void settleUpkeep(float rawCp, boolean waiting) {
-        double recovered = rawCp > 0 ? recovery(rawCp) : 0;
+    public static final float HOLD_IDLE_PROFICIENCY = 2e-6f, HOLD_ACTING_PROFICIENCY = 1e-5f;
+    /**
+     * モードがこのtickも続くと確かめた後で技能が呼ぶ: このtickの始めの精算が払い終えた維持に応じて、熟練度を1回だけ与える。
+     * 待機はaddProficiencyOnly（能力レベルの経験値なし）、行動はaddProficiency。精算されなかった（払えず外れた、まだ精算前、
+     * 同じtickに2度目）ものや、能力がオフ・妨害中は何も与えない。技能が先に終わったtickの分は捨てる。オーバーロードは多くのモードを
+     * 止めるので、その後は与えない。自身の起動のオーバーロードで止まらずに続くモード（原作どおりのVector Reflectionなど）は、
+     * 効果を出し続けている間は与える。
+     */
+    public void upkeepEarn(@Nullable Upkeep upkeep) {
+        if (!upkeepHeld(upkeep)) return;
+        int earned = upkeep.earned; upkeep.earned = 0;
+        if (earned == 0 || readOnly || !hasAbility() || !active || interfering || !gainable(upkeep.skill)) return;
+        if (earned == 2) gain(upkeep.skill, HOLD_ACTING_PROFICIENCY, true);
+        else if (getProficiency(upkeep.skill) < 1) gain(upkeep.skill, HOLD_IDLE_PROFICIENCY, false);
+    }
+
+    /**
+     * 維持コストの取り決め（docs/CP_RECOVERY_TOGGLE_SPEC_JA.md）: このtickに待ち無しでもたらされる回復Rと、実際に与える回復G
+     * （待ち中は0）を1回だけ求める。各モードはSkillPerformを通してcp_consume_speed倍の次の額を払う。
+     * <ul>
+     * <li>熟練度100%のモード1つだけで、前のtickに行動していない（待機）: (1 − idle_recovery_share) × G。正味で回復の半分が残る。</li>
+     * <li>滞空（Storm Wing）: G + 待機ならidleLoss。正味で待機は−idleLoss、推進中は回復が止まる（推進の費用は技能が払う）。
+     * 他のモードと同時でもこの専用の費用で払い、1.0.0の維持費を重ねない（仕様書5.3、ユーザー判断A）。</li>
+     * <li>それ以外（Storm Wing以外のモードが、行動中・100%未満・複数同時）: 1.0.0の契約のまま R + E × (1 − 熟練度)。待ちが回復を止めている間もRを使う。</li>
+     * </ul>
+     * CPと与えられた回復ですべてを払えないときは、払えるまで新しいモードから外れる。残りは1つの差分として精算する。
+     * どちらの回復待ちも動かさない。戻り値は推進しない滞空でのオーバーロードの回復（1tickあたり）、滞空が無ければ−1。
+     */
+    private float settleUpkeep(boolean waiting) {
+        double recovered = maxCp > 0 ? recovery() : 0;
         // リスナーの有限の倍率でも、回復がfloatの範囲を超えることがある。その場合は要求の無い回復と同じくCPを最大まで満たし、
         // コストは標準の割合を取る。
         boolean overflow = !(recovered <= Float.MAX_VALUE);
         float potential = overflow ? 0 : (float) recovered;
         float granted = waiting ? 0 : overflow ? maxCp : potential;
-        // 回復が止まっている（倍率、イベント、またはCPがまったく無い）と熟練度最大がただになってしまう: 代わりに標準の回復を課し、
+        // 回復が止まっている（倍率、イベント）と、1.0.0の契約の熟練度最大がただになってしまう: 代わりに標準の回復を課し、
         // それも0なら1tickに1を課す。
-        float basis = potential > 0 ? potential : rawCp > 0 ? (float) (0.0003f * rawCp * (1 + cp / rawCp)) : 1;
+        float standard = (float) io.github.pinchan4273.reacademycraft.config.AcademyConfig.cpRecoveryPerTick(level, GenericSkills.courses(this));
+        float basis = potential > 0 ? potential : standard > 0 ? standard : 1;
         int loads = this.loads;
         var order = new java.util.ArrayList<>(upkeeps.values());
+        boolean alone = order.size() == 1;
+        float hover = -1;
         float[] cost = new float[order.size()];
+        boolean[] idles = new boolean[order.size()];
         for (int i = 0; i < order.size(); i++) {
             var upkeep = order.get(i);
+            boolean idle = !upkeep.acted && !upkeep.alwaysActing;
+            idles[i] = idle;
+            upkeep.acted = false; upkeep.earned = 0;
             if (!active || !hasLearned(upkeep.skill)) { endUpkeep(upkeep); continue; }
+            float proficiency = getProficiency(upkeep.skill);
+            if (idle && upkeep.hoverRecovery != null) hover = Math.max(hover, (float) upkeep.hoverRecovery.applyAsDouble(proficiency));
             if (upkeep.exempt.getAsBoolean()) continue;
-            float extra = io.github.pinchan4273.reacademycraft.config.AcademyConfig.toggleUpkeep(upkeep.skill) * (1 - getProficiency(upkeep.skill));
-            cost[i] = perform(cpFor(upkeep.skill, basis + extra), 0)[0];
+            float due;
+            // 熟練度100%は保存された値そのもので判定する（表示の丸めで100%に見える値は含めない）。
+            if (idle && alone && proficiency >= 1) due = (1 - io.github.pinchan4273.reacademycraft.config.AcademyConfig.idleRecoveryShare()) * granted;
+            else if (upkeep.idleLoss != null) due = granted + (idle ? (float) upkeep.idleLoss.applyAsDouble(proficiency) : 0);
+            else due = basis + io.github.pinchan4273.reacademycraft.config.AcademyConfig.toggleUpkeep(upkeep.skill) * (1 - proficiency);
+            cost[i] = perform(cpFor(upkeep.skill, due), 0)[0];
             // SkillPerformは他の者が聞き、その間に何をしてもよい: 下を参照。
             if (loads != this.loads || readOnly || !hasAbility()) break;
         }
         // リスナーが残したもの: リスナーが読み込んだ、または能力を変えたデータは、この精算が書くものではない。リスナーが能力をオフにしたら、
         // すべての要求を払わずに終える。リスナーが終えた要求は課さない。
-        if (loads != this.loads || readOnly || !hasAbility()) return;
+        if (loads != this.loads || readOnly || !hasAbility()) return -1;
         if (!active) upkeeps.clear();
         double total = 0;
         for (int i = 0; i < order.size(); i++) if (upkeepHeld(order.get(i))) total += cost[i];
@@ -414,6 +518,9 @@ public final class PlayerAbilityData {
             if (cost[i] > 0 && upkeepHeld(order.get(i))) { endUpkeep(order.get(i)); total -= cost[i]; }
         double change = granted - total;
         if (Double.isFinite(change)) cp = (float) Math.max(0, Math.min(maxCp, cp + change));
+        // 払い終えた維持だけが、このtickの維持の熟練度を受け取れる（技能が続くと確かめてからupkeepEarnで）。
+        for (int i = 0; i < order.size(); i++) if (upkeepHeld(order.get(i))) order.get(i).earned = idles[i] ? 1 : 2;
+        return hover;
     }
 
     /**
@@ -427,7 +534,7 @@ public final class PlayerAbilityData {
         if (readOnly || !hasAbility()) return;
         if (!creative) {
             overload = Math.min(maxOverload, overload + cost);
-            overloadRecoveryDelay = io.github.pinchan4273.reacademycraft.config.AcademyConfig.overloadRecoverCooldown();
+            overloadRecoveryDelay = io.github.pinchan4273.reacademycraft.config.AcademyConfig.overloadRecoverCooldown(GenericSkills.topCourse(this));
             if (overload >= maxOverload && !overloadLocked) { overloadLocked = true; post(io.github.pinchan4273.reacademycraft.event.AbilityEvent.Overload::new); }
         }
         float overloadIncrease = Math.max(0, Math.min(io.github.pinchan4273.reacademycraft.config.AcademyConfig.addOverload(level) - bonusOverload,
@@ -497,8 +604,9 @@ public final class PlayerAbilityData {
     private void charge(float cpCost, float overloadCost, boolean creative) {
         if (!creative) {
             cp = Math.max(0, cp - cpCost); overload = Math.min(maxOverload, overload + overloadCost);
-            cpRecoveryDelay = io.github.pinchan4273.reacademycraft.config.AcademyConfig.cpRecoverCooldown();
-            overloadRecoveryDelay = io.github.pinchan4273.reacademycraft.config.AcademyConfig.overloadRecoverCooldown();
+            int course = GenericSkills.topCourse(this);
+            cpRecoveryDelay = io.github.pinchan4273.reacademycraft.config.AcademyConfig.cpRecoverCooldown(course);
+            overloadRecoveryDelay = io.github.pinchan4273.reacademycraft.config.AcademyConfig.overloadRecoverCooldown(course);
             if (overload >= maxOverload && !overloadLocked) { overloadLocked = true; post(io.github.pinchan4273.reacademycraft.event.AbilityEvent.Overload::new); }
         }
         float cpIncrease = Math.max(0, Math.min(io.github.pinchan4273.reacademycraft.config.AcademyConfig.addCp(level) - bonusCp,
@@ -532,6 +640,7 @@ public final class PlayerAbilityData {
         cpPart.putFloat(CUR_OVERLOAD, overload); cpPart.putFloat(MAX_OVERLOAD, maxOverload); cpPart.putFloat(ADD_MAX_OVERLOAD, bonusOverload);
         cpPart.putBoolean(OVERLOAD_FINE, !overloadLocked);
         cpPart.putInt(UNTIL_RECOVER, cpRecoveryDelay); cpPart.putInt(UNTIL_OVERLOAD_RECOVER, overloadRecoveryDelay);
+        cpPart.putInt(CP_MODEL, CURRENT_CP_MODEL);
 
         CompoundTag presetPart = section(tag, PRESET);
         presetPart.putInt(PRESET_ID, currentPreset);
@@ -608,6 +717,24 @@ public final class PlayerAbilityData {
                 if (skill != null && skills.containsKey(skill) && !GenericSkills.isPassive(skill)) presets[p][s] = skill;
             }
         }
+        if (hasAbility() && !(cpPart.contains(CP_MODEL, Tag.TAG_INT) && cpPart.getInt(CP_MODEL) >= CURRENT_CP_MODEL)) migrateCapacity(cpPart);
+    }
+
+    /**
+     * 1.0.0（と1.0.0の後の試遊候補）のセーブの最大CPを、新しい容量へ一度だけ移す（CPDataにCP_MODELが無いデータ）。
+     * 1.0.0の標準の式（旧init_cp + コースのボーナス + 使用による成長）どおりのデータは、コースのボーナスを除いた容量（育てた容量）を
+     * 昇級と同じ規則で引き継ぐ: 新しい最大 = 新しい基礎と新しい上限（基礎 + 成長枠）の間に収めた値、成長済み = 最大 − 基礎。
+     * コースのボーナスは回復へ置き換わったので、容量には二重に残さない。式に合わない最大CP（外部mod・管理者・コマンドによる特殊な値）は
+     * 標準のものとみなさず、そのまま保つ（次に再計算されるときの扱いは1.0.0と同じ）。現在のCPは新しい最大を超えない限り変えない。
+     * 移すのは読み込んだ値からの純粋な計算なので、同じデータを何度読んでも同じ結果になる。保存するとCP_MODELが付き、二度と移さない。
+     */
+    private void migrateCapacity(CompoundTag cpPart) {
+        float savedGrowth = readNonnegativeFinite(cpPart, ADD_MAX_CP, 0), courseBonus = GenericSkills.legacyCpBonus(this);
+        float legacyMax = io.github.pinchan4273.reacademycraft.config.AcademyConfig.legacyInitCp(level) + courseBonus + savedGrowth;
+        if (Math.abs(maxCp - legacyMax) > Math.max(.01f, legacyMax * 1e-5f)) return;
+        float base = initialCp(), grown = maxCp - courseBonus;
+        float carried = Math.max(base, Math.min(base + io.github.pinchan4273.reacademycraft.config.AcademyConfig.addCp(level), grown));
+        bonusCp = carried - base; maxCp = carried; cp = Math.min(cp, maxCp);
     }
 
     /**

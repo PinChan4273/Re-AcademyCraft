@@ -25,7 +25,7 @@ public final class SyncedAcademyRules {
     }
     public static float initCp(int level) {
         var rules = current;
-        return rules == null ? AcademyConfig.LEGACY_INIT_CP.get(band(level)).floatValue() : rules.initCp().get(band(level));
+        return rules == null ? AcademyConfig.DEFAULT_BASE_CP.get(band(level)).floatValue() : rules.initCp().get(band(level));
     }
     public static float initOverload(int level) {
         var rules = current;

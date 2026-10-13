@@ -57,7 +57,7 @@ public final class Flashing {
         return player.isAlive() && data != null && !data.isReadOnly() && data.isActive()
                 && AbilityCategory.TELEPORTER.id().equals(data.getAbility()) && data.hasLearned(ID);
     }
-    public static float consumption(float exp) { return ArcGen.lerp(13, 6, exp); }
+    public static float consumption(float exp) { return ArcGen.lerp(14, 6, exp); }
     public static float startConsumption(float exp) { return ArcGen.lerp(80, 60, exp); }
     public static float startOverload(float exp) { return ArcGen.lerp(250, 180, exp); }
     /** このスロットからオンにしたモードが動いたtick数。そこからオンでなければ-1。 */
@@ -112,6 +112,8 @@ public final class Flashing {
         var target = TPSkillHelper.permit(player, destination(player, direction, session.exp));
         if (target == null) return;
         if (!data.consume(ID, consumption(session.exp), 0, player.getAbilities().instabuild)) return;
+        // 瞬間移動したtickは待機ではない。
+        data.upkeepActed(session.upkeep);
         TPSkillHelper.teleport(player, target);
         data.addProficiency(ID, .002f);
         TPSkillHelper.incrTPCount(player);
@@ -165,7 +167,8 @@ public final class Flashing {
         if (session == null) return;
         var data = data(player);
         if (data != null) data.endUpkeep(session.upkeep);
-        if (data != null && !data.isReadOnly()) data.setCooldown(ID, cooldown(session.exp));
+        // 習得していない技能（止める前にリスナーやカテゴリの変更が外した）にはクールダウンを書かない（M-110-02）。
+        if (data != null && !data.isReadOnly() && data.hasLearned(ID)) data.setCooldown(ID, cooldown(session.exp));
         send(player, false, false);
         if (data != null) AbilitySyncEvents.sync(player, true);
     }
@@ -175,16 +178,25 @@ public final class Flashing {
                 new FlashingState(active, flashed));
     }
 
+    /** このtickもモードを続けてよいか（tickの始めと、熟練度のイベントの後に確かめる）。 */
+    private static boolean continues(ServerPlayer player, PlayerAbilityData data, Session session) {
+        return data != null && allowed(player, data) && !(session.level != player.level() || data.getCurrentPreset() != session.preset
+                || !ID.equals(data.getSlot(session.preset, session.slot)));
+    }
     private static void tick(ServerPlayer player) {
         var session = ACTIVE.get(player.getUUID());
         if (session == null) return;
         var data = data(player);
-        if (!allowed(player, data) || session.level != player.level() || data.getCurrentPreset() != session.preset
-                || !ID.equals(data.getSlot(session.preset, session.slot))) { stop(player); return; }
+        if (!continues(player, data, session)) { stop(player); return; }
         // 原作serverTick: モードの間オーバーロードは回復しない。原作はmax_timeまで続いた。ここでは、このtickの始めに精算した
         // 維持コストを払えた間続く。
         if (data.getOverload() < session.overloadKeep) data.setOverload(session.overloadKeep);
         if (!data.upkeepHeld(session.upkeep)) { stop(player); return; }
+        data.upkeepEarn(session.upkeep);
+        // 熟練度のイベントのリスナーが、モードを終えた・置き換えた・続けられなくした（能力、スロット、プリセット）かもしれない:
+        // このtickを古いセッションで続けない（M-110-01）。
+        if (ACTIVE.get(player.getUUID()) != session) return;
+        if (!continues(player, data, session) || !data.upkeepHeld(session.upkeep)) { stop(player); return; }
         session.ticks++;
     }
     /** テスト用の入口: モードのサーバー1tick分。 */

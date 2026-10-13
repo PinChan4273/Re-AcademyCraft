@@ -34,6 +34,12 @@ public final class AbilityDataSchema {
     public static final String OVERLOAD_FINE = "overloadFine";
     public static final String UNTIL_RECOVER = "untilRecover";
     public static final String UNTIL_OVERLOAD_RECOVER = "untilOverloadRecover";
+    /**
+     * CPの容量の規則の版（このmodの付記）。無いデータは1.0.0の規則（コースが最大CPを増やす）で保存されたもので、読むときに一度だけ
+     * 新しい容量へ移す（PlayerAbilityData.migrateCapacity）。schemaの版とは別: 1.0.0が読んでも知らないキーとして残る。
+     */
+    public static final String CP_MODEL = "capacityModel";
+    public static final int CURRENT_CP_MODEL = 2;
 
     public static final String PRESET = "PresetData";
     public static final String PRESET_ID = "presetID";

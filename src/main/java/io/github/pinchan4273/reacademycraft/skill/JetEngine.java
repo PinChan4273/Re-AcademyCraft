@@ -108,8 +108,9 @@ public final class JetEngine {
         }
         ACTIVE.put(player.getUUID(), session);
         session.upkeep = data.startUpkeep(ID, () -> player.getAbilities().instabuild);
+        // ON中はずっと推進するので、入力が無くても待機にならない（無料の待機にはしない）。
+        if (session.upkeep != null) session.upkeep.alwaysActing();
         lendFlight(player, session);
-        data.addProficiency(ID, .004f);
         io.github.pinchan4273.reacademycraft.network.SkillModeState.send(player, ID, true);
         // 原作はコンテキストを持つすべてのクライアントへMSG_TRIGGERを送るので、ダイヤ形の盾とその粒子は術者だけでなく近くの全員に見える。
         // ここでは推進している間ずっと。
@@ -137,7 +138,8 @@ public final class JetEngine {
         var data = data(player);
         if (data != null) data.endUpkeep(session.upkeep);
         if (data != null && !data.isReadOnly()) {
-            data.setCooldown(ID, session.cooldown());
+            // 習得していない技能（止める前にリスナーやカテゴリの変更が外した）にはクールダウンを書かない（M-110-02）。
+            if (data.hasLearned(ID)) data.setCooldown(ID, session.cooldown());
             AbilitySyncEvents.sync(player, true);
         }
     }
@@ -174,16 +176,26 @@ public final class JetEngine {
         return session == null ? 0 : session.lastHit.size();
     }
 
+    /** このtickもモードを続けてよいか（tickの始めと、熟練度のイベントの後に確かめる）。 */
+    private static boolean continues(ServerPlayer player, PlayerAbilityData data, Session session) {
+        return data != null && allowed(player, data) && !(session.level != player.level()
+                || data.getCurrentPreset() != session.preset
+                || !ID.equals(data.getSlot(session.preset, session.slot))
+                || data.isInterfering());
+    }
     private static void tick(ServerPlayer player) {
         var session = ACTIVE.get(player.getUUID());
         if (session == null) return;
         var data = data(player);
-        if (!allowed(player, data) || session.level != player.level()
-                || data.getCurrentPreset() != session.preset
-                || !ID.equals(data.getSlot(session.preset, session.slot))
-                || data.isInterfering()) { stop(player); return; }
+        if (!continues(player, data, session)) { stop(player); return; }
         // 維持コストはこのtickの始めに精算済み。払えなかった要求は外れている。
         if (!data.upkeepHeld(session.upkeep)) { stop(player); return; }
+        // 推進を続けている時間の熟練度（1.1.0、T178-10）。オンにした瞬間の+0.004は廃止した。
+        data.upkeepEarn(session.upkeep);
+        // 熟練度のイベントのリスナーが、モードを終えた・置き換えた・続けられなくした（能力、スロット、プリセット）かもしれない:
+        // このtickを古いセッションで続けない（M-110-01）。
+        if (ACTIVE.get(player.getUUID()) != session) return;
+        if (!continues(player, data, session) || !data.upkeepHeld(session.upkeep)) { stop(player); return; }
         lendFlight(player, session);
         session.ticks++;
         session.lastHit.values().removeIf(at -> session.ticks - at >= HIT_INTERVAL);

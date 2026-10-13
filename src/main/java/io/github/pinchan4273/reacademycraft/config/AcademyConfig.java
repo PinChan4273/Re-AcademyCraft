@@ -32,6 +32,23 @@ public final class AcademyConfig {
     public static final ForgeConfigSpec.DoubleValue MAXCP_INCR_RATE, MAXO_INCR_RATE;
     public static final ForgeConfigSpec.ConfigValue<List<? extends Double>> INIT_CP, ADD_CP, INIT_OVERLOAD, ADD_OVERLOAD;
     /**
+     * 1.0.0の後に承認されたCPの容量と回復（docs/CP_RECOVERY_TOGGLE_SPEC_JA.md）。旧項目のinit_cp・add_cp・cp_recover_cooldown・
+     * overload_recover_cooldownは、既存のファイルの値を消さないよう残すが、もう読まない（init_cpだけは1.0.0のセーブの容量を移すときに読む）。
+     * 読まないことはCapacityConfigMigrationがサーバーの起動時にログで知らせる。
+     */
+    public static final ForgeConfigSpec.ConfigValue<List<? extends Double>> BASE_CP, GROWTH_CP;
+    public static final ForgeConfigSpec.DoubleValue CP_RECOVER_PER_LEVEL, CP_RECOVER_PER_COURSE, IDLE_RECOVERY_SHARE;
+    public static final ForgeConfigSpec.ConfigValue<List<? extends Integer>> CP_RECOVER_WAIT_BY_COURSE, OVERLOAD_RECOVER_WAIT_BY_COURSE;
+    public static final List<Double> DEFAULT_BASE_CP = List.of(1500d, 1500d, 3000d, 6000d, 9000d, 12000d),
+            DEFAULT_GROWTH_CP = List.of(1500d, 1500d, 3000d, 6000d, 9000d, 12000d);
+    /** 習得した最上位のコース（なし・ブレイン・アドバンスド・マインド）ごとの回復待ち。試遊用の初期値。 */
+    public static final List<Integer> DEFAULT_CP_RECOVER_WAIT = List.of(15, 12, 9, 5), DEFAULT_OVERLOAD_RECOVER_WAIT = List.of(20, 16, 12, 8);
+    /** Storm Wingの滞空と推進（熟練度0%と100%の値。間は線形）。 */
+    public static final ForgeConfigSpec.DoubleValue STORM_WING_IDLE_CP;
+    public static final ForgeConfigSpec.ConfigValue<List<? extends Double>> STORM_WING_THRUST_CP, STORM_WING_THRUST_OVERLOAD, STORM_WING_IDLE_OVERLOAD_RECOVERY;
+    public static final List<Double> DEFAULT_STORM_WING_THRUST_CP = List.of(120d, 40d), DEFAULT_STORM_WING_THRUST_OVERLOAD = List.of(3d, 1d),
+            DEFAULT_STORM_WING_IDLE_OVERLOAD_RECOVERY = List.of(2d, 4d);
+    /**
      * 原作default.confのac.ability.category.<category>.common.prog_incr_rate。ただし電撃使いは従来どおり
      * skills.electromaster.experience_multiplier。
      */
@@ -50,7 +67,7 @@ public final class AcademyConfig {
      * それを持たなかったBody Intensifyは10。
      */
     public static final java.util.Map<String, Double> DEFAULT_TOGGLE_UPKEEP = defaults("body_intensify", 10d, "electron_missile", 12d,
-            "jet_engine", 8d, "flashing", 4d, "vec_deviation", 18d, "vec_reflection", 15d, "storm_wing", 40d);
+            "jet_engine", 8d, "flashing", 4d, "vec_deviation", 18d, "vec_reflection", 15d, "storm_wing", 40d, "light_shield", 9d);
     public static final java.util.Map<String, ForgeConfigSpec.DoubleValue> TOGGLE_UPKEEP = new java.util.LinkedHashMap<>();
     public static final List<Integer> DEFAULT_BODY_WARMUP = List.of(20, 15, 10, 5, 2);
     public static final ForgeConfigSpec.ConfigValue<List<? extends Integer>> BODY_WARMUP_TICKS;
@@ -119,14 +136,39 @@ public final class AcademyConfig {
         b.pop(2);
         b.comment("AcademyCraft 1.12.2's default.conf values; the defaults here are legacy's.").push("ability");
         b.push("data");
-        CP_RECOVER_COOLDOWN = b.comment("Ticks after spending CP before it starts to come back.").defineInRange("cp_recover_cooldown", 15, 0, MAX_RECOVER_COOLDOWN);
-        OVERLOAD_RECOVER_COOLDOWN = b.comment("Ticks after overloading before overload starts to fall.").defineInRange("overload_recover_cooldown", 32, 0, MAX_RECOVER_COOLDOWN);
-        MAXCP_INCR_RATE = b.comment("Maximum CP gained per CP spent, up to add_cp for the level.").defineInRange("maxcp_incr_rate", 0.0025, 0.0, 10.0);
+        CP_RECOVER_COOLDOWN = b.comment("No longer used: replaced by ability.capacity.cp_recover_wait_by_course. Kept so a value set here is not lost.")
+                .defineInRange("cp_recover_cooldown", 15, 0, MAX_RECOVER_COOLDOWN);
+        OVERLOAD_RECOVER_COOLDOWN = b.comment("No longer used: replaced by ability.capacity.overload_recover_wait_by_course. Kept so a value set here is not lost.")
+                .defineInRange("overload_recover_cooldown", 32, 0, MAX_RECOVER_COOLDOWN);
+        MAXCP_INCR_RATE = b.comment("Maximum CP gained per CP spent, up to ability.capacity.growth_cp for the level.").defineInRange("maxcp_incr_rate", 0.0025, 0.0, 10.0);
         MAXO_INCR_RATE = b.comment("Maximum overload gained per overload taken, up to add_overload for the level.").defineInRange("maxo_incr_rate", 0.0058, 0.0, 10.0);
-        INIT_CP = b.comment("Initial maximum CP for levels 0 to 5.").defineList("init_cp", LEGACY_INIT_CP, AcademyConfig::levelValue);
-        ADD_CP = b.comment("Most maximum CP use can add, for levels 0 to 5.").defineList("add_cp", LEGACY_ADD_CP, AcademyConfig::levelValue);
+        INIT_CP = b.comment("No longer used for play: the 1.0.0 initial maximum CP for levels 0 to 5, replaced by ability.capacity.base_cp.",
+                        "Read only to recognise a 1.0.0 player's saved capacity once. Kept so a value set here is not lost.")
+                .defineList("init_cp", LEGACY_INIT_CP, AcademyConfig::levelValue);
+        ADD_CP = b.comment("No longer used: the 1.0.0 most maximum CP use could add, replaced by ability.capacity.growth_cp.",
+                        "Kept so a value set here is not lost.")
+                .defineList("add_cp", LEGACY_ADD_CP, AcademyConfig::levelValue);
         INIT_OVERLOAD = b.comment("Initial maximum overload for levels 0 to 5.").defineList("init_overload", LEGACY_INIT_OVERLOAD, AcademyConfig::levelValue);
         ADD_OVERLOAD = b.comment("Most maximum overload use can add, for levels 0 to 5.").defineList("add_overload", LEGACY_ADD_OVERLOAD, AcademyConfig::levelValue);
+        b.pop().comment("CP capacity and recovery approved after 1.0.0 (docs/CP_RECOVERY_TOGGLE_SPEC_JA.md). Not legacy's.",
+                "The capacity no longer depends on the courses; each learned course adds recovery instead.").push("capacity");
+        BASE_CP = b.comment("Maximum CP a level starts with, for levels 0 to 5.").defineList("base_cp", DEFAULT_BASE_CP, AcademyConfig::levelValue);
+        GROWTH_CP = b.comment("Most maximum CP spending CP can add on top of base_cp, for levels 0 to 5 (at maxcp_incr_rate per CP spent).",
+                        "Levelling up keeps the maximum CP already grown, up to the new level's base_cp + growth_cp.")
+                .defineList("growth_cp", DEFAULT_GROWTH_CP, AcademyConfig::levelValue);
+        CP_RECOVER_PER_LEVEL = b.comment("CP recovered a second (20 ticks) per ability level, once the recovery wait is over.")
+                .defineInRange("cp_recover_per_level", 50.0, 0.0, 100000.0);
+        CP_RECOVER_PER_COURSE = b.comment("CP recovered a second per learned course (Brain, Advanced Brain, Mind), added to the level's.")
+                .defineInRange("cp_recover_per_course", 50.0, 0.0, 100000.0);
+        CP_RECOVER_WAIT_BY_COURSE = b.comment("Ticks after spending CP before it comes back, by the highest learned course:",
+                        "none, Brain, Advanced Brain, Mind. Trial defaults.")
+                .defineList("cp_recover_wait_by_course", DEFAULT_CP_RECOVER_WAIT, AcademyConfig::waitValue);
+        OVERLOAD_RECOVER_WAIT_BY_COURSE = b.comment("Ticks after overloading before overload starts to fall, by the highest learned course:",
+                        "none, Brain, Advanced Brain, Mind. Trial defaults.")
+                .defineList("overload_recover_wait_by_course", DEFAULT_OVERLOAD_RECOVER_WAIT, AcademyConfig::waitValue);
+        IDLE_RECOVERY_SHARE = b.comment("Share of the normal CP recovery a toggled mode at 100% proficiency leaves when it is held alone",
+                        "and idle (not attacking, defending, reflecting, warping or thrusting). 0.5 = half the recovery.")
+                .defineInRange("idle_recovery_share", 0.5, 0.0, 1.0);
         b.pop().push("category");
         for (var category : List.of("meltdowner", "teleporter", "vecmanip")) {
             b.push(category);
@@ -151,6 +193,18 @@ public final class AcademyConfig {
         for (var entry : DEFAULT_TOGGLE_UPKEEP.entrySet())
             TOGGLE_UPKEEP.put(entry.getKey(), b.comment("CP a tick at 0% proficiency, above the recovery.")
                     .defineInRange(entry.getKey(), entry.getValue(), 0.0, 1000.0));
+        b.pop().comment("Storm Wing's flight once charged (approved after 1.0.0; docs/CP_RECOVERY_TOGGLE_SPEC_JA.md). Values at 0% and 100%",
+                "proficiency, linear between. Replaces toggle_upkeep.storm_wing, which is no longer used.").push("storm_wing");
+        STORM_WING_IDLE_CP = b.comment("CP a second lost hovering without thrust at 0% proficiency, times (1 - proficiency).",
+                        "At 100% hovering alone keeps capacity.idle_recovery_share of the normal recovery instead.")
+                .defineInRange("idle_cp_per_second", 40.0, 0.0, 100000.0);
+        STORM_WING_THRUST_CP = b.comment("CP a second while thrusting [at 0%, at 100%]: the whole cost, hovering included, recovery stopped.")
+                .defineList("thrust_cp_per_second", DEFAULT_STORM_WING_THRUST_CP, AcademyConfig::pairValue);
+        STORM_WING_THRUST_OVERLOAD = b.comment("Overload a second while thrusting [at 0%, at 100%].")
+                .defineList("thrust_overload_per_second", DEFAULT_STORM_WING_THRUST_OVERLOAD, AcademyConfig::pairValue);
+        STORM_WING_IDLE_OVERLOAD_RECOVERY = b.comment("Overload a second falling while hovering without thrust, after the overload wait",
+                        "[at 0%, at 100%]. Takes the place of the normal overload recovery while hovering.")
+                .defineList("idle_overload_recovery_per_second", DEFAULT_STORM_WING_IDLE_OVERLOAD_RECOVERY, AcademyConfig::pairValue);
         b.pop().comment("Body Intensify as a toggle (user-approved, not legacy's; docs/BODY_INTENSIFY_MASTERY_SPEC_JA.md).")
                 .push("body_intensify");
         BODY_WARMUP_TICKS = b.comment("Ticks from the key to the buffs for proficiency below 25%, 50%, 75%, 100% and at 100%,",
@@ -204,17 +258,55 @@ public final class AcademyConfig {
     public static List<? extends String> affectedDifficulties() { return loaded() ? AFFECTED_DIFFICULTIES.get() : LEGACY_AFFECTED_DIFFICULTIES; }
     public static List<? extends String> affectedExcluded() { return loaded() ? AFFECTED_EXCLUDED.get() : LEGACY_AFFECTED_EXCLUDED; }
     private static boolean levelValue(Object value) { return value instanceof Double d && Double.isFinite(d) && d >= 0; }
+    private static boolean waitValue(Object value) { return value instanceof Integer i && i >= 0 && i <= MAX_RECOVER_COOLDOWN; }
+    private static boolean pairValue(Object value) { return value instanceof Double d && Double.isFinite(d) && d >= 0 && d <= 100000; }
     private static float level(ForgeConfigSpec.ConfigValue<List<? extends Double>> list, List<Double> legacy, int level) {
         var values = loaded() ? list.get() : legacy;
         if (values.size() < 6) values = legacy;
         return values.get(Math.max(0, Math.min(5, level))).floatValue();
     }
-    public static float initCp(int level) { return level(INIT_CP, LEGACY_INIT_CP, level); }
-    public static float addCp(int level) { return level(ADD_CP, LEGACY_ADD_CP, level); }
+    /** レベルの基礎最大CP（ability.capacity.base_cp）。 */
+    public static float initCp(int level) { return level(BASE_CP, DEFAULT_BASE_CP, level); }
+    /** 使用で基礎に加えられる最大CPの上限（ability.capacity.growth_cp）。 */
+    public static float addCp(int level) { return level(GROWTH_CP, DEFAULT_GROWTH_CP, level); }
+    /** 1.0.0の初期最大CP（もう使わない旧項目init_cp）。1.0.0のセーブの容量を一度だけ移すときに読む。 */
+    public static float legacyInitCp(int level) { return level(INIT_CP, LEGACY_INIT_CP, level); }
     public static float initOverload(int level) { return level(INIT_OVERLOAD, LEGACY_INIT_OVERLOAD, level); }
     public static float addOverload(int level) { return level(ADD_OVERLOAD, LEGACY_ADD_OVERLOAD, level); }
-    public static int cpRecoverCooldown() { return loaded() ? CP_RECOVER_COOLDOWN.get() : 15; }
-    public static int overloadRecoverCooldown() { return loaded() ? OVERLOAD_RECOVER_COOLDOWN.get() : 32; }
+    private static int byCourse(ForgeConfigSpec.ConfigValue<List<? extends Integer>> list, List<Integer> fallback, int course) {
+        List<? extends Integer> values = loaded() ? list.get() : fallback;
+        if (values.size() != 4) values = fallback;
+        return Math.max(0, Math.min(MAX_RECOVER_COOLDOWN, values.get(Math.max(0, Math.min(3, course)))));
+    }
+    /** CPの回復待ち。courseは習得した最上位のコース（0なし、1ブレイン、2アドバンスド、3マインド）。 */
+    public static int cpRecoverCooldown(int course) { return byCourse(CP_RECOVER_WAIT_BY_COURSE, DEFAULT_CP_RECOVER_WAIT, course); }
+    /** オーバーロードの回復待ち。courseは{@link #cpRecoverCooldown}と同じ。 */
+    public static int overloadRecoverCooldown(int course) { return byCourse(OVERLOAD_RECOVER_WAIT_BY_COURSE, DEFAULT_OVERLOAD_RECOVER_WAIT, course); }
+    /** 待ちが無いときの1tickのCP回復: (レベル × cp_recover_per_level + コース数 × cp_recover_per_course) / 20。倍率とイベントは含まない。 */
+    public static double cpRecoveryPerTick(int level, int courses) {
+        double perLevel = loaded() ? CP_RECOVER_PER_LEVEL.get() : 50, perCourse = loaded() ? CP_RECOVER_PER_COURSE.get() : 50;
+        return (Math.max(0, level) * perLevel + Math.max(0, courses) * perCourse) / 20;
+    }
+    /** 熟練度100%のモード1つだけを待機で保つとき、通常の回復のうち残る割合。 */
+    public static float idleRecoveryShare() { return loaded() ? IDLE_RECOVERY_SHARE.get().floatValue() : .5f; }
+    private static float lerpPair(ForgeConfigSpec.ConfigValue<List<? extends Double>> list, List<Double> fallback, float proficiency) {
+        List<? extends Double> values = loaded() ? list.get() : fallback;
+        if (values.size() != 2) values = fallback;
+        float p = Math.max(0, Math.min(1, proficiency));
+        return (float) (values.get(0) + (values.get(1) - values.get(0)) * p);
+    }
+    /** Storm Wingの、推進しない滞空で失うCP（1tickあたり）。熟練度100%では0。 */
+    public static float stormWingIdleCp(float proficiency) {
+        return (float) ((loaded() ? STORM_WING_IDLE_CP.get() : 40) / 20 * (1 - Math.max(0, Math.min(1, proficiency))));
+    }
+    /** Storm Wingの推進のCP（1tickあたり、滞空の分を含む全体）。 */
+    public static float stormWingThrustCp(float proficiency) { return lerpPair(STORM_WING_THRUST_CP, DEFAULT_STORM_WING_THRUST_CP, proficiency) / 20; }
+    /** Storm Wingの推進のオーバーロード（1tickあたり）。 */
+    public static float stormWingThrustOverload(float proficiency) { return lerpPair(STORM_WING_THRUST_OVERLOAD, DEFAULT_STORM_WING_THRUST_OVERLOAD, proficiency) / 20; }
+    /** Storm Wingの、推進しない滞空でのオーバーロードの回復（1tickあたり）。 */
+    public static float stormWingIdleOverloadRecovery(float proficiency) {
+        return lerpPair(STORM_WING_IDLE_OVERLOAD_RECOVERY, DEFAULT_STORM_WING_IDLE_OVERLOAD_RECOVERY, proficiency) / 20;
+    }
     public static float maxCpIncrRate() { return loaded() ? MAXCP_INCR_RATE.get().floatValue() : .0025f; }
     public static float maxOverloadIncrRate() { return loaded() ? MAXO_INCR_RATE.get().floatValue() : .0058f; }
     @javax.annotation.Nullable private static SkillValues skill(ResourceLocation id) {

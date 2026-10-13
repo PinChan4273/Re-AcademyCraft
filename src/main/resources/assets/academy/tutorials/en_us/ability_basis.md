@@ -22,7 +22,7 @@ Using a skill raises its proficiency. Higher proficiency can improve the skill a
 
 ## Raising Your Ability Level
 
-Using your ability increases your maximum CP. When your maximum CP reaches the threshold for the next level, use an Ability Developer to advance. Higher levels require more IF and may require a higher-tier developer.
+Using your ability increases your maximum CP (up to twice the level's base). Levelling up keeps the maximum CP you have grown. When you meet the requirements, use an Ability Developer to advance. Higher levels require more IF and may require a higher-tier developer.
 
 ## Resetting Your Ability
 
@@ -52,6 +52,6 @@ While Ability Mode is active, use ![key id="switch_preset"] to switch presets. A
 
 ## CP and Overload
 
-Skills consume CP. CP recovers over time, so repeated use will eventually force you to rest.
+Skills consume CP. Shortly after use, CP recovers at a steady rate set by your ability level and the courses you have learned; courses also shorten the wait before it starts. Repeated use will eventually force you to rest.
 
 Skills also produce short-term __Overload__, shown behind the CP bar. If overload reaches its limit, you cannot use skills again until it has recovered sufficiently.

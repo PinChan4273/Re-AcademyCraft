@@ -29,7 +29,7 @@ public record AbilityAction(int action, int slot) {
      */
     public static final java.util.Set<net.minecraft.resources.ResourceLocation> HELD_SKILLS = java.util.Set.of(
             CurrentCharging.ID, MagneticMovement.ID, MagneticManipulation.ID, Railgun.ID, ThunderClap.ID,
-            io.github.pinchan4273.reacademycraft.skill.ScatterBomb.ID, io.github.pinchan4273.reacademycraft.skill.LightShield.ID,
+            io.github.pinchan4273.reacademycraft.skill.ScatterBomb.ID,
             io.github.pinchan4273.reacademycraft.skill.MineRay.BASIC.id(), io.github.pinchan4273.reacademycraft.skill.MineRay.EXPERT.id(),
             io.github.pinchan4273.reacademycraft.skill.MineRay.LUCK.id(), io.github.pinchan4273.reacademycraft.skill.Meltdowner.ID,
             io.github.pinchan4273.reacademycraft.skill.ThreateningTeleport.ID, io.github.pinchan4273.reacademycraft.skill.PenetrateTeleport.ID,
@@ -42,13 +42,13 @@ public record AbilityAction(int action, int slot) {
         return skill != null && HELD_SKILLS.contains(skill);
     }
     /**
-     * 1回押すとオンになり、次に押すとオフになる技能（Electron Missile、Jet Engine、Body Intensify。原作ではいずれも押し続け型だが、
-     * 切り替え型へ変更している。Flashingは元から切り替え型）。クライアントはこれらのCASTを新しい押下でだけ送り、キーリピートでは
+     * 1回押すとオンになり、次に押すとオフになる技能（Electron Missile、Jet Engine、Body Intensify、Light Shield。原作ではいずれも
+     * 押し続け型だが、切り替え型へ変更している。Flashingは元から切り替え型）。クライアントはこれらのCASTを新しい押下でだけ送り、キーリピートでは
      * 送らない。サーバーは、新しい発動が受ける拒否より先に、動作中のものを終える。
      */
     public static final java.util.Set<net.minecraft.resources.ResourceLocation> TOGGLED_SKILLS = java.util.Set.of(
             io.github.pinchan4273.reacademycraft.skill.ElectronMissile.ID, io.github.pinchan4273.reacademycraft.skill.JetEngine.ID, io.github.pinchan4273.reacademycraft.skill.Flashing.ID,
-            BodyIntensify.ID);
+            BodyIntensify.ID, io.github.pinchan4273.reacademycraft.skill.LightShield.ID);
     public static boolean toggled(@javax.annotation.Nullable net.minecraft.resources.ResourceLocation skill) {
         return skill != null && TOGGLED_SKILLS.contains(skill);
     }
@@ -61,12 +61,14 @@ public record AbilityAction(int action, int slot) {
         int age = io.github.pinchan4273.reacademycraft.skill.ElectronMissile.ID.equals(skill) ? io.github.pinchan4273.reacademycraft.skill.ElectronMissile.ageOn(player, slot)
                 : io.github.pinchan4273.reacademycraft.skill.JetEngine.ID.equals(skill) ? io.github.pinchan4273.reacademycraft.skill.JetEngine.ageOn(player, slot)
                 : io.github.pinchan4273.reacademycraft.skill.Flashing.ID.equals(skill) ? io.github.pinchan4273.reacademycraft.skill.Flashing.ageOn(player, slot)
-                : BodyIntensify.ID.equals(skill) ? BodyIntensify.ageOn(player, slot) : -1;
+                : BodyIntensify.ID.equals(skill) ? BodyIntensify.ageOn(player, slot)
+                : io.github.pinchan4273.reacademycraft.skill.LightShield.ID.equals(skill) ? io.github.pinchan4273.reacademycraft.skill.LightShield.ageOn(player, slot) : -1;
         if (age < 0) return false;
         if (age < MIN_ON_TICKS) return true;
         if (io.github.pinchan4273.reacademycraft.skill.ElectronMissile.ID.equals(skill)) io.github.pinchan4273.reacademycraft.skill.ElectronMissile.stop(player);
         else if (io.github.pinchan4273.reacademycraft.skill.JetEngine.ID.equals(skill)) io.github.pinchan4273.reacademycraft.skill.JetEngine.stop(player);
         else if (BodyIntensify.ID.equals(skill)) BodyIntensify.stop(player);
+        else if (io.github.pinchan4273.reacademycraft.skill.LightShield.ID.equals(skill)) io.github.pinchan4273.reacademycraft.skill.LightShield.stop(player);
         else io.github.pinchan4273.reacademycraft.skill.Flashing.stop(player);
         return true;
     }
@@ -100,13 +102,14 @@ public record AbilityAction(int action, int slot) {
             if (action == RELEASE) io.github.pinchan4273.reacademycraft.skill.DirectedBlastwave.release(player, slot); else io.github.pinchan4273.reacademycraft.skill.DirectedBlastwave.cancel(player, slot);
             if (action == RELEASE) io.github.pinchan4273.reacademycraft.skill.BloodRetrograde.release(player, slot); else io.github.pinchan4273.reacademycraft.skill.BloodRetrograde.cancel(player, slot);
             if (action == RELEASE) io.github.pinchan4273.reacademycraft.skill.PlasmaCannon.release(player, slot); else io.github.pinchan4273.reacademycraft.skill.PlasmaCannon.cancel(player, slot);
-            // ScatterBomb/LightShield/MineRayは、離したキーと中断したキーを区別しない。原作はどちらでも同じように発射または終了するので、
+            // ScatterBomb/MineRayは、離したキーと中断したキーを区別しない。原作はどちらでも同じように発射または終了するので、
             // それぞれ1回の呼び出しで両方の動作を扱う。これが無いと、通常のキーアップがここに届かず、tick()内のサーバー自身の約10tickの
             // 心拍の古さによるタイムアウトでしか止まらない（ScatterBombの一斉射撃は、キーアップと同じtickではなく最大0.5秒遅れて発射される）。
             // 終えるのは、このスロットのキーが始めたセッションだけ。原作はキーのアップや中断を、そのキー自身のコンテキストへ渡すため。
             io.github.pinchan4273.reacademycraft.skill.ScatterBomb.stop(player, slot);
-            io.github.pinchan4273.reacademycraft.skill.LightShield.stop(player, slot);
             io.github.pinchan4273.reacademycraft.skill.MineRay.stop(player, slot);
+            // Light Shieldは切り替え型: キーアップは意味を持たず、自身のスロットのCANCEL（安全な停止）だけがこれを終える。
+            if (action == CANCEL) io.github.pinchan4273.reacademycraft.skill.LightShield.stop(player, slot);
             // Electron Missileは切り替え型: ここでは安全な停止だけがこれを終える。
             if (action == CANCEL) io.github.pinchan4273.reacademycraft.skill.ElectronMissile.stop(player, slot);
             return;
@@ -118,7 +121,7 @@ public record AbilityAction(int action, int slot) {
             if (held[slot] == tick) return;
             held[slot] = tick;
         }
-        if (action == HELD) { CurrentCharging.renew(player, slot); MagneticMovement.renew(player, slot); MagneticManipulation.renew(player, slot); ThunderClap.renew(player, slot); Railgun.renew(player, slot); io.github.pinchan4273.reacademycraft.skill.ScatterBomb.renew(player, slot); io.github.pinchan4273.reacademycraft.skill.LightShield.renew(player, slot); io.github.pinchan4273.reacademycraft.skill.MineRay.renew(player, slot); io.github.pinchan4273.reacademycraft.skill.Meltdowner.renew(player, slot); io.github.pinchan4273.reacademycraft.skill.ThreateningTeleport.renew(player, slot); io.github.pinchan4273.reacademycraft.skill.PenetrateTeleport.renew(player, slot); io.github.pinchan4273.reacademycraft.skill.MarkTeleport.renew(player, slot); io.github.pinchan4273.reacademycraft.skill.FleshRipping.renew(player, slot); io.github.pinchan4273.reacademycraft.skill.ShiftTeleport.renew(player, slot); io.github.pinchan4273.reacademycraft.skill.DirectedShock.renew(player, slot); io.github.pinchan4273.reacademycraft.skill.Groundshock.renew(player, slot); io.github.pinchan4273.reacademycraft.skill.VecAccel.renew(player, slot); io.github.pinchan4273.reacademycraft.skill.DirectedBlastwave.renew(player, slot); io.github.pinchan4273.reacademycraft.skill.BloodRetrograde.renew(player, slot); io.github.pinchan4273.reacademycraft.skill.PlasmaCannon.renew(player, slot); return; }
+        if (action == HELD) { CurrentCharging.renew(player, slot); MagneticMovement.renew(player, slot); MagneticManipulation.renew(player, slot); ThunderClap.renew(player, slot); Railgun.renew(player, slot); io.github.pinchan4273.reacademycraft.skill.ScatterBomb.renew(player, slot); io.github.pinchan4273.reacademycraft.skill.MineRay.renew(player, slot); io.github.pinchan4273.reacademycraft.skill.Meltdowner.renew(player, slot); io.github.pinchan4273.reacademycraft.skill.ThreateningTeleport.renew(player, slot); io.github.pinchan4273.reacademycraft.skill.PenetrateTeleport.renew(player, slot); io.github.pinchan4273.reacademycraft.skill.MarkTeleport.renew(player, slot); io.github.pinchan4273.reacademycraft.skill.FleshRipping.renew(player, slot); io.github.pinchan4273.reacademycraft.skill.ShiftTeleport.renew(player, slot); io.github.pinchan4273.reacademycraft.skill.DirectedShock.renew(player, slot); io.github.pinchan4273.reacademycraft.skill.Groundshock.renew(player, slot); io.github.pinchan4273.reacademycraft.skill.VecAccel.renew(player, slot); io.github.pinchan4273.reacademycraft.skill.DirectedBlastwave.renew(player, slot); io.github.pinchan4273.reacademycraft.skill.BloodRetrograde.renew(player, slot); io.github.pinchan4273.reacademycraft.skill.PlasmaCannon.renew(player, slot); return; }
         long now = player.serverLevel().getGameTime();
         long[] previous = LAST_REQUEST.computeIfAbsent(player,
                 ignored -> { var ticks = new long[NEXT_PRESET + 1 + 4]; java.util.Arrays.fill(ticks, Long.MIN_VALUE); return ticks; });

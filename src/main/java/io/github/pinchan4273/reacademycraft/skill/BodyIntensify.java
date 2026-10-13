@@ -210,6 +210,10 @@ public final class BodyIntensify {
         }
         // 維持コストはこのtickの始めに精算済み。払えなかった要求は外れている。
         if (!d.upkeepHeld(s.upkeep)) { stop(p); return; }
+        // バフが効いている時間の熟練度（1.1.0、T178-10）。有効化の瞬間の+0.01は廃止した。
+        d.upkeepEarn(s.upkeep);
+        // 熟練度のイベントのリスナーが技能を取り上げたら、そこで終える。
+        if (!carriesOn(p, s)) return;
         s.ticks++;
         float exhaustion = AcademyConfig.bodyExtraExhaustion();
         // Player.causeFoodExhaustionは、すべての消耗と同じく無敵（クリエイティブ、スペクテイター）のプレイヤーを飛ばす。
@@ -222,7 +226,8 @@ public final class BodyIntensify {
         s.buffs = choose(s.band, p.getRandom()); s.active = true; s.ticks = 0;
         s.upkeep = d.startUpkeep(ID, () -> p.getAbilities().instabuild);
         if (s.upkeep == null) { stop(p); return; }
-        d.addProficiency(ID, .01f);
+        // バフは常に効いているので、移動キーを離しても待機にならない。
+        s.upkeep.alwaysActing();
         if (!carriesOn(p, s)) return;
         for (var buff : s.buffs) { add(p, s, buff); if (!carriesOn(p, s)) return; }
         p.serverLevel().playSound(null, p, AcademySounds.EM_INTENSIFY_ACTIVATE.get(), SoundSource.AMBIENT, .5f, 1f);

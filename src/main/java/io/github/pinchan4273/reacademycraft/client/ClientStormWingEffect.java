@@ -107,7 +107,7 @@ public final class ClientStormWingEffect {
         double time = Util.getMillis() / 1000.0;
         var camera = event.getCamera().getPosition(); var pose = event.getPoseStack();
         // 原作はStorm Wingをalphaテストなしで描いた（LegacyAlphaShaders）。
-        RenderSystem.setShader(LegacyAlphaShaders::positionTexColor);
+        RenderSystem.setShader(LegacyAlphaShaders::worldPositionTexColor);
         RenderSystem.setShaderTexture(0, TEXTURE);
         RenderSystem.enableBlend(); RenderSystem.defaultBlendFunc(); RenderSystem.disableCull(); RenderSystem.depthMask(false);
         try {

@@ -31,8 +31,9 @@ import net.minecraftforge.fml.common.Mod;
  *
  * ビームは発動時ではなく発射時に狙う。原作getDest(player)は起爆のコールバックの中で評価されるため。待機中に狙い直せるのは意図どおり。
  *
- * 原作はこの技能でCPもオーバーロードも消費しない: すべての電撃使いの技能と違い、コンテキストがconsumeを呼ばず、設定は倍率しか持たない。
- * 推測で調整せず、書かれたとおりに移植している。
+ * 原作はこの技能でCPもオーバーロードも消費しない（コンテキストがconsumeを呼ばず、設定は倍率しか持たない）。1.1.0（T178-11、
+ * ユーザーが承認した独自のバランス変更）からは、発動時に1回だけArc Generationと同じ式（{@link ArcGen#consumption}・{@link ArcGen#overload}）
+ * で払う。払えなければオーブも予約も熟練度も無い。起爆では払わない。
  *
  * 原作はビームを20ブロック以内の全員へ送る。オーブはそこでは追跡されるエンティティなので、移植版は持たないエンティティ追跡に
  * 頼らず、同じ方法で送る。
@@ -75,6 +76,10 @@ public final class ElectronBomb {
         if (data.getCooldown(ID) > 0) return "academy.cast.cooldown";
         if (ACTIVE.containsKey(player.getUUID())) return "academy.cast.cooldown";
         float exp = data.getProficiency(ID);
+        if (!data.consume(ID, ArcGen.consumption(exp), ArcGen.overload(exp), player.getAbilities().instabuild)) return "academy.cast.cp";
+        // 支払いのリスナーが能力を変えたら何も予約しない。支払いが術者をオーバーロードさせただけなら、他の単発の技能（Arc Generationなど）と
+        // 同じく発動は成立している。
+        if (data.isReadOnly() || !AbilityCategory.MELTDOWNER.id().equals(data.getAbility()) || !data.hasLearned(ID)) return "academy.cast.unlearned";
         var bomb = new Pending(player, exp);
         ACTIVE.put(player.getUUID(), bomb);
         broadcast(player, new MdBallEffect(player.level().dimension().location(), player.getUUID(), player.getId(),

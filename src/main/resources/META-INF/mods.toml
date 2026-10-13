@@ -10,8 +10,8 @@ displayName="Re:AcademyCraft"
 displayURL="https://github.com/PinChan4273/Re-AcademyCraft"
 authors="Lambda Innovation; Re:AcademyCraft contributors"
 description='''
-AcademyCraft（Lambda Innovation）を Minecraft 1.20.1 / Forge へ移植した非公式の版です。
-電撃使い・原子崩し・テレポート・ベクトル操作の4系統の能力、能力開発、機械、素材、無線エネルギー、データ端末とゲーム内の教程を含みます。
+AcademyCraft（Lambda Innovation）の、Minecraft 1.20.1 / Forge向けの非公式移植版です。
+電撃使い・原子崩し・空間移動・ベクトル操作の4系統の能力、能力開発、機械、素材、無線エネルギー、データ端末とゲーム内チュートリアルを含みます。
 既知の制限は README.md を見てください。原作者・Lambda Innovation・MohistMC の公認ではありません。
 
 An unofficial port of AcademyCraft (Lambda Innovation) to Minecraft 1.20.1 / Forge: four ability categories

@@ -53,7 +53,7 @@ public final class VecAccel {
     }
     /** 原作の消費。コンテキストを作るときに固定する。 */
     public static float consumption(float exp) { return ArcGen.lerp(120, 80, exp); }
-    public static float overload(float exp) { return ArcGen.lerp(30, 15, exp); }
+    public static float overload(float exp) { return ArcGen.lerp(30, 16, exp); }
     /** 原作の速さ: sin(lerp(0.4, 1, clamp(ticks / 20))) * 2.5。 */
     public static double speed(int ticks) {
         double progress = .4 + (1 - .4) * Mth.clamp(ticks / (double) MAX_CHARGE, 0, 1);

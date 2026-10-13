@@ -30,9 +30,17 @@ import net.minecraftforge.fml.common.Mod;
  *
  * キーでモードをオン・オフする。続く間、術者は飛んでよく（原作はサーバーでallowFlyingを設定した）、落下ダメージを受けない。
  * lerp(70, 30, exp)tick溜め、その後有効になる: 移動キーが術者を動かし、それは原作と同じく術者自身のクライアントの仕事
- * （ClientStormWing）。毎tick lerp(10, 7, exp)のオーバーロードがかかり、0.00005の経験値を与える。原作の1tickあたりlerp(40, 25, exp)の
- * CPは、今は切り替え型技能の維持コスト（止めている回復に、toggle_upkeep.storm_wing（熟練度0%で40）× (1 - 熟練度)を加えた量）で、
- * 払えなくなるとモードを終える。オーバーロードは残るので、最終的にはやはりオーバーロードで飛行が終わる。熟練度15%未満では、風が
+ * （ClientStormWing）。有効な間は毎tick 0.00005の経験値を与える。
+ *
+ * <p>資源は1.0.0の後に承認した仕様（docs/CP_RECOVERY_TOGGLE_SPEC_JA.md 8章）で、滞空（待機）と推進（実行）を分ける:
+ * <ul>
+ * <li>推進しない滞空: CPは正味で40 × (1 − 熟練度)/秒ずつ減る。熟練度100%で単独なら、回復待ちの後に通常の回復の半分が正味で残る
+ * （無期限に滞空できる）。オーバーロードは待ちの後、通常の回復の代わりに2〜4/秒で下がる。</li>
+ * <li>推進: 120〜40 CP/秒と3〜1 オーバーロード/秒（滞空の分を含む全体）。払うと回復待ちが始まり、離すと待ちの後で回復へ移る。
+ * 払えない（CP不足・オーバーロードのロック）ときは推進を止め、クライアントに滞空だけを許す（stalled）。</li>
+ * </ul>
+ * 推進しているかはクライアントの入力（{@link io.github.pinchan4273.reacademycraft.network.StormWingInput}）で、落下・ノックバック・他の能力による
+ * 位置の変化からは推測しない。入力はモードの番号（epoch）が今のモードと一致するときだけ受け取る。熟練度15%未満では、風が
  * 術者の周りの柔らかいブロック（硬さ0.3以下）も壊す: 10ブロック以内で1tickに40回のランダムな試行。熟練度がちょうど最大のとき、
  * 有効になると6ブロック以内のすべてのエンティティを吹き飛ばす（術者も真上へ）。モードの終了は理由を問わず、術者自身の飛行の許可を
  * 戻し、クールダウンlerp(30, 10, exp)を設定する。
@@ -44,9 +52,12 @@ public final class StormWing {
     public static final ResourceLocation ID = ResourceLocation.fromNamespaceAndPath("academy", "storm_wing");
     public static final int CHARGE = 0, ACTIVE_STATE = 1;
     private static final Map<UUID, Session> ACTIVE = new HashMap<>();
+    private static int epochs;
 
     private static final class Session {
-        final Level level; final int preset, slot; final float exp; final boolean mayfly; int state = CHARGE, ticks;
+        final Level level; final int preset, slot, epoch = ++epochs; final float exp; final boolean mayfly; int state = CHARGE, ticks;
+        /** クライアントが最後に伝えた推進の入力と、それを払えずに滞空だけを許しているか。 */
+        boolean thrustInput, stalled;
         /** 溜めの終わりからの、能力データが毎tick精算する維持コストへの、この技能の要求。 */
         PlayerAbilityData.Upkeep upkeep;
         Session(ServerPlayer player, PlayerAbilityData data, int slot) {
@@ -57,11 +68,11 @@ public final class StormWing {
 
     private StormWing() { }
     private static PlayerAbilityData data(ServerPlayer p) { return p.getCapability(AbilityCapabilities.PLAYER_ABILITY).orElse(null); }
+    /** 飛び続けてよいか。妨害（能力妨害器）が始まったtickにも終える（指示の停止条件。1.0.0は妨害で終わらなかった）。 */
     private static boolean allowed(ServerPlayer player, PlayerAbilityData data) {
-        return player.isAlive() && data != null && !data.isReadOnly() && data.isActive()
+        return player.isAlive() && data != null && !data.isReadOnly() && data.isActive() && !data.isInterfering()
                 && AbilityCategory.VECMANIP.id().equals(data.getAbility()) && data.hasLearned(ID);
     }
-    public static float overload(float exp) { return ArcGen.lerp(10, 7, exp); }
     public static float chargeTicks(float exp) { return ArcGen.lerp(70, 30, exp); }
     /** 原作の速さ: 熟練度45%未満では遅い。 */
     public static double speed(float exp) { return (exp < .45f ? .7f : 1.2f) * ArcGen.lerp(2, 3, exp); }
@@ -94,7 +105,7 @@ public final class StormWing {
         // 原作s_makeAlive: モードが続く間allowFlying。
         player.getAbilities().mayfly = true;
         player.onUpdateAbilities();
-        send(player, CHARGE);
+        send(player, session, CHARGE);
         // 原作c_makealive: 風のループ音がモードの間ずっと術者に付いて行く。
         io.github.pinchan4273.reacademycraft.network.SkillSounds.follow(player, io.github.pinchan4273.reacademycraft.world.AcademySounds.VM_STORM_WING.get(), net.minecraft.sounds.SoundSource.AMBIENT, 1f, true, () -> active(player));
         return "";
@@ -107,35 +118,68 @@ public final class StormWing {
         player.onUpdateAbilities();
         var data = data(player);
         if (data != null) data.endUpkeep(session.upkeep);
-        if (data != null && !data.isReadOnly()) { data.setCooldown(ID, cooldown(session.exp)); AbilitySyncEvents.sync(player, true); }
-        send(player, -1);
+        // 習得していない技能（止める前にリスナーやカテゴリの変更が外した）にはクールダウンを書かない（M-110-02）。
+        if (data != null && !data.isReadOnly()) { if (data.hasLearned(ID)) data.setCooldown(ID, cooldown(session.exp)); AbilitySyncEvents.sync(player, true); }
+        send(player, session, -1);
     }
-    private static void send(ServerPlayer player, int state) {
+    private static void send(ServerPlayer player, Session session, int state) {
         if (player.connection != null) AcademyNetwork.CHANNEL.send(net.minecraftforge.network.PacketDistributor.PLAYER.with(() -> player),
-                new StormWingState(state));
+                new StormWingState(state, session.epoch, session.stalled));
     }
+    /**
+     * 術者のクライアントからの推進の入力。今のモードの番号で、有効（溜め終わり）の間だけ受け取る。古いモードの遅れた入力、
+     * 溜めの間の入力、モードが無いときの入力は捨てる。
+     */
+    public static void input(ServerPlayer player, int epoch, boolean thrust) {
+        var session = ACTIVE.get(player.getUUID());
+        if (session == null || session.epoch != epoch || session.state != ACTIVE_STATE) return;
+        session.thrustInput = thrust;
+    }
+    /** テスト用: 今のモードの番号（無ければ-1）。 */
+    public static int epoch(ServerPlayer player) { var s = ACTIVE.get(player.getUUID()); return s == null ? -1 : s.epoch; }
+    /** 推進を求めているのに払えず、滞空だけを許しているか。 */
+    public static boolean stalled(ServerPlayer player) { var s = ACTIVE.get(player.getUUID()); return s != null && s.stalled; }
 
+    /** このtickもモードを続けてよいか（tickの始めと、熟練度のイベントの後に確かめる）。 */
+    private static boolean continues(ServerPlayer player, PlayerAbilityData data, Session session) {
+        return data != null && allowed(player, data) && !(session.level != player.level() || data.getCurrentPreset() != session.preset
+                || !ID.equals(data.getSlot(session.preset, session.slot)));
+    }
     private static void tick(ServerPlayer player, DoubleSupplier roll) {
         var session = ACTIVE.get(player.getUUID());
         if (session == null) return;
         var data = data(player);
-        if (!allowed(player, data) || session.level != player.level() || data.getCurrentPreset() != session.preset
-                || !ID.equals(data.getSlot(session.preset, session.slot))) { stop(player); return; }
+        if (!continues(player, data, session)) { stop(player); return; }
         player.fallDistance = 0;
         if (session.exp < .15f) breakAround(player, roll);
         if (session.state == ACTIVE_STATE) {
-            // 原作doConsume: そのCPは、このtickの始めに精算した維持コスト。
+            // 滞空のCPは、このtickの始めに精算した維持コスト。払えなかった要求は外れている。
             if (!data.upkeepHeld(session.upkeep)) { stop(player); return; }
-            data.addProficiency(ID, .00005f);
-            data.chargeUpkeepOverload(ID, overload(session.exp), player.getAbilities().instabuild);
+            // 滞空は待機、推進を払ったtickは行動として、維持の熟練度を得る（1.1.0、T178-10）。1.0.0の毎tick 0.00005は廃止した。
+            data.upkeepEarn(session.upkeep);
+            // 熟練度のイベントのリスナーが、モードを終えた・置き換えた・続けられなくした（能力、スロット、プリセット）かもしれない:
+            // このtickを古いセッションで続けない（M-110-01）。
             if (ACTIVE.get(player.getUUID()) != session) return;
+            if (!continues(player, data, session) || !data.upkeepHeld(session.upkeep)) { stop(player); return; }
+            boolean stalled = false;
+            if (session.thrustInput) {
+                // 推進: 滞空の分を含む全体の費用。払えば回復待ちが始まり、次の精算は待機として扱わない。
+                float proficiency = data.getProficiency(ID);
+                boolean paid = data.consume(ID, AcademyConfig.stormWingThrustCp(proficiency), AcademyConfig.stormWingThrustOverload(proficiency),
+                        player.getAbilities().instabuild);
+                // オーバーロードはconsumeが戻る前に全セッションを止めることがある。
+                if (ACTIVE.get(player.getUUID()) != session) return;
+                if (paid) data.upkeepActed(session.upkeep); else stalled = true;
+            }
+            if (stalled != session.stalled) { session.stalled = stalled; send(player, session, ACTIVE_STATE); }
             AbilitySyncEvents.sync(player, false);
         }
         if (session.state == CHARGE && ++session.ticks > chargeTicks(session.exp)) {
             session.state = ACTIVE_STATE;
             session.upkeep = data.startUpkeep(ID, () -> player.getAbilities().instabuild);
+            if (session.upkeep != null) session.upkeep.flight(p -> AcademyConfig.stormWingIdleCp((float) p), p -> AcademyConfig.stormWingIdleOverloadRecovery((float) p));
             if (session.exp == 1) fling(player, roll);
-            send(player, ACTIVE_STATE);
+            send(player, session, ACTIVE_STATE);
         }
     }
     /** テスト用の入口: 与えた乱数源から原作の乱数を引いて、モードのサーバー1tick分を進める。 */

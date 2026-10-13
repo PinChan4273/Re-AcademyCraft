@@ -34,7 +34,11 @@ import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 import org.joml.Matrix4f;
 import org.joml.Vector4f;
+import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL20;
+import org.lwjgl.opengl.GL30;
+import com.mojang.blaze3d.pipeline.TextureTarget;
+import com.mojang.blaze3d.platform.GlStateManager;
 import org.lwjgl.system.MemoryStack;
 
 /**
@@ -132,7 +136,7 @@ public final class ClientPlasmaCannonEffect {
         pose.pushPose();
         pose.translate(at.x, at.y, at.z);
         // 原作は竜巻をalphaテストなしで描いた（LegacyAlphaShaders）。
-        RenderSystem.setShader(LegacyAlphaShaders::positionTexColor);
+        RenderSystem.setShader(LegacyAlphaShaders::worldPositionTexColor);
         RenderSystem.setShaderTexture(0, TORNADO_TEXTURE);
         RenderSystem.enableBlend(); RenderSystem.defaultBlendFunc(); RenderSystem.disableCull(); RenderSystem.depthMask(false);
         try {
@@ -187,7 +191,22 @@ public final class ClientPlasmaCannonEffect {
             buffer.vertex(m, .5f, .5f, 0).endVertex(); buffer.vertex(m, -.5f, .5f, 0).endVertex();
             var rendered = buffer.end();
             pose.popPose();
-            RenderSystem.enableBlend(); RenderSystem.defaultBlendFunc(); RenderSystem.depthMask(false); RenderSystem.disableCull();
+            // シェーダーパックの間、Oculusはメインの描画先へ独自のシェーダーで描いたものを書かない（ShaderPackCompat）。そこで本体は
+            // 専用の描画先へ同じシェーダーで描き、それをMinecraftのシェーダーでワールドへ貼る（packComposite）。
+            boolean pack = ShaderPackCompat.inUse();
+            var target = pack ? packTarget() : null;
+            int[] viewport = new int[4];
+            int drawFramebuffer = 0, readFramebuffer = 0;
+            if (target != null) {
+                drawFramebuffer = GL11.glGetInteger(GL30.GL_DRAW_FRAMEBUFFER_BINDING); readFramebuffer = GL11.glGetInteger(GL30.GL_READ_FRAMEBUFFER_BINDING);
+                GL11.glGetIntegerv(GL11.GL_VIEWPORT, viewport);
+                target.setClearColor(0, 0, 0, 0);
+                target.clear(Minecraft.ON_OSX);
+                // OculusはbindWriteで、メインの描画先が結ばれているかを覚える: ここではメインでないので、色の書き込みを止めない。
+                target.bindWrite(true);
+                RenderSystem.disableBlend(); RenderSystem.disableDepthTest();
+            } else { RenderSystem.enableBlend(); RenderSystem.defaultBlendFunc(); }
+            RenderSystem.depthMask(false); RenderSystem.disableCull();
             try {
                 shader.MODEL_VIEW_MATRIX.set(RenderSystem.getModelViewMatrix());
                 shader.PROJECTION_MATRIX.set(RenderSystem.getProjectionMatrix());
@@ -199,10 +218,62 @@ public final class ClientPlasmaCannonEffect {
                 if (location >= 0) GL20.glUniform4fv(location, balls);
                 BufferUploader.draw(rendered);
                 shader.clear();
-            } finally { RenderSystem.depthMask(true); RenderSystem.enableCull(); }
+            } finally {
+                if (target != null) {
+                    // メインを結び直してOculusの印を戻し、入ってきたときの実際の描画先（シェーダーパックのもの）と表示範囲へ戻す。
+                    Minecraft.getInstance().getMainRenderTarget().bindWrite(false);
+                    GlStateManager._glBindFramebuffer(GL30.GL_READ_FRAMEBUFFER, readFramebuffer);
+                    GlStateManager._glBindFramebuffer(GL30.GL_DRAW_FRAMEBUFFER, drawFramebuffer);
+                    RenderSystem.viewport(viewport[0], viewport[1], viewport[2], viewport[3]);
+                    RenderSystem.enableDepthTest();
+                }
+                RenderSystem.depthMask(true); RenderSystem.enableCull();
+            }
+            if (target != null) packComposite(pose, toCamera, at, target);
             drawnBodies++;
         }
     }
+
+    @Nullable private static TextureTarget packTarget;
+    /** シェーダーパックの間に本体を描く、画面と同じ大きさの描画先。 */
+    @Nullable private static TextureTarget packTarget() {
+        var main = Minecraft.getInstance().getMainRenderTarget();
+        if (main.width <= 0 || main.height <= 0) return null;
+        if (packTarget == null) packTarget = new TextureTarget(main.width, main.height, false, Minecraft.ON_OSX);
+        else if (packTarget.width != main.width || packTarget.height != main.height) packTarget.resize(main.width, main.height, Minecraft.ON_OSX);
+        return packTarget;
+    }
+    /**
+     * 専用の描画先の絵を、本体の中心の深さで画面と平行な、画面全体の四角としてワールドへ貼る。画面と平行なので、画面の座標が
+     * そのままテクスチャ座標になる。深度テストはワールドに対してこの深さで行うので、壁の向こうの本体は隠れる（直接描くときの
+     * 本体の四角と同じ）。シェーダーはMinecraftのもので、Oculusがシェーダーパックのプログラムへ置き換える。
+     */
+    private static void packComposite(com.mojang.blaze3d.vertex.PoseStack pose, Matrix4f toCamera, Vec3 at, TextureTarget target) {
+        var centre = new Vector4f((float) at.x, (float) at.y, (float) at.z, 1).mul(toCamera);
+        if (centre.z > -.05f) return;
+        var projection = new Matrix4f(RenderSystem.getProjectionMatrix());
+        var clip = new Vector4f(centre).mul(projection);
+        float depth = clip.z / clip.w;
+        if (!(depth > -1 && depth < 1)) return;
+        var unproject = new Matrix4f(projection).mul(toCamera).invert();
+        var m = pose.last().pose(); var buffer = Tesselator.getInstance().getBuilder();
+        RenderSystem.setShader(GameRenderer::getPositionTexColorShader);
+        RenderSystem.setShaderTexture(0, target.getColorTextureId());
+        RenderSystem.enableBlend(); RenderSystem.defaultBlendFunc(); RenderSystem.depthMask(false); RenderSystem.disableCull();
+        try {
+            buffer.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX_COLOR);
+            float[][] corners = {{-1, -1}, {1, -1}, {1, 1}, {-1, 1}};
+            for (var corner : corners) {
+                var p = new Vector4f(corner[0], corner[1], depth, 1).mul(unproject);
+                buffer.vertex(m, p.x / p.w, p.y / p.w, p.z / p.w).uv((corner[0] + 1) / 2, (corner[1] + 1) / 2).color(1f, 1f, 1f, 1f).endVertex();
+            }
+            BufferUploader.drawWithShader(buffer.end());
+            packComposites++;
+        } finally { RenderSystem.depthMask(true); RenderSystem.enableCull(); }
+    }
+    private static long packComposites;
+    /** テスト用: シェーダーパックの間に、専用の描画先から貼った回数。 */
+    public static long packComposites() { return packComposites; }
     @SubscribeEvent public static void loggedOut(ClientPlayerNetworkEvent.LoggingOut event) { EFFECTS.clear(); world = null; }
     /** テスト用の入口。 */
     public static long drawnBodies() { return drawnBodies; }

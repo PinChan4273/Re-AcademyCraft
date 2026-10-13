@@ -63,8 +63,8 @@ public final class ElectronMissile {
             level = player.level(); preset = data.getCurrentPreset(); this.slot = slot;
             exp = data.getProficiency(ID); overloadFloor = data.getOverload();
         }
-        float attackOverload() { return ArcGen.lerp(9, 4, exp); }
-        float attackConsumption() { return ArcGen.lerp(60, 25, exp); }
+        float attackOverload() { return ArcGen.lerp(10, 4, exp); }
+        float attackConsumption() { return ArcGen.lerp(60, 26, exp); }
         float damage() { return ArcGen.lerp(10, 18, exp); }
         double range() { return ArcGen.lerp(5, 13, exp); }
         /** 原作自身の壊れたclampi(700, 400, exp.toInt): クラスの説明を参照。 */
@@ -134,7 +134,8 @@ public final class ElectronMissile {
         var data = data(player);
         if (data != null) data.endUpkeep(session.upkeep);
         if (data == null || data.isReadOnly() || session.level != player.level()) return;
-        data.setCooldown(ID, session.cooldown());
+        // 習得していない技能（止める前にリスナーやカテゴリの変更が外した）にはクールダウンを書かない（M-110-02）。
+        if (data.hasLearned(ID)) data.setCooldown(ID, session.cooldown());
     }
     private static MdBallEffect orbEffect(ServerPlayer player, Session session, Orb orb, int life) {
         return new MdBallEffect(session.level.dimension().location(), player.getUUID(), player.getId(),
@@ -165,6 +166,8 @@ public final class ElectronMissile {
                 e -> e instanceof LivingEntity && e.isAlive() && !e.isSpectator());
         if (targets.isEmpty()) return;
         if (!data.consume(ID, session.attackConsumption(), session.attackOverload(), player.getAbilities().instabuild)) return;
+        // 自動射撃のtickは待機ではない（docs/CP_RECOVERY_TOGGLE_SPEC_JA.md）。
+        data.upkeepActed(session.upkeep);
         // コストで術者がオーバーロードすることがあり、オーバーロード自身のイベントは、consumeが戻る前にすべてのセッション
         // （このセッションも含み、オーブも退く）を止める。止まったセッションはそれ以上撃たない: オーバーロードさせたコストは払われ、
         // ミサイルは飛ばず、経験値も与えない。
@@ -186,20 +189,29 @@ public final class ElectronMissile {
         data.addProficiency(ID, .001f);
     }
 
-    private static void tick(ServerPlayer player) {
-        var session = ACTIVE.get(player.getUUID());
-        if (session == null) return;
-        var data = data(player);
-        if (!allowed(player, data) || session.level != player.level()
+    /** このtickもモードを続けてよいか（tickの始めと、熟練度のイベントの後に確かめる）。 */
+    private static boolean continues(ServerPlayer player, PlayerAbilityData data, Session session) {
+        return data != null && allowed(player, data) && !(session.level != player.level()
                 || data.getCurrentPreset() != session.preset
                 || !ID.equals(data.getSlot(session.preset, session.slot))
                 // 押されているキーがもう無いのは、妨害が始まったことを示す: 攻撃を続けずに終える。
                 || data.isInterfering()
                 // オーバーロードでも終える: 維持コストの導入前は、毎tickのconsumeがこれを拒否して終わらせていた。
-                || data.isOverloadLocked()) { stop(player); return; }
+                || data.isOverloadLocked());
+    }
+    private static void tick(ServerPlayer player) {
+        var session = ACTIVE.get(player.getUUID());
+        if (session == null) return;
+        var data = data(player);
+        if (!continues(player, data, session)) { stop(player); return; }
         if (data.getOverload() < session.overloadFloor) data.setOverload(session.overloadFloor);
         // 維持コストはこのtickの始めに精算済み。払えなかった要求は外れている。
         if (!data.upkeepHeld(session.upkeep)) { stop(player); return; }
+        data.upkeepEarn(session.upkeep);
+        // 熟練度のイベントのリスナーが、モードを終えた・置き換えた・続けられなくした（能力、スロット、プリセット）かもしれない:
+        // このtickを古いセッションで続けない（M-110-01）。
+        if (ACTIVE.get(player.getUUID()) != session) return;
+        if (!continues(player, data, session) || !data.upkeepHeld(session.upkeep)) { stop(player); return; }
         // 原作はtickを増やす前に判定と動作を行うので、オーブは10tick待たずに最初のtickで生成される。
         if (session.ticks % SPAWN_INTERVAL == 0 && session.orbs.size() < MAX_ORBS) spawn(player, session);
         if (session.ticks != 0 && session.ticks % ATTACK_INTERVAL == 0) attack(player, data, session);

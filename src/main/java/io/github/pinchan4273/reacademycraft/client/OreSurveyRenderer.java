@@ -27,11 +27,18 @@ public final class OreSurveyRenderer {
         private static final RenderType SURVEY=create("academy_ore_survey",DefaultVertexFormat.POSITION_COLOR_TEX,VertexFormat.Mode.QUADS,262144,false,false,
                 CompositeState.builder().setShaderState(POSITION_COLOR_TEX_SHADER).setTextureState(new TextureStateShard(MINEVIEW,false,false)).setTransparencyState(TRANSLUCENT_TRANSPARENCY)
                         .setDepthTestState(NO_DEPTH_TEST).setCullState(NO_CULL).setWriteMaskState(COLOR_WRITE).createCompositeState(false));
+        /** シェーダーパックの間の同じ描画: position-tex-colourの頂点とMinecraftのシェーダー（ShaderPackCompat）。 */
+        private static final RenderType SURVEY_PACK=create("academy_ore_survey_pack",DefaultVertexFormat.POSITION_TEX_COLOR,VertexFormat.Mode.QUADS,262144,false,false,
+                CompositeState.builder().setShaderState(new ShaderStateShard(net.minecraft.client.renderer.GameRenderer::getPositionTexColorShader))
+                        .setTextureState(new TextureStateShard(MINEVIEW,false,false)).setTransparencyState(TRANSLUCENT_TRANSPARENCY)
+                        .setDepthTestState(NO_DEPTH_TEST).setCullState(NO_CULL).setWriteMaskState(COLOR_WRITE).createCompositeState(false));
     }
     @SubscribeEvent public static void render(RenderLevelStageEvent event) {
         if(event.getStage()!=RenderLevelStageEvent.Stage.AFTER_PARTICLES||!ClientOreSurvey.active())return;
         var mc=Minecraft.getInstance();var camera=event.getCamera().getPosition();
-        var buffers=mc.renderBuffers().bufferSource();var buffer=buffers.getBuffer(Types.SURVEY);
+        boolean pack=ShaderPackCompat.inUse();var type=pack?Types.SURVEY_PACK:Types.SURVEY;
+        var buffers=mc.renderBuffers().bufferSource();com.mojang.blaze3d.vertex.VertexConsumer buffer=buffers.getBuffer(type);
+        if(pack)buffer=new ShaderPackCompat.TexColorOrder(buffer);
         var matrix=event.getPoseStack().last().pose();double range=ClientOreSurvey.range();
         for(var mark:ClientOreSurvey.marks()) {
             var p=mark.position();double dx=p.getX()-mc.player.getX(),dy=p.getY()-mc.player.getY(),dz=p.getZ()-mc.player.getZ();
@@ -51,7 +58,7 @@ public final class OreSurveyRenderer {
         // 上書きはこのバッチに限り、入ってきたときの実際の深度状態へ戻す。
         boolean depthWasEnabled=GL11.glIsEnabled(GL11.GL_DEPTH_TEST);
         RenderSystem.disableDepthTest();
-        try { buffers.endBatch(Types.SURVEY); }
+        try { buffers.endBatch(type); }
         finally {
             if(depthWasEnabled)RenderSystem.enableDepthTest();
             else RenderSystem.disableDepthTest();

@@ -114,14 +114,23 @@ public final class VecReflection {
         return lookingAt(player).subtract(entity.getEyePosition()).normalize().scale(entity.getDeltaMovement().length());
     }
 
+    /** このtickもモードを続けてよいか（tickの始めと、熟練度のイベントの後に確かめる）。 */
+    private static boolean continues(ServerPlayer player, PlayerAbilityData data, Session session) {
+        return data != null && allowed(player, data) && !(session.level != player.level() || data.getCurrentPreset() != session.preset
+                || !ID.equals(data.getSlot(session.preset, session.slot)));
+    }
     private static void tick(ServerPlayer player) {
         var session = ACTIVE.get(player.getUUID());
         if (session == null) return;
         var data = data(player);
-        if (!allowed(player, data) || session.level != player.level() || data.getCurrentPreset() != session.preset
-                || !ID.equals(data.getSlot(session.preset, session.slot))) { stop(player); return; }
+        if (!continues(player, data, session)) { stop(player); return; }
         // 維持コストはこのtickの始めに精算済み。払えなかった要求は外れている。
         if (!data.upkeepHeld(session.upkeep)) { stop(player); return; }
+        data.upkeepEarn(session.upkeep);
+        // 熟練度のイベントのリスナーが、モードを終えた・置き換えた・続けられなくした（能力、スロット、プリセット）かもしれない:
+        // このtickを古いセッションで続けない（M-110-01）。
+        if (ACTIVE.get(player.getUUID()) != session) return;
+        if (!continues(player, data, session) || !data.upkeepHeld(session.upkeep)) { stop(player); return; }
         boolean creative = player.getAbilities().instabuild;
         if (data.getOverload() < session.overloadKeep) data.setOverload(session.overloadKeep);
         var origin = player.position();
@@ -132,6 +141,8 @@ public final class VecReflection {
             float difficulty = EntityAffection.difficulty(entity);
             if (difficulty < 0) continue;
             if (!data.consumeInMode(ID, difficulty * entityConsumption(session.exp), 0, creative)) continue;
+            // 反射したtickは待機ではない。
+            data.upkeepActed(session.upkeep);
             if (entity instanceof AbstractHurtingProjectile fireball) replace(player, level, fireball);
             else {
                 entity.setDeltaMovement(turned(player, entity));
@@ -175,8 +186,10 @@ public final class VecReflection {
     @SubscribeEvent public static void attacked(LivingAttackEvent event) {
         if (!(event.getEntity() instanceof ServerPlayer player) || !ACTIVE.containsKey(player.getUUID())) return;
         var data = data(player);
-        if (data != null && share(data.getProficiency(ID)) * event.getAmount() >= 1) {
+        // 技能が外された（次のtickでモードが終わる前の被弾）なら何もしない。熟練度の加算は未習得を拒否する（M-110-02）。
+        if (data != null && !data.isReadOnly() && data.hasLearned(ID) && share(data.getProficiency(ID)) * event.getAmount() >= 1) {
             event.setCanceled(true);
+            acted(player, data);
             strikeBack(player, data, event.getSource(), event.getAmount());
         }
     }
@@ -184,14 +197,20 @@ public final class VecReflection {
     @SubscribeEvent public static void hurt(LivingHurtEvent event) {
         if (!(event.getEntity() instanceof ServerPlayer player) || !ACTIVE.containsKey(player.getUUID()) || event.getAmount() > 9999) return;
         var data = data(player);
-        if (data == null) return;
+        if (data == null || data.isReadOnly() || !data.hasLearned(ID)) return;
         float amount = event.getAmount();
         float left = amount - share(data.getProficiency(ID)) * amount;
         event.setAmount(left);
+        acted(player, data);
         if (left <= 0) event.setCanceled(true);
         strikeBack(player, data, event.getSource(), amount);
     }
 
+    /** 攻撃を防いだ・削ったtickは待機ではない（docs/CP_RECOVERY_TOGGLE_SPEC_JA.md）。 */
+    private static void acted(ServerPlayer player, PlayerAbilityData data) {
+        var session = ACTIVE.get(player.getUUID());
+        if (session != null) data.upkeepActed(session.upkeep);
+    }
     private static boolean strikingBack;
     /**
      * プレイヤーかmob自身の、攻撃者自身が与えた打撃: 矢・棘の鎧・爆発・環境・技能ではない（打ち返しは技能のダメージなので、
@@ -207,7 +226,7 @@ public final class VecReflection {
         if (strikingBack || !closeAttack(player, source) || !(damage > 0) || !Float.isFinite(damage)) return;
         var attacker = (LivingEntity) source.getEntity();
         float exp = data.getProficiency(ID);
-        if (!data.consumeInMode(ID, damage * ArcGen.lerp(20, 15, exp), 0, player.getAbilities().instabuild)) { stop(player); return; }
+        if (!data.consumeInMode(ID, damage * ArcGen.lerp(20, 16, exp), 0, player.getAbilities().instabuild)) { stop(player); return; }
         strikingBack = true;
         try { SkillCombat.attack(player, attacker, ID, damage * share(exp)); }
         finally { strikingBack = false; }
