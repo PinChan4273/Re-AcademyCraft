@@ -30,11 +30,12 @@ import net.minecraftforge.fml.common.Mod;
 /**
  * 原作VecDeviation: ベクトル操作のレベル2の防御。
  *
- * キーでモードをオン・オフする。オンにするとlerp(80, 50, exp)のオーバーロードが加わり、モードの間は下がらない。原作は毎tick
+ * キーでモードをオン・オフする。オンにするとlerp(30, 14, exp)のオーバーロード（2026-10-16のユーザーの確定。統合指示書の100%の15を偶数の14へ。原作lerp(80, 50, exp)）が
+ * 加わり、モードの間は下がらない。原作は毎tick
  * lerp(13, 5, exp)のCP（払えなければモードを終える）と、さらにlerp(5, 2.5, exp)のCPとlerp(0.5, 0.2, exp)のオーバーロード
  * （g_tick。術者のクライアントだけでなくサーバーでも動いた）を払った。CPは今は切り替え型技能の維持コスト（止めている回復に、
  * toggle_upkeep.vec_deviation（熟練度0%で13 + 5）× (1 - 熟練度)を加えた量）で、払えなくなるとモードを終える。g_tickの
- * オーバーロードは残るので、最終的にはやはりオーバーロードでモードが終わる。毎tick、5ブロック以内でまだ見ておらず、除外されておらず
+ * オーバーロードは残る（2026-10-16からlerp(0.05, 0.02, exp)。0にはしない）ので、最終的にはやはりオーバーロードでモードが終わる。毎tick、5ブロック以内でまだ見ておらず、除外されておらず
  * （EntityAffectionを参照）、まだ止めていないエンティティを探す: 大きな火の玉はその場で弾け、小さな火の玉は取り除かれ、それ以外
  * （矢はまず無力化する）はその場で止まって印が付く。それぞれlerp(15, 12, exp)のCPを強制で払い、0.001の経験値を与える。
  * モードがオンの間、術者が受けるダメージ（9999まで）をlerp(40%, 90%, exp)削り、最大lerp(15, 12, exp)のCPを払い、1ポイントごとに
@@ -64,9 +65,11 @@ public final class VecDeviation {
         return player.isAlive() && data != null && !data.isReadOnly() && data.isActive()
                 && AbilityCategory.VECMANIP.id().equals(data.getAbility()) && data.hasLearned(ID);
     }
-    public static float normalOverload(float exp) { return ArcGen.lerp(.5f, .2f, exp); }
+    /** 維持のオーバーロード（1tickあたり。2026-10-16、統合指示書3章。原作lerp(0.5, 0.2)から。0にはしない）。 */
+    public static float normalOverload(float exp) { return ArcGen.lerp(.05f, .02f, exp); }
     public static float stopConsumption(float exp) { return ArcGen.lerp(16, 12, exp); }
-    public static float startOverload(float exp) { return ArcGen.lerp(80, 50, exp); }
+    /** 起動のオーバーロード（2026-10-16のユーザーの確定。統合指示書のlerp(30, 15)を偶数の14へ。原作lerp(80, 50)から）。補間の途中は丸めない。 */
+    public static float startOverload(float exp) { return ArcGen.lerp(30, 14, exp); }
     /** 原作reduceDamageの削り。 */
     public static float reduction(float exp) { return ArcGen.lerp(.4f, .9f, exp); }
     public static boolean active(ServerPlayer player) { return ACTIVE.containsKey(player.getUUID()); }

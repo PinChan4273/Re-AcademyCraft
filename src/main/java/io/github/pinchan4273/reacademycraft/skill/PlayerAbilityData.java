@@ -403,6 +403,12 @@ public final class PlayerAbilityData {
         private boolean acted;
         /** 常に行動しているモード（Jet Engineは入力が無くても推進し、Body Intensifyのバフは常に効く）。待機にならない。 */
         private boolean alwaysActing;
+        /**
+         * 維持の熟練度の受け取り方だけを、CPの精算の区分（{@link #alwaysActing}）から分ける（2026-10-16、案B）: 立てたモードは、精算で
+         * 行動として払っても、維持の熟練度は待機と同じ{@link #HOLD_IDLE_PROFICIENCY}を、技能の熟練度だけに受け取る（能力レベルの経験値なし）。
+         * 常に効果を出すモード（Body Intensify、Jet Engine）が、維持しているだけでレベルを上げないため。
+         */
+        private boolean skillOnlyHold;
         /** Storm Wing: 推進しない滞空で失うCPと、そのときのオーバーロードの回復（熟練度ごと、1tickあたり）。 */
         private @Nullable java.util.function.DoubleUnaryOperator idleLoss, hoverRecovery;
         /** このtickの精算が払い終えた維持の種類（{@link #upkeepEarn}が1回だけ受け取る）: 0は無し、1は待機、2は行動。 */
@@ -410,6 +416,8 @@ public final class PlayerAbilityData {
         private Upkeep(ResourceLocation skill, java.util.function.BooleanSupplier exempt) { this.skill = skill; this.exempt = exempt; }
         public ResourceLocation skill() { return skill; }
         public Upkeep alwaysActing() { alwaysActing = true; return this; }
+        /** 維持の熟練度を、待機と同じ量・技能の熟練度だけにする（{@link #skillOnlyHold}）。CPの精算は変えない。 */
+        public Upkeep skillOnlyHold() { skillOnlyHold = true; return this; }
         /**
          * 滞空の資源（Storm Wing）: 待機中のCPは回復待ちに関係なく正味でidleLossずつ減り（熟練度100%で単独なら回復の一部が残る）、
          * 行動中（推進）は回復を止める。推進そのものの費用は技能が払う。待機中はオーバーロードがhoverRecoveryずつ回復する。
@@ -441,10 +449,13 @@ public final class PlayerAbilityData {
     public int upkeepCount() { return upkeeps.size(); }
 
     /**
-     * 維持による熟練度（1.1.0、T178-10、TRIAL_DEFAULT）。20 tick/秒で、待機は+0.004パーセントポイント/秒、行動（推進・バフ・吸収・
-     * 射撃などの効果を出したtick、常に行動するモード）は+0.020パーセントポイント/秒。効果ごとの成功の熟練度は各技能がこれとは別に与える。
+     * 維持による熟練度（2026-10-16、ユーザー承認の統合指示書2章。1.1.0の待機2e-6・行動1e-5から変更）。20 tick/秒・技能の倍率1で、
+     * 待機は+0.1パーセントポイント/秒（5e-5/tick）、行動（防御・射撃・ワープ・停止・反射・推進などの効果を出したtick）は
+     * +0.2パーセントポイント/秒（1e-4/tick）。技能ごとのexp_incr_speedは、これまでどおりgainが掛ける。
+     * 常に効果を出すモード（Body Intensify、Jet Engine）は{@link Upkeep#skillOnlyHold}により、CPの精算では行動のまま、熟練度は
+     * 待機と同じ量を技能だけに受け取る（案B）。効果ごとの成功の熟練度は各技能がこれとは別に与える。
      */
-    public static final float HOLD_IDLE_PROFICIENCY = 2e-6f, HOLD_ACTING_PROFICIENCY = 1e-5f;
+    public static final float HOLD_IDLE_PROFICIENCY = 5e-5f, HOLD_ACTING_PROFICIENCY = 1e-4f;
     /**
      * モードがこのtickも続くと確かめた後で技能が呼ぶ: このtickの始めの精算が払い終えた維持に応じて、熟練度を1回だけ与える。
      * 待機はaddProficiencyOnly（能力レベルの経験値なし）、行動はaddProficiency。精算されなかった（払えず外れた、まだ精算前、
@@ -456,6 +467,8 @@ public final class PlayerAbilityData {
         if (!upkeepHeld(upkeep)) return;
         int earned = upkeep.earned; upkeep.earned = 0;
         if (earned == 0 || readOnly || !hasAbility() || !active || interfering || !gainable(upkeep.skill)) return;
+        // 案B: 精算では行動として払ったモードでも、維持の熟練度は待機と同じ量を技能だけに（能力レベルの経験値なし）。
+        if (upkeep.skillOnlyHold) { if (getProficiency(upkeep.skill) < 1) gain(upkeep.skill, HOLD_IDLE_PROFICIENCY, false); return; }
         if (earned == 2) gain(upkeep.skill, HOLD_ACTING_PROFICIENCY, true);
         else if (getProficiency(upkeep.skill) < 1) gain(upkeep.skill, HOLD_IDLE_PROFICIENCY, false);
     }

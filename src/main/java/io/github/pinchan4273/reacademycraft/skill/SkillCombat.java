@@ -23,6 +23,14 @@ public final class SkillCombat {
     public static boolean attack(ServerPlayer caster, Entity target, ResourceLocation skill, float damage) {
         return hurt(caster, target, skill, damage, SkillDamageSource.TYPE);
     }
+    /**
+     * Light ShieldとJet Engineの接触攻撃（2026-10-16、統合指示書4章）: attackと同じ方針（SkillAttackのイベント、設定の倍率、mayAttackの
+     * PvPと攻撃の権限、術者の帰属、死亡文）を、標準の被ダメージ後の待ちだけを飛ばす{@link SkillDamageSource#CONTACT}で。
+     * 同じ対象への間隔（8tick）は、呼ぶ側の技能が守る。
+     */
+    public static boolean attackContact(ServerPlayer caster, Entity target, ResourceLocation skill, float damage) {
+        return hurt(caster, target, skill, damage, SkillDamageSource.CONTACT);
+    }
     /** 原作AbilityContext.attackIgnoreArmor: 同じ方針を、防具を無視するダメージ源で。 */
     public static boolean attackIgnoreArmor(ServerPlayer caster, Entity target, ResourceLocation skill, float damage) {
         return hurt(caster, target, skill, damage, SkillDamageSource.IGNORE_ARMOR);

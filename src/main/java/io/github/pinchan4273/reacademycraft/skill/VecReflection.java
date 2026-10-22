@@ -33,7 +33,8 @@ import net.minecraftforge.fml.common.Mod;
 /**
  * 原作VecReflection: ベクトル操作のレベル4の防御。
  *
- * キーでモードをオン・オフする。オンにするとlerp(350, 250, exp)のオーバーロードが加わり、モードの間は下がらない。原作の毎tickの
+ * キーでモードをオン・オフする。オンにするとlerp(80, 40, exp)のオーバーロード（2026-10-16の統合指示書3章。原作lerp(350, 250, exp)）が
+ * 加わり、モードの間は下がらない。原作の毎tickの
  * lerp(15, 11, exp)のCPは、今は切り替え型技能の維持コスト（止めている回復に、toggle_upkeep.vec_reflection（熟練度0%で15）×
  * (1 - 熟練度)を加えた量）で、払えなくなるとモードを終える。毎tick、4ブロック以内でまだ見ておらず、除外されておらず
  * （EntityAffectionを参照）、まだ向きを変えていないエンティティを、術者の見ている20ブロック先へ向けてそれ自身の速さで向け直す。
@@ -71,7 +72,8 @@ public final class VecReflection {
         return player.isAlive() && data != null && !data.isReadOnly() && data.isActive()
                 && AbilityCategory.VECMANIP.id().equals(data.getAbility()) && data.hasLearned(ID);
     }
-    public static float startOverload(float exp) { return ArcGen.lerp(350, 250, exp); }
+    /** 起動のオーバーロード（2026-10-16、統合指示書3章。原作lerp(350, 250)から）。 */
+    public static float startOverload(float exp) { return ArcGen.lerp(80, 40, exp); }
     public static float entityConsumption(float exp) { return ArcGen.lerp(300, 160, exp); }
     /** 攻撃に対する原作reflectDamageの割合。 */
     public static float share(float exp) { return ArcGen.lerp(.6f, 1.2f, exp); }

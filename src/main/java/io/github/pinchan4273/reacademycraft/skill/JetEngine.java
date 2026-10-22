@@ -31,7 +31,8 @@ import net.minecraftforge.fml.common.Mod;
  * toggle_upkeep.jet_engine × (1 - 熟練度)を加えた量。熟練度100%で回復と釣り合う）。払えなくなる、能力のオフ、プリセットやカテゴリの
  * 変更、技能がスロットから外れる、妨害、コンテナの画面、死亡、ログアウト、ディメンションの移動で終わる。術者自身のクライアントも、
  * 画面が開くかウィンドウがフォーカスを失うと終える。終了で原作のクールダウンが始まる。通り抜けた生き物は原作のダメージで焼かれ、
- * それぞれHIT_INTERVAL tickに最大1回。
+ * それぞれHIT_INTERVAL tickに最大1回（2026-10-16の統合指示書4章で10から8へ。旧案の5は撤回）。8tickでは標準の被ダメージ後の待ち
+ * （命中から20tickのうちinvulnerableTime &gt; 10の間）に削られるので、待ちだけを飛ばす専用の型（{@link SkillDamageSource#CONTACT}）で当てる。
  *
  * オンの間は落下を数えず（原作の飛行中と同じ）、浮いているプレイヤーに対するサーバーの確認の上では術者は飛んでよい: mayflyを
  * 持たない術者にだけ貸し、ゲームモードが飛行を与える場合を除き、終了時に返してもらう（lendFlightとgiveBackFlightを参照）。
@@ -42,7 +43,7 @@ public final class JetEngine {
     public static final ResourceLocation ID = ResourceLocation.fromNamespaceAndPath("academy", "jet_engine");
     /** 原作ではなく、試遊で調整した値: 推進の速さ（1tickあたりのブロック数）、それへ向かう速さ、1tickあたりのCP、同じ生き物を焼く間隔。 */
     public static final float TURN = .25f;
-    public static final int HIT_INTERVAL = 10;
+    public static final int HIT_INTERVAL = 8;
     private static final Map<UUID, Session> ACTIVE = new HashMap<>();
 
     private static final class Session {
@@ -57,8 +58,11 @@ public final class JetEngine {
             level = player.level(); preset = data.getCurrentPreset(); this.slot = slot;
             exp = data.getProficiency(ID); velocity = player.getDeltaMovement();
         }
-        /** 原作はこれを"consumption"と呼び、consumeのoverload引数へ渡す。 */
-        float overloadCost() { return ArcGen.lerp(170, 140, exp); }
+        /**
+         * 原作はこれを"consumption"と呼び、consumeのoverload引数へ渡す。起動のオーバーロード（2026-10-16、統合指示書3章:
+         * 原作lerp(170, 140)からlerp(60, 30)へ。CPのcpCostは変えない）。
+         */
+        float overloadCost() { return startOverload(exp); }
         /** 原作はこれを"overload"と呼び、consumeのCP引数へ渡す。 */
         float cpCost() { return ArcGen.lerp(60, 50, exp); }
         float damage() { return ArcGen.lerp(7, 20, exp); }
@@ -79,13 +83,18 @@ public final class JetEngine {
     }
 
     public static float speed(float exp) { return ArcGen.lerp(.7f, 1f, exp); }
+    /** 起動のオーバーロード（consumeのoverload引数）。 */
+    public static float startOverload(float exp) { return ArcGen.lerp(60, 30, exp); }
 
     private JetEngine() { }
     private static PlayerAbilityData data(ServerPlayer p) { return p.getCapability(AbilityCapabilities.PLAYER_ABILITY).orElse(null); }
+    /**
+     * 続けられるか。TOGGLE-GUI-001: コンテナの画面を開いただけでは止めない（推進は元の視線の方向へ続く）。
+     * 画面を開いている間の新しい開始は、start()が拒否する。
+     */
     private static boolean allowed(ServerPlayer player, PlayerAbilityData data) {
         return player.isAlive() && data != null && !data.isReadOnly() && data.isActive()
-                && AbilityCategory.MELTDOWNER.id().equals(data.getAbility()) && data.hasLearned(ID)
-                && player.containerMenu == player.inventoryMenu;
+                && AbilityCategory.MELTDOWNER.id().equals(data.getAbility()) && data.hasLearned(ID);
     }
 
     /** 推進をオンにする。オンの間の押下は、AbilityActionがオフとして扱う。 */
@@ -108,8 +117,9 @@ public final class JetEngine {
         }
         ACTIVE.put(player.getUUID(), session);
         session.upkeep = data.startUpkeep(ID, () -> player.getAbilities().instabuild);
-        // ON中はずっと推進するので、入力が無くても待機にならない（無料の待機にはしない）。
-        if (session.upkeep != null) session.upkeep.alwaysActing();
+        // ON中はずっと推進するので、入力が無くても待機にならない（無料の待機にはしない。CPの精算）。維持の熟練度は、待機と同じ
+        // 0.1パーセントポイント/秒を技能だけに受け取り、能力レベルの経験値は受け取らない（2026-10-16、案B）。
+        if (session.upkeep != null) session.upkeep.alwaysActing().skillOnlyHold();
         lendFlight(player, session);
         io.github.pinchan4273.reacademycraft.network.SkillModeState.send(player, ID, true);
         // 原作はコンテキストを持つすべてのクライアントへMSG_TRIGGERを送るので、ダイヤ形の盾とその粒子は術者だけでなく近くの全員に見える。
@@ -227,7 +237,7 @@ public final class JetEngine {
         }
         if (hit == null) return;
         session.lastHit.put(hit.getUUID(), session.ticks);
-        MDDamageHelper.attack(player, data, hit, ID, session.damage());
+        MDDamageHelper.attackContact(player, data, hit, ID, session.damage());
     }
 
     /** テスト用の入口: 推進のサーバー1tick分。 */

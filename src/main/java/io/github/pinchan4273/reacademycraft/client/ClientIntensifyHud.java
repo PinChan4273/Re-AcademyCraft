@@ -33,7 +33,8 @@ public final class ClientIntensifyHud {
     private static void currentWorld(){var w=Minecraft.getInstance().level;if(world!=w){reset();world=w;}}
     private static double age(){return Math.max(0,(System.nanoTime()-startedNanos)/1_000_000_000.0);}
     private static boolean usable(){
-        var c=Minecraft.getInstance();if(c.player==null||c.level==null||c.screen!=null||c.getOverlay()!=null||c.isPaused()||!c.isWindowActive()
+        // TOGGLE-GUI-001: 予備動作は画面の下でも続くので、画面を開いただけでは表示を中断しない。
+        var c=Minecraft.getInstance();if(c.player==null||c.level==null||c.getOverlay()!=null||c.isPaused()||!c.isWindowActive()
                 ||!c.player.isAlive()||c.player.isRemoved())return false;
         var d=c.player.getCapability(AbilityCapabilities.PLAYER_ABILITY).orElse(null);
         return d!=null&&!d.isReadOnly()&&d.isActive()&&!d.isOverloadLocked();
@@ -82,7 +83,7 @@ public final class ClientIntensifyHud {
         if(animation==null)return;
         if(!sameOwner()){abort();return;}
         // 切り替え型なので、キーを離しても何も起こらない。予備動作を終えるのは、完了の成功か中断だけ。
-        // 上のGUI・フォーカス・プリセット・ワールド・resourceによる中断は、どれも遅れて届いた完了を受け付けない。
+        // 上のポーズ・フォーカス・オーバーレイ・プリセット・ワールド・resourceによる中断は、どれも遅れて届いた完了を受け付けない。
         double now=age();animation.tick(now,RANDOM);if(animation.snapshot(now).disposed())clearVisual();
     }
     @SubscribeEvent public static void render(RenderGuiEvent.Post event){

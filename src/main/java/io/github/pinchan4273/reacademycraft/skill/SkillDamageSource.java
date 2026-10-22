@@ -21,6 +21,13 @@ public final class SkillDamageSource extends DamageSource {
      * エンチャントの防護とResistanceは、1.12の防げないダメージ源と同じく引き続き効く。
      */
     public static final ResourceKey<DamageType> IGNORE_ARMOR=ResourceKey.create(Registries.DAMAGE_TYPE,ResourceLocation.fromNamespaceAndPath("academy","skill_ignore_armor"));
+    /**
+     * Light ShieldとJet Engineの接触攻撃だけの型（2026-10-16、統合指示書4章）。中身は{@link #TYPE}と同じ（防具は効く）で、
+     * minecraft:bypasses_cooldownのタグにだけ属する: 同じ対象への8tickごとの命中が、標準の被ダメージ後の待ち（invulnerableTime &gt; 10）で
+     * 削られないようにする。bypasses_invulnerabilityには入れないので、クリエイティブなどの本当の無敵、Forgeの攻撃イベントの取り消し、
+     * 防具・Resistance・エンチャントはそのまま効く。共通の{@link #TYPE}には何も足さない（他の技能と通常の武器は従来どおり）。
+     */
+    public static final ResourceKey<DamageType> CONTACT=ResourceKey.create(Registries.DAMAGE_TYPE,ResourceLocation.fromNamespaceAndPath("academy","skill_contact"));
     private final ResourceLocation skill;
     public SkillDamageSource(ServerPlayer caster,ResourceLocation skill) { this(caster,skill,TYPE); }
     public SkillDamageSource(ServerPlayer caster,ResourceLocation skill,ResourceKey<DamageType> type) {

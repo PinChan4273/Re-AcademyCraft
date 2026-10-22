@@ -10,6 +10,7 @@ import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.Level;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.event.entity.living.LivingHurtEvent;
@@ -30,22 +31,34 @@ import net.minecraftforge.fml.common.Mod;
  * 熟練度100%で単独・待機（防御も接触攻撃も無い）なら、通常の回復の半分が正味で残る。実際に防いだとき・焼いたときの費用は原作のまま残す。
  *
  * 終えると5秒の鈍化と、続けた長さに比例するクールダウン（熟練度最大で半分）がかかる。長さは原作の上限lerp(120, 180)tickで打ち切るので、
- * クールダウンは原作で起こりえた最大（0%で240tick、100%で180tick）を超えない。起動費・吸収と接触の費用・鈍化をどうするかは未決定で、今は原作のまま。
+ * クールダウンは原作で起こりえた最大（0%で240tick、100%で180tick）を超えない。起動と吸収のオーバーロードは2026-10-16に変えた（下）。起動のCP（0）・吸収のCP・接触の費用・鈍化は原作のまま。
  *
  * 原作は吸収のコストを、盾が敵に触れたときは(overload, cp)、攻撃を吸収したときは(cp, overload)として渡しており、
  * 両方が意図どおりということはありえない。どちらかを選ばず、両方とも書かれたとおりに移植している。
+ * 2026-10-16から、吸収のオーバーロードだけをlerp(10, 4)にした（統合指示書の100%の5を、ユーザーの確定で偶数の4へ。吸収のCPと、接触のCP・オーバーロードは原作のまま）。
+ *
+ * <p>接触攻撃（2026-10-16、統合指示書4章）: 生き物には、盾のセッションごと・対象ごとに、前の接触から{@link #CONTACT_INTERVAL}tickに
+ * 最大1回。標準の被ダメージ後の待ちには従わない専用の型（{@link SkillDamageSource#CONTACT}）で当てる。以前は対象の
+ * invulnerableTimeが0になるまで飛ばしていたので、生き物には実質20tickに1回だった。間隔は、課金して攻撃した時刻から測る
+ * （攻撃が通らなかったとき、例えばPvPが無効・相手が無敵でも、8tickは空ける。毎tick課金しないため）。
+ * 生き物でないもの（ドロップしたアイテム、経験値オーブなど）は以前どおり、そのinvulnerableTimeだけを見て、通常の型で焼く。
+ * 防御吸収の間隔（{@link #ABSORB_INTERVAL}）は接触とは別で、変えていない。
  */
 @Mod.EventBusSubscriber(modid = "academy")
 public final class LightShield {
     public static final ResourceLocation ID = ResourceLocation.fromNamespaceAndPath("academy", "light_shield");
     /** 原作ACTION_INTERVAL、届く距離、覆う前方の弧。 */
     private static final int ABSORB_INTERVAL = 18;
+    /** 同じ生き物への接触攻撃の最小の間隔（tick。2026-10-16、統合指示書4章。旧案の1tickは撤回）。 */
+    public static final int CONTACT_INTERVAL = 8;
     private static final double REACH = 3, ARC_DEGREES = 60;
     private static final Map<UUID, Session> ACTIVE = new HashMap<>();
 
     private static final class Session {
         final Level level; final int preset, slot; final float exp, overloadFloor, maxTicks;
         int ticks; int lastAbsorb = -1;
+        /** このセッションが最近接触攻撃した生き物と、そのときのticks。CONTACT_INTERVAL tick後に忘れる（セッションと共に消える）。 */
+        final Map<UUID, Integer> lastContact = new HashMap<>();
         /** 能力データが毎tick精算する維持コストへの、この技能の要求。 */
         PlayerAbilityData.Upkeep upkeep;
         Session(ServerPlayer player, PlayerAbilityData data, int slot) {
@@ -55,13 +68,22 @@ public final class LightShield {
         }
         float absorbDamage() { return ArcGen.lerp(15, 50, exp); }
         float touchDamage() { return ArcGen.lerp(2, 6, exp); }
+        /** 接触攻撃ではオーバーロード、防御吸収ではCPとして渡る（原作の引数の順。下のクラスの説明）。 */
         float absorbOverload() { return ArcGen.lerp(5, 3, exp); }
+        /** 接触攻撃ではCPとして渡る。防御吸収のオーバーロードは2026-10-16からdefenseOverload。 */
         float absorbConsumption() { return ArcGen.lerp(50, 30, exp); }
+        /**
+         * 防御吸収が成立したときのオーバーロード（2026-10-16のユーザーの確定でlerp(10, 4)。統合指示書はlerp(10, 5)。原作では吸収のconsumeに
+         * absorbConsumptionのlerp(50, 30)が渡っていた）。補間の途中は丸めない。
+         */
+        float defenseOverload() { return ArcGen.lerp(10, 4, exp); }
         /** 続けた長さに比例するクールダウン。長さは原作の時間制限で打ち切る（有限で、保存できる範囲に収まる）。 */
         int cooldown() { float held = Math.min(ticks, maxTicks); return (int) ArcGen.lerp(2 * held, held, exp); }
     }
 
     private LightShield() { }
+    /** 起動のオーバーロード（2026-10-16、統合指示書3章。原作lerp(110, 60)から）。 */
+    public static float startOverload(float exp) { return ArcGen.lerp(40, 20, exp); }
     private static PlayerAbilityData data(ServerPlayer p) { return p.getCapability(AbilityCapabilities.PLAYER_ABILITY).orElse(null); }
     /**
      * 盾を続けてよいか。妨害（能力妨害器）も含む: 押し続け型だった1.0.0では、妨害されたクライアントが中断を送り心拍も届かなくなって
@@ -69,9 +91,9 @@ public final class LightShield {
      * 鈍化とクールダウン）をする。
      */
     private static boolean allowed(ServerPlayer player, PlayerAbilityData data) {
+        // TOGGLE-GUI-001: コンテナの画面を開いただけでは止めない。画面を開いている間の新しい開始は、start()が拒否する。
         return player.isAlive() && data != null && !data.isReadOnly() && data.isActive() && !data.isInterfering()
-                && AbilityCategory.MELTDOWNER.id().equals(data.getAbility()) && data.hasLearned(ID)
-                && player.containerMenu == player.inventoryMenu;
+                && AbilityCategory.MELTDOWNER.id().equals(data.getAbility()) && data.hasLearned(ID);
     }
 
     public static String start(ServerPlayer player, PlayerAbilityData data, int slot) {
@@ -84,7 +106,7 @@ public final class LightShield {
         if (data.getCooldown(ID) > 0) return "academy.cast.cooldown";
         if (player.containerMenu != player.inventoryMenu) return "academy.cast.unlearned";
         if (ACTIVE.containsKey(player.getUUID())) return "";
-        if (!data.consume(ID, 0, ArcGen.lerp(110, 60, data.getProficiency(ID)), player.getAbilities().instabuild))
+        if (!data.consume(ID, 0, startOverload(data.getProficiency(ID)), player.getAbilities().instabuild))
             return "academy.cast.cp";
         // 起動のオーバーロードで術者がオーバーロードした: そのイベントが全セッションを止めた後なので、何も始めない。
         if (data.isOverloadLocked()) return "academy.cast.overload";
@@ -131,6 +153,11 @@ public final class LightShield {
         var session = ACTIVE.get(player.getUUID());
         return session == null ? 0 : session.ticks;
     }
+    /** この盾が最近接触攻撃した生き物の数（CONTACT_INTERVAL tick後に忘れる）。 */
+    public static int remembered(ServerPlayer player) {
+        var session = ACTIVE.get(player.getUUID());
+        return session == null ? 0 : session.lastContact.size();
+    }
 
     /** 原作は術者の前方60度の弧を、yawだけで測って覆う。 */
     private static boolean reachable(ServerPlayer player, Entity target) {
@@ -159,17 +186,27 @@ public final class LightShield {
         if (!continues(player, data, session) || !data.upkeepHeld(session.upkeep)) { stop(player); return; }
         if (data.getOverload() < session.overloadFloor) data.setOverload(session.overloadFloor);
         session.ticks++;
+        // CONTACT_INTERVAL tick経った記録を忘れる（離れた・消えた対象の記録も、ここで消える）。
+        session.lastContact.values().removeIf(at -> session.ticks - at >= CONTACT_INTERVAL);
         var level = player.serverLevel();
         // 原作basicSelectorはEntitySelectors.everything(): ドロップしたアイテムや経験値オーブも焼く。
         for (var target : level.getEntities(player, player.getBoundingBox().inflate(REACH),
                 e -> e.isAlive() && !e.isSpectator())) {
-            if (target.invulnerableTime > 0 || !reachable(player, target)) continue;
+            // 生き物は、前の接触からCONTACT_INTERVAL tick（標準の被ダメージ後の待ちは見ない）。それ以外は以前どおりinvulnerableTime。
+            boolean living = target instanceof LivingEntity;
+            if ((living ? session.lastContact.containsKey(target.getUUID()) : target.invulnerableTime > 0) || !reachable(player, target)) continue;
             // 原作はここで接触を(overload, cp)として課す。
             if (!data.consume(ID, session.absorbConsumption(), session.absorbOverload(), player.getAbilities().instabuild)) continue;
             // 接触攻撃のtickは待機ではない。
             data.upkeepActed(session.upkeep);
             if (ACTIVE.get(player.getUUID()) != session) return;
-            MDDamageHelper.attack(player, data, target, ID, session.touchDamage());
+            if (living) {
+                // 課金した攻撃の時刻を記録する（通らなくても、同じ対象へはCONTACT_INTERVAL tick空ける）。
+                session.lastContact.put(target.getUUID(), session.ticks);
+                MDDamageHelper.attackContact(player, data, target, ID, session.touchDamage());
+            } else {
+                MDDamageHelper.attack(player, data, target, ID, session.touchDamage());
+            }
             data.addProficiency(ID, .001f);
         }
     }
@@ -193,7 +230,8 @@ public final class LightShield {
         session.lastAbsorb = session.ticks;
         float result = damage;
         // 原作は吸収を、上の接触とは逆に(cp, overload)として課す。
-        if (data.consume(ID, session.absorbOverload(), session.absorbConsumption(), player.getAbilities().instabuild)) {
+        // CPは原作どおりabsorbOverloadのlerp(5, 3)、オーバーロードは2026-10-16からdefenseOverloadのlerp(10, 4)。
+        if (data.consume(ID, session.absorbOverload(), session.defenseOverload(), player.getAbilities().instabuild)) {
             result -= Math.min(damage, session.absorbDamage());
             // 防御吸収のtickは待機ではない。
             data.upkeepActed(session.upkeep);

@@ -30,12 +30,15 @@ public final class RadiationIntensify {
     private RadiationIntensify() { }
 
     /** 原作getSkillExp: 術者の最大CPが、レベル5の術者の開始時の値へどこまで近づいたか。 */
-    public static float derivedProficiency(PlayerAbilityData data) {
-        float reference = PlayerAbilityData.initialCp(5);
-        return reference <= 0 ? 0 : Math.max(0, Math.min(1, data.getMaxCp() / reference));
+    public static float derivedProficiency(PlayerAbilityData data) { return derivedProficiency(data.getMaxCp(), PlayerAbilityData.initialCp(5)); }
+    /** 同じ式を、基準の値を渡して計算する。F4の表示は、参加中のサーバーが送ったLv5の初期CPを渡す。 */
+    public static float derivedProficiency(float maxCp, float reference) {
+        return reference <= 0 ? 0 : Math.max(0, Math.min(1, maxCp / reference));
     }
 
-    public static float rate(PlayerAbilityData data) { return ArcGen.lerp(1.4f, 1.8f, derivedProficiency(data)); }
+    public static float rate(PlayerAbilityData data) { return rate(derivedProficiency(data)); }
+    /** 実効熟練度からの倍率。 */
+    public static float rate(float proficiency) { return ArcGen.lerp(1.4f, 1.8f, proficiency); }
 
     /** 術者がそもそもこの受動技能を習得していれば、たった今当てた対象に印を付ける。 */
     public static void mark(PlayerAbilityData data, Entity target) {

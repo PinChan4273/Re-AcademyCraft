@@ -31,8 +31,15 @@ public final class WirelessNodeMenu extends AbstractContainerMenu {
     private final String placer;
     /** 原作はパスワードをnodeの近くのすべてのクライアントへ同期する。ここでは設置者だけに伝える。 */
     private final String password;
+    /**
+     * GUI-ENERGY-001: データスロットの並び。1.20.1は各スロットをshortで送るので、16bitを超えうるIFの蓄電量と最大値
+     * （ADVANCEDは200,000 IF）は上位・下位の2つに分ける。最後のSYNCEDはサーバーが常に1を送る。スロットは番号の順に
+     * 届くので、1が届いた後は前のスロットの値も届いている（初回の同期の前の0と、本当の0 IFを区別する）。
+     */
+    static final int STORED_LOW = 0, STORED_HIGH = 1, MAX_LOW = 2, MAX_HIGH = 3, LOAD = 4, CAPACITY = 5, RANGE = 6,
+            ON_NETWORK = 7, SYNCED = 8, DATA_COUNT = 9;
     public WirelessNodeMenu(int id, Inventory inv, FriendlyByteBuf buf) {
-        this(id, inv, buf.readBlockPos(), null, new SimpleContainerData(6), buf.readUtf(32), buf.readUtf(64), buf.readUtf(32),
+        this(id, inv, buf.readBlockPos(), null, new SimpleContainerData(DATA_COUNT), buf.readUtf(32), buf.readUtf(64), buf.readUtf(32),
                 new net.minecraftforge.items.ItemStackHandler(2));
     }
     public WirelessNodeMenu(int id, Inventory inv, WirelessNodeBlockEntity tile) {
@@ -45,17 +52,20 @@ public final class WirelessNodeMenu extends AbstractContainerMenu {
                         ? WirelessNetworks.of(server) : null;
                 var network = networks == null ? null : networks.networkAt(tile.getBlockPos());
                 return switch (index) {
-                    case 0 -> tile.milliIF() / 1000;
-                    case 1 -> tile.maxMilliIF() / 1000;
-                    case 2 -> networks == null ? 0 : networks.connection(tile.getBlockPos()).load();
-                    case 3 -> tile.wirelessCapacity();
-                    case 4 -> (int) Math.round(tile.wirelessRange());
-                    case 5 -> network == null ? 0 : 1;
+                    case STORED_LOW -> MenuInts.low(tile.milliIF() / 1000);
+                    case STORED_HIGH -> MenuInts.high(tile.milliIF() / 1000);
+                    case MAX_LOW -> MenuInts.low(tile.maxMilliIF() / 1000);
+                    case MAX_HIGH -> MenuInts.high(tile.maxMilliIF() / 1000);
+                    case LOAD -> networks == null ? 0 : networks.connection(tile.getBlockPos()).load();
+                    case CAPACITY -> tile.wirelessCapacity();
+                    case RANGE -> (int) Math.round(tile.wirelessRange());
+                    case ON_NETWORK -> network == null ? 0 : 1;
+                    case SYNCED -> 1;
                     default -> 0;
                 };
             }
             public void set(int index, int value) { }
-            public int getCount() { return 6; }
+            public int getCount() { return DATA_COUNT; }
         };
     }
     private WirelessNodeMenu(int id, Inventory inv, BlockPos pos, @Nullable WirelessNodeBlockEntity tile,
@@ -70,12 +80,17 @@ public final class WirelessNodeMenu extends AbstractContainerMenu {
         for (int col = 0; col < 9; col++) addSlot(new Slot(inv, col, 6 + col * 18, 163));
         addDataSlots(data);
     }
-    public int storedIF() { return Math.max(0, data.get(0)); }
-    public int maxIF() { return Math.max(1, data.get(1)); }
-    public int load() { return Math.max(0, data.get(2)); }
-    public int capacity() { return Math.max(0, data.get(3)); }
-    public int range() { return Math.max(0, data.get(4)); }
-    public boolean onNetwork() { return data.get(5) != 0; }
+    /** 初回の同期が届いたか（届く前は蓄電量を0と表示しない）。 */
+    public boolean synced() { return data.get(SYNCED) == 1; }
+    /** 蓄電量（IF）。上位・下位のスロットから組み立てる。0から最大値の間に収める。 */
+    public int storedIF() {
+        return Math.max(0, Math.min(maxIF(), MenuInts.join(data.get(STORED_LOW), data.get(STORED_HIGH))));
+    }
+    public int maxIF() { return Math.max(1, MenuInts.join(data.get(MAX_LOW), data.get(MAX_HIGH))); }
+    public int load() { return Math.max(0, data.get(LOAD)); }
+    public int capacity() { return Math.max(0, data.get(CAPACITY)); }
+    public int range() { return Math.max(0, data.get(RANGE)); }
+    public boolean onNetwork() { return data.get(ON_NETWORK) != 0; }
     public String nodeName() { return tile == null ? name : tile.nodeName(); }
     public String placer() { return placer; }
     public String password() { return password; }

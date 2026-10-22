@@ -6,7 +6,7 @@ plugins {
 }
 
 group = 'io.github.pinchan4273.reacademycraft'
-version = '1.1.0'
+version = '1.2.0'
 base { archivesName = 're-academycraft-forge-1.20.1' }
 
 java {
@@ -37,6 +37,16 @@ minecraft {
             if (project.hasProperty('runtimeSmokeTest')) {
                 workingDirectory project.file('run/client-smoke')
                 property 'academy.runtimeSmokeTest', 'true'
+                mods { academy { source sourceSets.test } }
+            }
+            // 実クライアント2人の接触の試験（tools/run_mp_contact.py、MultiplayerContactCheck）。名前ごとに作業フォルダを分ける。
+            // このプロパティを付けたときだけ効き、製品のJARには関係しない。
+            if (project.hasProperty('mpQaName')) {
+                workingDirectory project.file('run/mp-' + project.property('mpQaName'))
+                property 'academy.mpContact', project.property('mpContactRole')
+                property 'academy.mpQaServer', project.property('mpQaServer')
+                args '--username', project.property('mpQaName')
+                jvmArgs '-Xmx1536m'
                 mods { academy { source sourceSets.test } }
             }
         }

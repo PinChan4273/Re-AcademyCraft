@@ -84,11 +84,11 @@ public record AbilityAction(int action, int slot) {
         if (action == RELEASE || action == CANCEL) {
             ThunderClap.release(player, slot); Railgun.release(player, slot); CurrentCharging.release(player, slot); MagneticMovement.release(player, slot);
             if (action == RELEASE) MagneticManipulation.release(player, slot); else MagneticManipulation.cancel(player, slot);
-            // Body Intensifyは切り替え型: キーアップは意味を持たず、CANCELはクライアントの安全な停止（準備中に画面が開いた、または
-            // ウィンドウのフォーカスが外れた）。
+            // Body Intensifyは切り替え型: キーアップは意味を持たず、CANCELはクライアントの安全な停止（ウィンドウのフォーカスが
+            // 外れた。TOGGLE-GUI-001: 画面を開いただけでは送らない）。
             if (action == CANCEL) BodyIntensify.cancel(player, slot);
-            // Jet Engineは切り替え型: キーアップは意味を持たず、CANCELはクライアントの安全な停止（噴射中に画面が開いた、または
-            // ウィンドウのフォーカスが外れた）。
+            // Jet Engineは切り替え型: キーアップは意味を持たず、CANCELはクライアントの安全な停止（噴射中にウィンドウのフォーカスが
+            // 外れた。TOGGLE-GUI-001: 画面を開いただけでは送らない）。
             if (action == CANCEL) io.github.pinchan4273.reacademycraft.skill.JetEngine.stop(player, slot);
             if (action == RELEASE) io.github.pinchan4273.reacademycraft.skill.Meltdowner.release(player, slot); else io.github.pinchan4273.reacademycraft.skill.Meltdowner.cancel(player, slot);
             if (action == RELEASE) io.github.pinchan4273.reacademycraft.skill.ThreateningTeleport.release(player, slot); else io.github.pinchan4273.reacademycraft.skill.ThreateningTeleport.cancel(player, slot);

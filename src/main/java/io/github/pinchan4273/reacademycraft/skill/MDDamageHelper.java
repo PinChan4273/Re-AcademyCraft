@@ -17,4 +17,14 @@ public final class MDDamageHelper {
         RadiationIntensify.mark(data, target);
         return hurt;
     }
+    /**
+     * Light ShieldとJet Engineの接触攻撃（2026-10-16、統合指示書4章）: {@link SkillCombat#attackContact}で当て、attackと同じく
+     * 当たったかどうかに関係なくRadiation Intensifyの印を付ける。
+     */
+    public static boolean attackContact(ServerPlayer caster, PlayerAbilityData data, Entity target,
+                                        ResourceLocation skill, float damage) {
+        boolean hurt = SkillCombat.attackContact(caster, target, skill, damage);
+        RadiationIntensify.mark(data, target);
+        return hurt;
+    }
 }

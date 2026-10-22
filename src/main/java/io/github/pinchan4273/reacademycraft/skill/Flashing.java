@@ -23,7 +23,8 @@ import net.minecraftforge.fml.common.Mod;
 /**
  * 原作Flashing（WeAthFolD）: テレポーターのレベル5技能。
  *
- * キーで瞬間移動モードをオン・オフする。オンにするとlerp(80, 60, exp)のCPとlerp(250, 180, exp)のオーバーロードがかかり、
+ * キーで瞬間移動モードをオン・オフする。オンにするとlerp(80, 60, exp)のCPとlerp(100, 50, exp)のオーバーロード（2026-10-16の統合指示書3章。
+ * 原作lerp(250, 180, exp)）がかかり、
  * 続く間オーバーロードはその値を下回らない。原作はlerp(60, 150, exp)tick後にモードを終える。移植版は原作とは異なる仕様として
  * 時間制限を設けず、代わりに切り替え型技能の維持コストを払い、払えなくなると終える（止めている回復に、toggle_upkeep.flashing
  * （熟練度0%で4）× (1 - 熟練度)を加えた量）。モード中は移動キーで狙う: どれかを押すと左・右・前・後のいずれかを選び、
@@ -59,7 +60,8 @@ public final class Flashing {
     }
     public static float consumption(float exp) { return ArcGen.lerp(14, 6, exp); }
     public static float startConsumption(float exp) { return ArcGen.lerp(80, 60, exp); }
-    public static float startOverload(float exp) { return ArcGen.lerp(250, 180, exp); }
+    /** 起動のオーバーロード（2026-10-16、統合指示書3章。原作lerp(250, 180)から）。 */
+    public static float startOverload(float exp) { return ArcGen.lerp(100, 50, exp); }
     /** このスロットからオンにしたモードが動いたtick数。そこからオンでなければ-1。 */
     public static int ageOn(ServerPlayer player, int slot) {
         var session = ACTIVE.get(player.getUUID());

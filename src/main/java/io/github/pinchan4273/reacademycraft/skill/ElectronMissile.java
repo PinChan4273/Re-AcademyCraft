@@ -32,7 +32,8 @@ import net.minecraftforge.fml.common.Mod;
  * ログアウト、ディメンションの移動でも終わる。オーブにはもう決まった寿命が無い: それぞれORB_LIFE tickで送り、モードが続く間は
  * RENEW_INTERVALごとに更新し（近づいてきた観測者は更新でオーブを見る）、終了で退かせる。オンの間は切り替え型技能の維持コストを
  * 払う。これはlerp(12, 5)をconsumeで払うのではなく、能力データが回復を精算する所で払い、熟練度100%で回復と釣り合う。
- * 各攻撃は従来どおり自身のコストを払う。
+ * 各攻撃は従来どおり自身のコストを払う。オーバーロードは、起動でlerp(100, 60)、自動射撃1回でlerp(4, 2)（2026-10-16のユーザーの確定。統合指示書のlerp(5, 2)の0%の5を偶数の4へ。
+ * 原作は起動の固定200と、1回lerp(10, 4)）。
  *
  * 原作自身のクールダウンの式はMathUtils.clampi(700, 400, exp.toInt)。clampiは(min, max, value)を取るので、ほぼ常に0になる値
  * （expは0〜1の熟練度をintへ切り捨てたもの）を、最小が最大より大きい[700, 400]の範囲へ収めることになる: Math.max(700,
@@ -45,7 +46,8 @@ public final class ElectronMissile {
     /** 原作MAX_HOLD、生成の間隔、攻撃の間隔。 */
     private static final int MAX_ORBS = 5, SPAWN_INTERVAL = 10, ATTACK_INTERVAL = 8;
     /** 原作overload_keep: ここの毎tickや攻撃ごとのコストと違い、lerpではなく固定。 */
-    private static final float OVERLOAD_KEEP = 200;
+    /** 起動のオーバーロード（2026-10-16、統合指示書3章。原作の固定200から、熟練度でlerp(100, 60)）。 */
+    public static float startOverload(float exp) { return ArcGen.lerp(100, 60, exp); }
     private static final double PRESENTATION_RANGE = 20;
     /** 送るときのオーブの寿命、動作中のモードが更新する間隔、退かせるときの寿命。 */
     public static final int ORB_LIFE = 40, RENEW_INTERVAL = 20, RETIRE_LIFE = 2;
@@ -63,7 +65,8 @@ public final class ElectronMissile {
             level = player.level(); preset = data.getCurrentPreset(); this.slot = slot;
             exp = data.getProficiency(ID); overloadFloor = data.getOverload();
         }
-        float attackOverload() { return ArcGen.lerp(10, 4, exp); }
+        /** 自動射撃1回のオーバーロード（2026-10-16のユーザーの確定でlerp(4, 2)。原作lerp(10, 4)から）。CPのattackConsumptionは変えない。補間の途中は丸めない。 */
+        float attackOverload() { return ArcGen.lerp(4, 2, exp); }
         float attackConsumption() { return ArcGen.lerp(60, 26, exp); }
         float damage() { return ArcGen.lerp(10, 18, exp); }
         double range() { return ArcGen.lerp(5, 13, exp); }
@@ -74,9 +77,9 @@ public final class ElectronMissile {
     private ElectronMissile() { }
     private static PlayerAbilityData data(ServerPlayer p) { return p.getCapability(AbilityCapabilities.PLAYER_ABILITY).orElse(null); }
     private static boolean allowed(ServerPlayer player, PlayerAbilityData data) {
+        // TOGGLE-GUI-001: コンテナの画面を開いただけでは止めない。画面を開いている間の新しい開始は、start()が拒否する。
         return player.isAlive() && data != null && !data.isReadOnly() && data.isActive()
-                && AbilityCategory.MELTDOWNER.id().equals(data.getAbility()) && data.hasLearned(ID)
-                && player.containerMenu == player.inventoryMenu;
+                && AbilityCategory.MELTDOWNER.id().equals(data.getAbility()) && data.hasLearned(ID);
     }
 
     public static String start(ServerPlayer player, PlayerAbilityData data, int slot) {
@@ -89,7 +92,7 @@ public final class ElectronMissile {
         if (data.getCooldown(ID) > 0) return "academy.cast.cooldown";
         if (player.containerMenu != player.inventoryMenu) return "academy.cast.unlearned";
         if (ACTIVE.containsKey(player.getUUID())) return "";
-        if (!data.consume(ID, 0, OVERLOAD_KEEP, player.getAbilities().instabuild)) return "academy.cast.cp";
+        if (!data.consume(ID, 0, startOverload(data.getProficiency(ID)), player.getAbilities().instabuild)) return "academy.cast.cp";
         // 支払いで術者がオーバーロードすることがあり、そのイベントは、このモードがまだ存在しないうちにすべてのモードを終える:
         // その場合は何も始めない。オーバーロードさせた分は、他のオーバーロードを起こすコストと同じく払ったまま。
         if (!startable(player, data, slot)) { io.github.pinchan4273.reacademycraft.network.AbilitySyncEvents.sync(player, true); return "academy.cast.overload"; }

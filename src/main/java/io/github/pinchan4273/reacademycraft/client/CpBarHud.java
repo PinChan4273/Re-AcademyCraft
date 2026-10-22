@@ -333,6 +333,34 @@ public final class CpBarHud {
         KeyHintHud.glow(g.pose(), x0 - margin - len, y0 - margin, len + margin * 2, 44 + margin * 2, 5, 0xffffff, 40 / 255f);
         drawAt(g, font, text, x0 - len, y0, s, 0xa0);
     }
+    /**
+     * F4（DebugConsole）が避ける、このフレームでCPバーが描く範囲（GUI座標、WORK-045のFQ-03）。描き方は変えず、上のdrawと同じ数で
+     * 囲む: バー（964x147）、drawPresetHintの四角4つ（(580, 136)から幅52、間隔10）、drawActivateKeyHintの案内（(500, 140)に右揃え、
+     * 余白8、高さ44）、どちらも光の縁5。干渉の間は揺れ（FRAME_OFFSETの最大: 横9×縦横比、縦9）も含む。いずれも0.2倍。
+     * F4はRenderGuiEvent.Pre、バーはPostで描くので、前のフレームのalphaでフェードアウトの途中も含める。能力が無いか、描かないならnull。
+     */
+    @Nullable public static DebugConsoleLayout.Area area(Minecraft client, PlayerAbilityData data, int guiWidth, int guiHeight) {
+        if (data == null || !data.hasAbility() || (!data.isActive() && mAlpha <= 0)) return null;
+        float left = 0, top = 0, right = WIDTH, bottom = HEIGHT, glow = 5;
+        right = Math.max(right, 580 + 4 * (52 + 10) - 10 + glow);
+        bottom = Math.max(bottom, 136 + 52 + glow);
+        String hint = AbilityControls.activateHint(client);
+        if (hint != null) {
+            String text = "[" + AbilityControls.TOGGLE.getTranslatedKeyMessage().getString() + "]: "
+                    + Component.translatable("academy.activate_key." + hint + ".desc").getString();
+            float len = client.font.width(text) * 44 / 9f, margin = 8;
+            left = Math.min(left, 500 - margin - len - glow);
+            right = Math.max(right, 500 + margin + glow);
+            top = Math.min(top, 140 - margin - glow);
+            bottom = Math.max(bottom, 140 + 44 + margin + glow);
+        }
+        if (data.isInterfering()) {
+            float shakeX = 9 * WIDTH / HEIGHT, shakeY = 9;
+            left -= shakeX; right += shakeX; top -= shakeY; bottom += shakeY;
+        }
+        float x = HudLayout.left(HudLayout.Node.CPBAR, guiWidth), y = HudLayout.top(HudLayout.Node.CPBAR, guiHeight);
+        return new DebugConsoleLayout.Area(x + left * SCALE, y + top * SCALE, x + right * SCALE, y + bottom * SCALE);
+    }
     /** テスト用の入口: バーが追い付こうとしている値。 */
     public static float bufferedCp() { return bufferedCp; }
     public static float bufferedOverload() { return bufferedOverload; }

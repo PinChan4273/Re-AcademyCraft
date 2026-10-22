@@ -48,6 +48,16 @@ public final class TutorialNotifyHud {
         title = articleTitle; received = Util.getMillis() / 1000.0;
     }
 
+    /**
+     * F4（DebugConsole）が避ける、通知のカードの範囲（GUI座標、WORK-045のFQ-03）。カード（517x170の0.25倍）を表示している6秒の間だけ。
+     * アイコンと文字はカードの中に描く。描き方は変えない。表示していなければnull。
+     */
+    @Nullable public static DebugConsoleLayout.Area area(int guiWidth, int guiHeight) {
+        if (title == null || Util.getMillis() / 1000.0 - received >= KEEP_TIME) return null;
+        float x = HudLayout.left(HudLayout.Node.NOTIFICATION, guiWidth), y = HudLayout.top(HudLayout.Node.NOTIFICATION, guiHeight);
+        return new DebugConsoleLayout.Area(x, y, x + WIDTH * SCALE, y + HEIGHT * SCALE);
+    }
+
     @SubscribeEvent public static void draw(RenderGuiEvent.Post event) {
         var client = Minecraft.getInstance();
         if (title == null || client.options.hideGui) return;

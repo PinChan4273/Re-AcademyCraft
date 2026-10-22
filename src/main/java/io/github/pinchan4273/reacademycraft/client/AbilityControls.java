@@ -93,16 +93,43 @@ public final class AbilityControls {
         if (event.phase != TickEvent.Phase.END) return;
         var client = Minecraft.getInstance();
         boolean canSend = client.player != null && client.screen == null && !client.isPaused() && client.isWindowActive();
+        // TOGGLE-GUI-001: 操作できない間（画面・ポーズ・フォーカスの喪失。技能の枠はデータ端末の表示中も）を見たキーは、
+        // 物理的なキーが離されるまで新しい発動に使わない（SkillKeyGate）。閉じた直後のキーリピートのクリックもここで捨てる。
+        // F03（P-C′＋M2）: フォーカスが戻った直後は、離されて見えるキーもリピートを待っているだけかもしれない。フォーカスの喪失の印の
+        // あるキーは、本当の離しを見るまで使わない（SkillKeyGate.Latch・SteeringGate.FocusMark。時間では解かない）。
+        // QA 3回目（TOGGLE-QA3-F02）: データ端末は画面ではないので、端末の中の能力・プリセット・編集のキーは従来どおり働く。
+        // ただし端末の開閉を跨いで押していたキーは、閉じた（開いた）後の操作に持ち越さない（開閉の境目を、操作できない間と同じに扱う）。
+        // 端末のキー自身は対象にしない（押したままのリピートで開閉を繰り返すのは、従来の動き）。
+        // QA 4回目（TOGGLE-QA4-F02-R1）: 境目は、気づいた時点（キーのイベントの前、またはこのtickの初め）で一度だけ適用する。
+        // tickの初めに気づく場合も、その前に気づいたイベントの後の入力（閉じた後の新しい押下）は消さない。
+        terminalBoundary(client, null, -1);
+        boolean terminalOpen = TerminalHud.isOpen();
+        EDITOR_LATCH.update(!canSend, physical(client, EDITOR));
+        TERMINAL_LATCH.update(!canSend, physical(client, TERMINAL));
+        TOGGLE_LATCH.update(!canSend, physical(client, TOGGLE));
+        PRESET_LATCH.update(!canSend, physical(client, PRESET));
+        for (int i = 0; i < 4; i++) SLOT_LATCHES[i].update(!canSend || terminalOpen, physical(client, SLOTS[i]));
+        // F03: このtickのフォーカスを印へ知らせる（キーボードのキーは、フォーカスの無いtickで印を付ける。マウスのボタンは付けない）。
+        boolean windowActive = client.isWindowActive();
+        EDITOR_LATCH.focusTick(windowActive, keyboard(EDITOR));
+        TERMINAL_LATCH.focusTick(windowActive, keyboard(TERMINAL));
+        TOGGLE_LATCH.focusTick(windowActive, keyboard(TOGGLE));
+        PRESET_LATCH.focusTick(windowActive, keyboard(PRESET));
+        for (int i = 0; i < 4; i++) SLOT_LATCHES[i].focusTick(windowActive, keyboard(SLOTS[i]));
         boolean open = false;
         while (EDITOR.consumeClick()) open = true;
         // 原作keyEditPresetは、能力系統を持つプレイヤーだけに編集画面を開く。
         var holder = client.player == null ? null : client.player.getCapability(AbilityCapabilities.PLAYER_ABILITY).orElse(null);
-        if (open && canSend && client.player.isAlive() && holder != null && holder.hasAbility()) {
+        if (open && canSend && EDITOR_LATCH.usable() && client.player.isAlive() && holder != null && holder.hasAbility()) {
             client.setScreen(new PresetEditorScreen()); canSend = false;
         }
         boolean terminal = false;
         while (TERMINAL.consumeClick()) terminal = true;
-        if (terminal && canSend && client.player.isAlive()) { TerminalHud.toggle(); canSend = false; }
+        if (terminal && canSend && TERMINAL_LATCH.usable() && client.player.isAlive()) {
+            TerminalHud.toggle(); canSend = false;
+            // このtickに開閉した: このtickの後のキーの処理から、境目を跨いだキーとして扱う。
+            terminalBoundary(client, null, -1);
+        }
         // 原作のactivateの処理（Flashing・Vector Deviation・Storm Wing）: 技能のモードがONの間、能力キーは
         // 能力をOFFにせず、そのモードを終える（その技能のキーで切り替えるのと同じ）。
         int mode = modeSlot(client);
@@ -111,7 +138,7 @@ public final class AbilityControls {
         // 原作keyActivate: 押した時点では数値の表示を始めるだけ（CpBarHud）。キーは離したときに、
         // しかも0.3秒以内のときだけ動作する。そのため、押し続けるとCPと過負荷を表示するだけで何も切り替えない。
         // 合成のクリック（KeyMapping.click）は押し続けられないので、すぐ離した軽い押下として扱われる。
-        while (TOGGLE.consumeClick()) if (toggleDownNanos < 0) toggleDownNanos = System.nanoTime();
+        while (TOGGLE.consumeClick()) if (toggleDownNanos < 0 && TOGGLE_LATCH.usable()) toggleDownNanos = System.nanoTime();
         boolean tapped = false;
         if (toggleDownNanos >= 0 && !TOGGLE.isDown()) {
             tapped = System.nanoTime() - toggleDownNanos < TAP_NANOS;
@@ -123,7 +150,7 @@ public final class AbilityControls {
                 : new AbilityAction(AbilityAction.TOGGLE, 0));
         // 原作keySwitchPresetは、能力がOFFの間は何もしない。サーバー側でも確かめる。
         var owner = client.player == null ? null : client.player.getCapability(AbilityCapabilities.PLAYER_ABILITY).orElse(null);
-        consume(PRESET, new AbilityAction(AbilityAction.NEXT_PRESET, 0), canSend && owner != null && owner.isActive());
+        consume(PRESET, new AbilityAction(AbilityAction.NEXT_PRESET, 0), canSend && PRESET_LATCH.usable() && owner != null && owner.isActive());
         heartbeatTicks++;
         for (int i = 0; i < 4; i++) {
             var data = client.player == null ? null : client.player.getCapability(AbilityCapabilities.PLAYER_ABILITY).orElse(null);
@@ -133,7 +160,7 @@ public final class AbilityControls {
             if (data != null && io.github.pinchan4273.reacademycraft.skill.LocationTeleport.ID.equals(data.getSlot(data.getCurrentPreset(), i))) {
                 boolean pressed = false;
                 while (SLOTS[i].consumeClick()) pressed = true;
-                if (pressed && canSend && data.canUseAbility()) { client.setScreen(new LocationTeleportScreen()); canSend = false; }
+                if (pressed && canSend && SLOT_LATCHES[i].usable() && data.canUseAbility()) { client.setScreen(new LocationTeleportScreen()); canSend = false; }
                 HELD[i] = false;
                 continue;
             }
@@ -144,43 +171,184 @@ public final class AbilityControls {
                     || (skill != null && data.getCooldown(skill) > 0);
             // 切り替え型の技能は、新しく押されたときだけ受け付ける。押し続けるとクリックが繰り返され、
             // OFFとONを繰り返してしまうため。
-            boolean fresh = !AbilityAction.toggled(skill) || !wasDown;
-            boolean clicked = consume(SLOTS[i], new AbilityAction(AbilityAction.CAST, i), canSend && !(TerminalHud.isOpen()) && fresh);
-            boolean heldSkill = data != null && AbilityAction.held(skill);
-            // 中断されたキーは、離されるまで何もしない（原作realState）。
-            if (!SLOTS[i].isDown()) ABORTED[i] = false;
-            boolean down = canSend && SLOTS[i].isDown() && heldSkill && data.isActive() && !ABORTED[i];
-            if (down && blocked) {
-                // 押している間に使えなくなった: 中断する。既に使えない状態で押された: 開始しない。
-                // 原作でも、キーを押すにはまず離されている必要がある。
-                if (HELD[i]) AcademyNetwork.CHANNEL.sendToServer(new AbilityAction(AbilityAction.CANCEL, i));
-                ABORTED[i] = true; HELD[i] = false; continue;
-            }
-            if (down && (!HELD[i] || heartbeatTicks % 5 == 0))
-                AcademyNetwork.CHANNEL.sendToServer(new AbilityAction(AbilityAction.HELD, i));
-            else if (!down && HELD[i] && client.player != null)
-                AcademyNetwork.CHANNEL.sendToServer(new AbilityAction(canSend && data != null && data.isActive()
-                        ? AbilityAction.RELEASE : AbilityAction.CANCEL, i));
-            // 実際の押下と離しが、クライアントのtickの間に起こることがある。キューに入ったクリックは、
-            // 押し続けている技能をすべて離す必要がある（leaseの期限まで有効のままにしない）。
-            // コインのQTEはCASTの時点で判定済みなので、ここで離しても影響しない。
-            if (clicked && !down && !HELD[i] && heldSkill)
-                AcademyNetwork.CHANNEL.sendToServer(new AbilityAction(AbilityAction.RELEASE, i));
-            HELD[i] = down;
+            boolean clicked = false;
+            while (SLOTS[i].consumeClick()) clicked = true;
+            // 切り替え型の新しい押下の扱い、中断されたキー（原作realState）、押し続けの心拍・離し・中断、キューに入った
+            // クリックの離しは、SkillKeyGate.slotが従来と同じ順序と条件で決める。古いキーはCASTも押し続けの開始も送らない。
+            // コインのQTEはCASTの時点で判定済みなので、クリックの後の離しは影響しない。
+            // 古いキーが離されたtickのクリックは使わない。離してから押し直したクリックは、新しい押下として扱う（SkillKeyGate.Latch）。
+            // 新しい押下は、前のtickの押下の状態も中断の印（離されるまで何もしない）も引き継がない（離されたことをイベントで見ている）。
+            var latch = SLOT_LATCHES[i];
+            var result = SkillKeyGate.slot(new SkillKeyGate.Input(canSend, TerminalHud.isOpen(), SLOTS[i].isDown(), wasDown && !latch.newPress(), clicked,
+                    !latch.usable(), AbilityAction.toggled(skill), data != null && AbilityAction.held(skill), data != null && data.isActive(),
+                    blocked, client.player != null, heartbeatTicks % 5 == 0, HELD[i], ABORTED[i] && !latch.newPress()));
+            for (var send : result.sends()) AcademyNetwork.CHANNEL.sendToServer(new AbilityAction(switch (send) {
+                case CAST -> AbilityAction.CAST; case HELD -> AbilityAction.HELD;
+                case RELEASE -> AbilityAction.RELEASE; case CANCEL -> AbilityAction.CANCEL;
+            }, i));
+            HELD[i] = result.held(); ABORTED[i] = result.aborted();
         }
         safeStopThrust(client);
         safeStopIntensify(client);
     }
     private static final boolean[] WAS_DOWN = new boolean[4];
+    private static final SkillKeyGate.Latch EDITOR_LATCH = new SkillKeyGate.Latch(), TERMINAL_LATCH = new SkillKeyGate.Latch(),
+            TOGGLE_LATCH = new SkillKeyGate.Latch(), PRESET_LATCH = new SkillKeyGate.Latch();
+    private static final SkillKeyGate.Latch[] SLOT_LATCHES = { new SkillKeyGate.Latch(), new SkillKeyGate.Latch(),
+            new SkillKeyGate.Latch(), new SkillKeyGate.Latch() };
+    /** 最後に境目を適用したときに、データ端末が開いていたか（TOGGLE-QA3-F02・QA4-F02-R1の開閉の境目）。 */
+    private static boolean lastTerminalOpen;
+    /** F03: キーボードのキーか（P-C′の印を付ける）。マウスのボタン（M2）はfalse。 */
+    private static boolean keyboard(KeyMapping mapping) { return mapping.getKey().getType() != InputConstants.Type.MOUSE; }
+    /**
+     * QA 3回目（TOGGLE-QA3-F01）: GLFWのキーのイベント（押下・リピート・離し）を、能力のキーのラッチへ知らせる。
+     * Forgeは、画面が受け取らなかったキーのイベントを、ゲームの処理（{@code KeyMapping.set}・{@code click}）の後にここへ届ける。
+     * QA 5回目（TOGGLE-QA5-F01-B）: 優先度HIGHESTは、このイベントの購読者の中の順番にすぎない。画面のキーの処理
+     * （{@code Screen.keyPressed}・{@code keyReleased}）はこのイベントより前に終わっていて、その中で画面が閉じることもある。
+     * そのため、画面が開いている間のキーは{@link #screenKeyPressed}・{@link #screenKeyReleased}（画面の処理の前）で見て、
+     * 同じイベントがここへも届いたとき（画面が受け取らなかった）は二度数えない（{@link #keyEvent}）。
+     */
+    @SubscribeEvent(priority = net.minecraftforge.eventbus.api.EventPriority.HIGHEST)
+    public static void keyInput(net.minecraftforge.client.event.InputEvent.Key event) {
+        keyEvent(InputConstants.getKey(event.getKey(), event.getScanCode()), event.getAction());
+    }
+    /**
+     * QA 5回目（TOGGLE-QA5-F01-B）: 画面が開いている間のキーの押下・リピート。Forgeは、画面が受け取るかどうかに
+     * かかわらず、画面の処理より前にここへ届ける（{@code KeyboardHandler.keyPress}の{@code onScreenKeyPressedPre}）。
+     * このイベントは押下とリピートを区別しないが、どちらも「キーが押されている」ことなので、押下として知らせる。
+     */
+    @SubscribeEvent(priority = net.minecraftforge.eventbus.api.EventPriority.HIGHEST, receiveCanceled = true)
+    public static void screenKeyPressed(net.minecraftforge.client.event.ScreenEvent.KeyPressed.Pre event) {
+        screenInput(InputConstants.getKey(event.getKeyCode(), event.getScanCode()), SkillKeyGate.PRESS);
+    }
+    /** 画面が開いている間のキーの離し。画面が受け取るかどうかにかかわらず、画面の処理より前に届く（{@code onScreenKeyReleasedPre}）。 */
+    @SubscribeEvent(priority = net.minecraftforge.eventbus.api.EventPriority.HIGHEST, receiveCanceled = true)
+    public static void screenKeyReleased(net.minecraftforge.client.event.ScreenEvent.KeyReleased.Pre event) {
+        screenInput(InputConstants.getKey(event.getKeyCode(), event.getScanCode()), SkillKeyGate.RELEASE);
+    }
+    /**
+     * QA 5回目（TOGGLE-QA5-F01-A）: 画面が開く直前（取り消されなかったもの。{@code Minecraft.setScreen}）に、全てのラッチを
+     * その時点から操作できない間にする（次のtickを待たない）。編集画面・Location Teleportの一覧・ポーズ画面等、どの画面も通る。
+     */
+    @SubscribeEvent(priority = net.minecraftforge.eventbus.api.EventPriority.LOWEST)
+    public static void screenOpening(net.minecraftforge.client.event.ScreenEvent.Opening event) {
+        opening(event.getNewScreen());
+    }
+    /**
+     * QA 7回目（TOGGLE-QA7-F01-F2）: 他の購読者が取り消さずに新しい画面をnullにした（{@code setNewScreen(null)}）ときは、
+     * 画面は開かないので止めない（止めると、溜まっていた正常な軽い押下を1回失う）。この購読者より後の同じ優先度の購読者が
+     * 変えた場合までは確かめられない。
+     */
+    static void opening(net.minecraft.client.gui.screens.Screen newScreen) {
+        if (newScreen != null) suspendAll(Minecraft.getInstance());
+    }
+    /** 画面の経路で最後に見たキーと、押下（true）か離し（false）か。直後に同じイベントがInputEvent.Keyへ届いたら数えない。 */
+    private static InputConstants.Key screenSeen;
+    private static boolean screenSeenDown;
+    static void screenInput(InputConstants.Key key, int action) {
+        screenSeen = key; screenSeenDown = action != SkillKeyGate.RELEASE;
+        input(key, action);
+    }
+    /**
+     * InputEvent.Keyで届いたイベント。直前に画面の経路で見た同じイベント（同じキー・同じ押下か離し）なら数えない。
+     * 画面が受け取ったイベントにはInputEvent.Keyが来ないので、取り違えるのは、その後の同じキーのリピート（ラッチは数えない）だけ。
+     */
+    static void keyEvent(InputConstants.Key key, int action) {
+        boolean seen = key.equals(screenSeen) && screenSeenDown == (action != SkillKeyGate.RELEASE);
+        screenSeen = null;
+        if (!seen) input(key, action);
+    }
+    /** 全てのラッチを、今の物理的な状態で、操作できない間にする。能力キーの0.3秒の計時も消す。 */
+    static void suspendAll(Minecraft client) {
+        EDITOR_LATCH.update(true, physical(client, EDITOR));
+        TERMINAL_LATCH.update(true, physical(client, TERMINAL));
+        TOGGLE_LATCH.update(true, physical(client, TOGGLE));
+        PRESET_LATCH.update(true, physical(client, PRESET));
+        for (int i = 0; i < 4; i++) SLOT_LATCHES[i].update(true, physical(client, SLOTS[i]));
+        toggleDownNanos = -1;
+    }
+    /**
+     * マウスのボタンのイベント。Forgeは、画面の有無にかかわらず、ゲームの処理の前にここへ届ける（取り消されたものも見る）。
+     * QA 4回目（TOGGLE-QA4-F01-R1）: データ端末は左ボタンの離しでアプリを起動して閉じる（周波数送信機）ので、その前の状態で見る
+     * （優先度HIGHEST）。
+     */
+    @SubscribeEvent(priority = net.minecraftforge.eventbus.api.EventPriority.HIGHEST, receiveCanceled = true)
+    public static void mouseInput(net.minecraftforge.client.event.InputEvent.MouseButton.Pre event) {
+        input(InputConstants.Type.MOUSE.getOrCreate(event.getButton()), event.getAction());
+    }
+    /**
+     * 割り当てが同じキーなら、すべてのラッチへ知らせる。フォーカスの有無は、合成の離しを見分けるために渡す。
+     * QA 4回目（TOGGLE-QA4-F01-R1・F02-R1）: 前に境目を適用した後にデータ端末が開閉していれば（Altによらない閉鎖も）、
+     * このイベントより前に境目を適用する。イベントが届いた時点で操作できたか（画面・ポーズ・フォーカス、技能の枠は端末も）を渡し、
+     * 操作できない間の押下を、閉じた後に新しい押下として使わない。
+     */
+    static void input(InputConstants.Key key, int action) {
+        var client = Minecraft.getInstance();
+        boolean active = client.isWindowActive();
+        // F03: Storm Wing・Flashingが読む方向入力（前後左右）の印にも、同じイベントを知らせる。
+        ClientFocusMarks.event(key, action, active);
+        terminalBoundary(client, key, action);
+        boolean operable = client.player != null && client.screen == null && !client.isPaused() && active;
+        boolean slotOperable = operable && !TerminalHud.isOpen();
+        if (key.equals(EDITOR.getKey())) latchEvent(client, EDITOR_LATCH, EDITOR, key, action, active, operable);
+        if (key.equals(TERMINAL.getKey())) latchEvent(client, TERMINAL_LATCH, TERMINAL, key, action, active, operable);
+        if (key.equals(TOGGLE.getKey())) latchEvent(client, TOGGLE_LATCH, TOGGLE, key, action, active, operable);
+        if (key.equals(PRESET.getKey())) latchEvent(client, PRESET_LATCH, PRESET, key, action, active, operable);
+        for (int i = 0; i < 4; i++) if (key.equals(SLOTS[i].getKey())) latchEvent(client, SLOT_LATCHES[i], SLOTS[i], key, action, active, slotOperable);
+    }
+    /**
+     * QA 5回目（TOGGLE-QA5-F01-A）: まだ古くないラッチに、操作できない間のイベントが届いた（画面・端末が開いた後、次のtickの前）
+     * なら、そのイベントの前の状態で、その時点から操作できない間にしてから数える。そうしないと、このイベントの押下を古い押下として
+     * 記録できず、次のtickの前に閉じたときに、閉じる前の押下が新しい押下として使われる。
+     */
+    private static void latchEvent(Minecraft client, SkillKeyGate.Latch latch, KeyMapping mapping, InputConstants.Key key, int action,
+                                   boolean active, boolean operable) {
+        if (!latch.stale() && !operable && active) latch.update(true, downBefore(client, mapping, key, action));
+        latch.event(action, active, operable);
+    }
+    /**
+     * データ端末の開閉の境目を、能力・プリセット・編集のキーへ一度だけ適用する（前に適用した時から開閉の状態が変わっていれば）。
+     * 境目の前に押していたキーは離されるまで使わず、能力キーの0.3秒の計時も消す。境目の後に届いたイベントは、そのまま数える。
+     * {@code key}・{@code action}は、今届いているイベント（tickから呼ぶときはnull）。そのキーの境目の時点の状態は、
+     * イベントの前の状態（PRESSなら離れていた、RELEASE・REPEATなら押していた）。他のキーはGLFWの状態で読む。
+     */
+    private static void terminalBoundary(Minecraft client, InputConstants.Key key, int action) {
+        boolean now = TerminalHud.isOpen();
+        if (now == lastTerminalOpen) return;
+        lastTerminalOpen = now;
+        EDITOR_LATCH.update(true, downBefore(client, EDITOR, key, action));
+        TOGGLE_LATCH.update(true, downBefore(client, TOGGLE, key, action));
+        PRESET_LATCH.update(true, downBefore(client, PRESET, key, action));
+        toggleDownNanos = -1;
+        // QA 5回目（TOGGLE-QA5-F01-A）: 端末が開いた: 技能の枠も、その時点から操作できない間にする（次のtickを待たない）。
+        // 閉じたときは何もしない（技能の枠は、イベントの時点の端末の状態で、閉じる前の押下と後の押下を分ける）。
+        if (now) for (int i = 0; i < 4; i++) SLOT_LATCHES[i].update(true, downBefore(client, SLOTS[i], key, action));
+    }
+    private static boolean downBefore(Minecraft client, KeyMapping mapping, InputConstants.Key key, int action) {
+        return key != null && key.equals(mapping.getKey()) ? action != SkillKeyGate.PRESS : physical(client, mapping);
+    }
+    /**
+     * TOGGLE-GUI-001: GLFWが報告する物理的なキー・ボタンの状態。{@code KeyMapping.isDown}と違い、画面の中でも、
+     * 合成の押下（試験の{@code setDown}）にも左右されない。画面を閉じたときの{@code KeyMapping.setAll}もこれを読む。
+     */
+    private static boolean physical(Minecraft client, KeyMapping mapping) {
+        var key = mapping.getKey();
+        long window = client.getWindow().getWindow();
+        return switch (key.getType()) {
+            case KEYSYM -> key.getValue() != InputConstants.UNKNOWN.getValue() && InputConstants.isKeyDown(window, key.getValue());
+            case MOUSE -> key.getValue() >= 0 && GLFW.glfwGetMouseButton(window, key.getValue()) == GLFW.GLFW_PRESS;
+            default -> mapping.isDown();
+        };
+    }
     private static boolean thrustStopSent;
     /**
-     * Jet Engineは術者の視線の方向へ推進する。そのため、術者が操作できない間はONにしない。
-     * 画面・端末・ポーズ・ウィンドウのフォーカスが外れたときに一度だけ終え、キーでまた開始する。
+     * Jet Engineは術者の視線の方向へ推進する。TOGGLE-GUI-001: 画面・端末・ポーズを開いただけでは終えず、元の視線の方向への
+     * 推進を続ける（GUIの間は視線が変わらない。視線を作り出すことはしない）。ウィンドウのフォーカスが外れたとき
+     * （GUIの表示とは別のできごと）だけ、従来どおり一度だけ終え、キーでまた開始する。
      */
     private static void safeStopThrust(Minecraft client) {
         if (!ClientSkillModes.active(io.github.pinchan4273.reacademycraft.skill.JetEngine.ID)) { thrustStopSent = false; return; }
-        if (thrustStopSent || client.player == null
-                || (client.screen == null && !TerminalHud.isOpen() && !client.isPaused() && client.isWindowActive())) return;
+        if (thrustStopSent || client.player == null || client.isWindowActive()) return;
         var data = client.player.getCapability(AbilityCapabilities.PLAYER_ABILITY).orElse(null);
         if (data == null) return;
         for (int i = 0; i < 4; i++)
@@ -192,16 +360,14 @@ public final class AbilityControls {
     }
     private static boolean intensifyStopSent;
     /**
-     * Body Intensifyの予備動作は、画面・端末・ポーズ・ウィンドウのフォーカスが外れたときに終わる。
-     * 強化の効果はどの画面の下でも続き、ウィンドウのフォーカスが外れたときだけ終わる。
-     * いずれも一度だけで、キーでまた開始する。
+     * TOGGLE-GUI-001: Body Intensifyの予備動作も強化の効果も、画面・端末・ポーズを開いただけでは終わらない。
+     * ウィンドウのフォーカスが外れたとき（GUIの表示とは別のできごと）だけ、従来どおり一度だけ終え、キーでまた開始する。
      */
     private static void safeStopIntensify(Minecraft client) {
         boolean warming = ClientBodyIntensify.warmingUp(), running = ClientBodyIntensify.running();
         if (!warming && !running) { intensifyStopSent = false; return; }
         if (intensifyStopSent || client.player == null) return;
-        boolean stop = warming ? client.screen != null || TerminalHud.isOpen() || client.isPaused() || !client.isWindowActive()
-                : !client.isWindowActive();
+        boolean stop = !client.isWindowActive();
         int slot = ClientBodyIntensify.slot();
         if (!stop || slot < 0) return;
         AcademyNetwork.CHANNEL.sendToServer(new AbilityAction(AbilityAction.CANCEL, slot));

@@ -36,7 +36,7 @@ import net.minecraftforge.fml.common.Mod;
  * Body Intensify（電撃使いレベル3）。熟練度で段階の付く切り替え型（原作とは異なる仕様として採用）。原作はキーを押し続けている間
  * 溜め、離すと数秒のランダムな強化効果を与えた。ここでは1回押すとオン、次に押すとオフになる。
  *
- * オン: キーは原作のlerp(200, 120, p)のオーバーロードで受け付けられ、準備が始まる。準備の各tickに原作の溜めの代価lerp(20, 15, p)の
+ * オン: キーはlerp(60, 30, p)のオーバーロード（2026-10-16の統合指示書3章。原作はlerp(200, 120, p)）で受け付けられ、準備が始まる。準備の各tickに原作の溜めの代価lerp(20, 15, p)の
  * CPを払い（熟練度帯により20、15、10、5、2tick。設定body_intensify.warmup_ticks）、オーバーロードはキーの時点のまま保つ。
  * 最後の支払いが済むと強化が始まる: 100%未満では帯が許す数だけ5つの中から重複無しで1回引く。100%では5つ全部で、Speed・
  * Regeneration・StrengthはV、Jump BoostとResistanceはII（どの帯でもIIを超えない）。帯・抽選・準備はキーを受け付けたときの
@@ -113,9 +113,9 @@ public final class BodyIntensify {
                 && ArcGen.CATEGORY.equals(d.getAbility()) && d.hasLearned(ID);
     }
     private static boolean valid(ServerPlayer p, PlayerAbilityData d, Session s) {
-        return allowed(p, d) && p.level() == s.level && d.getCurrentPreset() == s.preset && ID.equals(d.getSlot(s.preset, s.slot))
-                // 準備には術者の手が空いている必要がある。強化はどの画面の間も続く。
-                && (s.active || p.containerMenu == p.inventoryMenu);
+        // TOGGLE-GUI-001: 予備動作（WARMUP）も強化（ACTIVE）も、コンテナの画面を開いただけでは止めない。予備動作の
+        // 各tickのCPの消費と完了は通常どおり。画面を開いている間の新しい開始は、start()が拒否する。
+        return allowed(p, d) && p.level() == s.level && d.getCurrentPreset() == s.preset && ID.equals(d.getSlot(s.preset, s.slot));
     }
     /** このセッション自体がまだ術者のものか: 支払いや成長の際に発したイベントが終わらせたかもしれない。 */
     private static boolean running(ServerPlayer p, Session s) { return ACTIVE.get(p.getUUID()) == s; }
@@ -154,7 +154,7 @@ public final class BodyIntensify {
         if (isCharging(p)) return "";
         if (d.getCooldown(ID) > 0) return "academy.cast.cooldown";
         float proficiency = d.getProficiency(ID);
-        if (!d.consume(ID, 0, ArcGen.lerp(200, 120, proficiency), p.getAbilities().instabuild)) return "academy.cast.cp";
+        if (!d.consume(ID, 0, startOverload(proficiency), p.getAbilities().instabuild)) return "academy.cast.cp";
         // そのオーバーロードで術者がオーバーロードしたかもしれず、そのイベントはすべてのモードを終える: その場合は何も始めない。
         // 支払いのリスナーが能力やスロットに何かをした後も同じ。
         if (!allowed(p, d) || !ID.equals(d.getSlot(d.getCurrentPreset(), slot)) || p.containerMenu != p.inventoryMenu) {
@@ -193,6 +193,8 @@ public final class BodyIntensify {
         if (d != null) AbilitySyncEvents.sync(p, true);
     }
     public static int cooldown(float proficiency) { return (int) Math.floor(ArcGen.lerp(900, 600, proficiency)); }
+    /** 起動のオーバーロード（2026-10-16、統合指示書3章。原作lerp(200, 120)から）。 */
+    public static float startOverload(float proficiency) { return ArcGen.lerp(60, 30, proficiency); }
 
     public static void tick(ServerPlayer p) {
         var s = ACTIVE.get(p.getUUID()); if (s == null) return; var d = data(p);
@@ -226,8 +228,9 @@ public final class BodyIntensify {
         s.buffs = choose(s.band, p.getRandom()); s.active = true; s.ticks = 0;
         s.upkeep = d.startUpkeep(ID, () -> p.getAbilities().instabuild);
         if (s.upkeep == null) { stop(p); return; }
-        // バフは常に効いているので、移動キーを離しても待機にならない。
-        s.upkeep.alwaysActing();
+        // バフは常に効いているので、移動キーを離しても待機にならない（CPの精算）。維持の熟練度は、待機と同じ0.1パーセントポイント/秒を
+        // 技能だけに受け取り、能力レベルの経験値は受け取らない（2026-10-16、案B）。
+        s.upkeep.alwaysActing().skillOnlyHold();
         if (!carriesOn(p, s)) return;
         for (var buff : s.buffs) { add(p, s, buff); if (!carriesOn(p, s)) return; }
         p.serverLevel().playSound(null, p, AcademySounds.EM_INTENSIFY_ACTIVATE.get(), SoundSource.AMBIENT, .5f, 1f);

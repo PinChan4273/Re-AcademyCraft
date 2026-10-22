@@ -26,7 +26,8 @@ import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 
 /**
- * Meltdownerの球と光線: Electron Bomb・Scatter Bomb・Electron Missileが撃つ小さな光線と、Meltdowner自身の光線。
+ * Meltdowner系の球と光線: Electron Bomb・Scatter Bomb・Electron Missileの球と小さな光線、Meltdowner自身の光線、
+ * Railgunの光線（反射を含む）とその弧、Ray Barrageの狙い・命中の光線と副光線、それぞれの光の帯（glow）。
  * ゲームの処理・ダメージ・時間はサーバーが持つ。ここで描くのは、サーバーが受理した「既に起きたこと」のsnapshotで、原作の曲線で描く。
  */
 @Mod.EventBusSubscriber(modid = "academy", value = Dist.CLIENT)
@@ -249,8 +250,28 @@ public final class ClientMdEffects {
         });
     }
 
+    /**
+     * VIS-WATER-001の候補: 球と光線を描く段階を、AFTER_PARTICLESからAFTER_BLOCK_ENTITIES（半透明の地形の直前）へ移す。
+     * 実画面で確かめていない候補で、受入要件を満たすとは扱わない（before/afterの画像で判定する）。
+     *
+     * <p>確認済み（逆アセンブルとソース）: 1.20.1のLevelRendererは、通常・Fabulousのどちらでも、AFTER_BLOCK_ENTITIES →
+     * 半透明の地形（水を含み、深度を書く）→ 粒子 → AFTER_PARTICLESの順に描く。ここで描く物は、深度テストあり・深度の書込みなし。
+     *
+     * <p>推定（未確認）: 以前の段階では水面の深度に負けて、水上から見た水中の区間が描かれなかった。前の段階へ移すと、水が光線の
+     * 上に重なって描かれると予想する。水中から見た見え方、不透明の地形・壁で隠れること（透視しないこと）も、深度テストを
+     * 変えていないことからの予想で、確かめていない。
+     *
+     * <p>影響の範囲（ソースで確認）: この段階は、このクラスが描くものすべてに効く。Meltdowner・Electron Bomb・Scatter Bomb・
+     * Electron Missileの球と光線、Railgunの光線（反射を含む）とその弧、Ray Barrageの狙い・命中の光線と副光線、光の帯（glow）。
+     *
+     * <p>予想される退行（未確認）: 光線は深度を書かないので、光線より奥にある半透明の物（水面・色付きガラス・氷等）と、
+     * 後の段階で描く粒子・雲・天気が、光線の上に重なるおそれがある（空中の光線の向こうに水面がある場面等）。Fabulousでは
+     * 半透明・粒子・天気・雲が別の描画先で合成されるため、同じことが別の経路で起こりうる。
+     */
+    static final RenderLevelStageEvent.Stage STAGE = RenderLevelStageEvent.Stage.AFTER_BLOCK_ENTITIES;
+
     @SubscribeEvent public static void render(RenderLevelStageEvent event) {
-        if (event.getStage() != RenderLevelStageEvent.Stage.AFTER_PARTICLES) return;
+        if (event.getStage() != STAGE) return;
         lastOrbQuads = lastBeamQuads = lastGlows = 0;
         LegacyMdRenderer.traceFrame();
         var client = Minecraft.getInstance();

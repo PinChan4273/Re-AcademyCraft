@@ -115,6 +115,40 @@ public final class KeyHintHud {
     }
 
     /**
+     * F4（DebugConsole）が避ける、キーのヒントの範囲（GUI座標、WORK-045のFQ-03）。上のdrawと同じ並べ方で囲む: 各キーは(-200 - 列×200,
+     * 行×92)から、背景(122〜307, 0〜83)と、(180, 27)に中央揃えで描くキーの名前（32/9倍）。列は既定のグループ、Flashing、Storm Wing。
+     * 名前は、描きうるキーのうち最も幅の広いもので見積もる。描き方は変えない。能力がOFFか、描くキーが無ければnull。
+     */
+    @javax.annotation.Nullable
+    public static DebugConsoleLayout.Area area(Minecraft client, PlayerAbilityData data, int guiWidth, int guiHeight) {
+        if (data == null || !data.hasAbility() || !data.isActive()) return null;
+        int rows = 0;
+        float name = 0;
+        var font = client.font;
+        for (int slot = 0; slot < 4; slot++) {
+            var skill = data.getSlot(data.getCurrentPreset(), slot);
+            if (skill == null || SkillTreeLayout.node(skill) == null) continue;
+            rows++;
+            name = Math.max(name, font.width(AbilityControls.SLOTS[slot].getTranslatedKeyMessage().getString()));
+        }
+        int columns = rows > 0 ? 1 : 0;
+        boolean flashing = ClientFlashing.active(), wing = ClientStormWing.state() == io.github.pinchan4273.reacademycraft.skill.StormWing.ACTIVE_STATE
+                && SkillTreeLayout.node(io.github.pinchan4273.reacademycraft.skill.StormWing.ID) != null;
+        if (flashing || wing) {
+            var o = client.options;
+            for (var key : new KeyMapping[] {o.keyLeft, o.keyRight, o.keyUp, o.keyDown}) name = Math.max(name, font.width(key.getTranslatedKeyMessage().getString()));
+            rows = Math.max(rows, 4);
+            if (flashing) columns++;
+            if (wing) columns++;
+        }
+        if (columns == 0) return null;
+        float s = 32f / font.lineHeight;
+        float left = -200 - (columns - 1) * 200 + Math.min(122, 180 - name * s / 2), right = -200 + 307, bottom = (rows - 1) * 92 + 83;
+        float x = HudLayout.left(HudLayout.Node.KEYHINT, guiWidth), y = HudLayout.top(HudLayout.Node.KEYHINT, guiHeight);
+        return new DebugConsoleLayout.Area(x + left * SCALE, y, x + right * SCALE, y + bottom * SCALE);
+    }
+
+    /**
      * 1つのキーの原作drawSingle: 背景、キー、アイコン、状態。自身の技能を持たないキー（他のグループのもの）には、
      * ここでは自身のクールダウンが無い。
      */

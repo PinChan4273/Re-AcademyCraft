@@ -25,8 +25,9 @@ import net.minecraftforge.fml.common.Mod;
  * 最後に押したキーが優先され、離すと静止に戻る。風の音と粒子は移植していない。
  *
  * <p>推進しているか（方向キーを押しているか）は、変わるたびにサーバーへ伝える（{@link StormWingInput}）。サーバーは推進の費用を
- * 払えないとき滞空だけを許し（stalled）、その間は方向キーで動かさない。画面を開いた・ウィンドウのフォーカスが外れたときは、
- * 押していたキーを放したものとして推進をやめる。そのとき押していたキーは、離されたのを見るまで押下として数えない（{@link Keys}）。
+ * 払えないとき滞空だけを許し（stalled）、その間は方向キーで動かさない。画面を開いた・データ端末を開いた・ウィンドウのフォーカスが
+ * 外れたとき（{@link SteeringGate}）は、押していたキーを放したものとして推進をやめ、滞空に戻る（モードはONのまま）。戻った後に
+ * 押されたままのキーは、その前から押していたものも、その間に押し始めたものも、離されたのを見るまで押下として数えない（{@link Keys}）。
  */
 @Mod.EventBusSubscriber(modid = "academy", value = Dist.CLIENT)
 public final class ClientStormWing {
@@ -41,9 +42,11 @@ public final class ClientStormWing {
     /**
      * 方向キーの押下の状態機械。最後に押したキーが優先され、そのキーを離すと静止に戻る。
      *
-     * <p>操作できない間（画面・フォーカスなし）は、押していたキーを放したものとする。そのとき押していたキーは、戻った後も
-     * 押されたままと報告される限り新しい押下として数えず、一度離されたのを見てから数える。フォーカスの外で離したキーの離しが
-     * 届かず押されたままに見えても、推進を勝手に再開しない。操作できない間に押していなかったキーは、戻ってすぐ効く。
+     * <p>操作できない間（画面・データ端末・フォーカスなし）は、押していたキーを放したものとする。戻った後に押されたままと
+     * 報告されるキーは、新しい押下として数えず、一度離されたのを見てから数える。フォーカスの外で離したキーの離しが届かず押された
+     * ままに見えても、推進を勝手に再開しない。TOGGLE-GUI-001: 操作できない間に押し始めたキーも同じ（画面を閉じるとゲームが
+     * 物理的なキーの状態を読み直すため、それを新しい押下にすると、GUIの中で押した方向へ閉じた途端に推進してしまう）。
+     * 戻ったときに離されていたキーは、すぐ効く。
      */
     public static final class Keys {
         private final boolean[] down = new boolean[4], stale = new boolean[4];
@@ -52,15 +55,21 @@ public final class ClientStormWing {
         public int held() { return held; }
         /** モードの始まりと終わり: すべて離した状態から数え直す（始まったときに押しているキーは、すぐ推進する）。 */
         public void reset() { held = -1; java.util.Arrays.fill(down, false); java.util.Arrays.fill(stale, false); }
-        /** 操作できないtick。 */
+        /** 操作できないtick。どのキーも、戻った後に一度離されるまで数えない（離されていたキーは、戻った最初のtickで外れる）。 */
         public void suspend() {
-            for (int i = 0; i < 4; i++) { stale[i] |= down[i]; down[i] = false; }
+            java.util.Arrays.fill(stale, true); java.util.Arrays.fill(down, false);
             held = -1;
         }
         /** 操作できるtick: 各方向のキーが押されていると報告されているか。 */
-        public void read(boolean[] pressed) {
+        public void read(boolean[] pressed) { read(pressed, new boolean[4]); }
+        /**
+         * F03: フォーカスの喪失の印（{@link SteeringGate.FocusMark}）のある方向は、離されていると報告されても数えない状態を解かず、
+         * 押されていても推進しない（本当の離しを見るまで）。
+         */
+        public void read(boolean[] pressed, boolean[] focusMarked) {
             for (int i = 0; i < 4; i++) {
-                if (!pressed[i]) stale[i] = false;
+                if (focusMarked[i]) stale[i] = true;
+                else if (!pressed[i]) stale[i] = false;
                 boolean now = pressed[i] && !stale[i];
                 if (now && !down[i]) held = i;
                 else if (!now && down[i] && held == i) held = -1;
@@ -102,13 +111,18 @@ public final class ClientStormWing {
     }
 
     @SubscribeEvent public static void tick(TickEvent.ClientTickEvent event) {
-        if (event.phase != TickEvent.Phase.START || state < 0) return;
-        var client = Minecraft.getInstance(); var player = client.player;
+        if (event.phase != TickEvent.Phase.START) return;
+        var client = Minecraft.getInstance();
+        if (state < 0) return;
+        var player = client.player;
         if (player == null) return;
-        if (state == StormWing.ACTIVE_STATE && (client.screen != null || !client.isWindowActive())) KEYS.suspend();
+        if (state == StormWing.ACTIVE_STATE && SteeringGate.suspended(client.screen != null, TerminalHud.isOpen(), client.isWindowActive()))
+            KEYS.suspend();
         else if (state == StormWing.ACTIVE_STATE) {
             var options = client.options;
-            KEYS.read(new boolean[] { options.keyUp.isDown(), options.keyDown.isDown(), options.keyLeft.isDown(), options.keyRight.isDown() });
+            KEYS.read(new boolean[] { options.keyUp.isDown(), options.keyDown.isDown(), options.keyLeft.isDown(), options.keyRight.isDown() },
+                    new boolean[] { ClientFocusMarks.marked(options.keyUp), ClientFocusMarks.marked(options.keyDown),
+                            ClientFocusMarks.marked(options.keyLeft), ClientFocusMarks.marked(options.keyRight) });
         }
         if (state == StormWing.ACTIVE_STATE && thrusting() != sentThrust) send();
         if (thrusting() && !stalled) {

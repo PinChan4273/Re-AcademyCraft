@@ -42,7 +42,8 @@ public final class ClientIntensifyLoop {
     private static void currentWorld() { var level = Minecraft.getInstance().level; if (level != world) { reset(); world = level; } }
     private static boolean held() {
         var c = Minecraft.getInstance();
-        if (c.player == null || c.screen != null || c.isPaused() || !c.isWindowActive()) return false;
+        // TOGGLE-GUI-001: 予備動作は画面の下でも続くので、画面を開いただけではループを止めない。
+        if (c.player == null || c.isPaused() || !c.isWindowActive()) return false;
         var d = c.player.getCapability(AbilityCapabilities.PLAYER_ABILITY).orElse(null);
         if (d == null || !d.isActive() || d.isReadOnly() || d.isOverloadLocked()) return false;
         // Body Intensifyは切り替え型: キーを押しているかに関係なく、サーバーが予備動作中と伝えている間ループする。
