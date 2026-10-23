@@ -11,7 +11,7 @@
 
 | Minecraft | ローダー | Re:AcademyCraft | sourceのブランチ | release |
 | --- | --- | --- | --- | --- |
-| 1.20.1 | Forge `[47.4.10,48)` | 1.2.0 | [`1.20.1`](https://github.com/PinChan4273/Re-AcademyCraft/tree/1.20.1) | [`1.20.1-v1.2.0`](https://github.com/PinChan4273/Re-AcademyCraft/releases/tag/1.20.1-v1.2.0) |
+| 1.20.1 | Forge `[47.4.10,48)` | 1.3.0 | [`1.20.1`](https://github.com/PinChan4273/Re-AcademyCraft/tree/1.20.1) | [`1.20.1-v1.3.0`](https://github.com/PinChan4273/Re-AcademyCraft/releases/tag/1.20.1-v1.3.0) |
 
 - releaseの一覧: <https://github.com/PinChan4273/Re-AcademyCraft/releases>
 - 公式の導入用JARは、CurseForge（<https://www.curseforge.com/minecraft/mc-mods/re-academycraft>、Project ID `1735500`）だけで配布します。GitHubのreleaseは更新情報とsourceの参照用で、JARは添付しません。
