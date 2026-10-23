@@ -6,7 +6,7 @@ plugins {
 }
 
 group = 'io.github.pinchan4273.reacademycraft'
-version = '1.2.0'
+version = '1.3.0'
 base { archivesName = 're-academycraft-forge-1.20.1' }
 
 java {
@@ -44,6 +44,8 @@ minecraft {
             if (project.hasProperty('mpQaName')) {
                 workingDirectory project.file('run/mp-' + project.property('mpQaName'))
                 property 'academy.mpContact', project.property('mpContactRole')
+                // 1.3.0-rc2の複数クライアントの確認（tools/run_mp_rc2.py、Rc2MultiplayerCheck）。このプロパティを付けたときだけ効く。
+                if (project.hasProperty('mpRc2Role')) property 'academy.mpRc2', project.property('mpRc2Role')
                 property 'academy.mpQaServer', project.property('mpQaServer')
                 args '--username', project.property('mpQaName')
                 jvmArgs '-Xmx1536m'

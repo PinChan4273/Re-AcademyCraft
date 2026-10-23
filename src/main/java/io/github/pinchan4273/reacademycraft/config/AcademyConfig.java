@@ -72,6 +72,8 @@ public final class AcademyConfig {
     public static final List<Integer> DEFAULT_BODY_WARMUP = List.of(20, 15, 10, 5, 2);
     public static final ForgeConfigSpec.ConfigValue<List<? extends Integer>> BODY_WARMUP_TICKS;
     public static final ForgeConfigSpec.DoubleValue BODY_EXTRA_EXHAUSTION;
+    /** Electron Missileのオーブの生成間隔（F9-01で既定8を正式採用。1.2.0と原作は10）。 */
+    public static final ForgeConfigSpec.IntValue ELECTRON_MISSILE_SPAWN_INTERVAL;
     private static java.util.Map<String, Double> defaults(Object... pairs) {
         var map = new java.util.LinkedHashMap<String, Double>();
         for (int i = 0; i < pairs.length; i += 2) map.put((String) pairs[i], (Double) pairs[i + 1]);
@@ -213,6 +215,14 @@ public final class AcademyConfig {
         BODY_EXTRA_EXHAUSTION = b.comment("Food exhaustion added each tick while the buffs are on (0.005 = 0.1 a second at 20 TPS;",
                         "creative and spectator players are exempt as from all exhaustion). 0 adds none.")
                 .defineInRange("extra_exhaustion", 0.005, 0.0, 1.0);
+        // F9-01: キーをspawn_interval（1.3.0-rc1の比較用、既定10）からorb_spawn_intervalへ替えた。古いキーは知らないキーとして
+        // Forgeの設定の補正で外れるので、古いファイルに書かれた10は読まない。10と比べたいときは新しいキーへ10を書く。
+        b.pop().comment("Electron Missile. Orbs spawn every 8 ticks and fire every 8 ticks (adopted in 1.3.0-rc2; 1.2.0 spawned every 10).")
+                .push("electron_missile");
+        ELECTRON_MISSILE_SPAWN_INTERVAL = b.comment("Ticks between orb spawns while the mode is on. 8 matches the attack interval.",
+                        "Read when the mode starts. At most five orbs; the attack still comes every 8 ticks.",
+                        "Replaces the old key spawn_interval, which is no longer read.")
+                .defineInRange("orb_spawn_interval", 8, 1, 40);
         b.pop().push("skill");
         for (var name : SKILL_NAMES) {
             b.push(name);
@@ -230,6 +240,10 @@ public final class AcademyConfig {
         SPEC = b.build();
     }
     private AcademyConfig() { }
+    /** Electron Missileのオーブの生成間隔。設定が読み込まれていなければ既定の8（F9-01）。 */
+    public static int electronMissileSpawnInterval() {
+        return loaded() ? ELECTRON_MISSILE_SPAWN_INTERVAL.get() : io.github.pinchan4273.reacademycraft.skill.ElectronMissile.SPAWN_INTERVAL;
+    }
     public static boolean canDestroy(Level level, ResourceLocation skill) {
         return (!skill.equals(io.github.pinchan4273.reacademycraft.skill.Railgun.ID) || RAILGUN_DESTROY_BLOCKS.get())
                 && (!skill.equals(io.github.pinchan4273.reacademycraft.skill.Meltdowner.ID) || MELTDOWNER_DESTROY_BLOCKS.get())

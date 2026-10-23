@@ -193,6 +193,20 @@ public final class JetEngine {
                 || !ID.equals(data.getSlot(session.preset, session.slot))
                 || data.isInterfering());
     }
+    /**
+     * 前方限定防御の試作（{@link JetFrontDefense}）: 被弾の時点で、推進のtickと同じ条件でセッションが続いているか
+     * （生存・能力・習得・スロット・プリセット・妨害・維持の支払い）。
+     */
+    static boolean defending(ServerPlayer player) {
+        var session = ACTIVE.get(player.getUUID());
+        var data = data(player);
+        return session != null && continues(player, data, session) && data.upkeepHeld(session.upkeep);
+    }
+    /** 動作中のセッションの開始時の熟練度（無ければ0）。 */
+    static float sessionExp(ServerPlayer player) {
+        var session = ACTIVE.get(player.getUUID());
+        return session == null ? 0 : session.exp;
+    }
     private static void tick(ServerPlayer player) {
         var session = ACTIVE.get(player.getUUID());
         if (session == null) return;

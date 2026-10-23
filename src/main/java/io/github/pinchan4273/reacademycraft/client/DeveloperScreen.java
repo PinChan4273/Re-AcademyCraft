@@ -283,7 +283,9 @@ public final class DeveloperScreen extends AbstractContainerScreen<DeveloperMenu
             quad(pose, SKILL_OUTLINE, PROG_ALIGN, PROG_ALIGN, PROG, PROG, .2f, .2f, .2f, backAlpha * .6f);
             if (learned) quad(pose, node.icon(), ALIGN, ALIGN, ICON, ICON, 1, 1, 1, iconAlpha);
             else mono(pose, node.icon(), ALIGN, ALIGN, ICON, ICON, iconAlpha);
-            if (learned) ring(pose, SKILL_OUTLINE, PROG_ALIGN, PROG_ALIGN, PROG, progressBlend * data.getProficiency(node.skill()));
+            // GUI-PASSIVE-PROFICIENCY-001: Radiation Intensifyは実効熟練度、汎用コースは習得済みの満の輪（そのほかは保存された熟練度）。
+            if (learned) ring(pose, SKILL_OUTLINE, PROG_ALIGN, PROG_ALIGN, PROG,
+                    progressBlend * io.github.pinchan4273.reacademycraft.skill.PassiveSkillDisplay.ring(data, node.skill(), level5BaseCp()));
             pose.popPose();
             if (node.parent() != null) {
                 var parent = SkillTreeLayout.node(node.parent());
@@ -557,7 +559,10 @@ public final class DeveloperScreen extends AbstractContainerScreen<DeveloperMenu
                 if (learned) {
                     actionIcon(pose, node.icon(), cx - 25, cy - 25, 0, false);
                     text(g, name, cx, ty + 3, 12, Align.CENTER, 0xffffffff);
-                    text(g, I18n.get("academy.developer.ui.skill_exp") + (int) (data.getProficiency(node.skill()) * 100) + "%", cx, ty + 15, 8, Align.CENTER, 0xffa1e1ff);
+                    // GUI-PASSIVE-PROFICIENCY-001: Radiation Intensifyは実効熟練度と倍率（F4と同じ計算）、汎用コースは習得済み。そのほかはこれまでどおり。
+                    var passive = io.github.pinchan4273.reacademycraft.skill.PassiveSkillDisplay.line(data, node.skill(), level5BaseCp());
+                    text(g, passive != null ? I18n.get(passive.key(), passive.args().toArray())
+                            : I18n.get("academy.developer.ui.skill_exp") + (int) (data.getProficiency(node.skill()) * 100) + "%", cx, ty + 15, 8, Align.CENTER, 0xffa1e1ff);
                     wrapped(g, Component.translatable("academy.developer.desc." + node.skill().getPath()).getString(), cx, ty + 24, 200, 9, 0xffffffff);
                 } else {
                     actionIcon(pose, node.icon(), cx - 25, cy - 25, progress, progress == 1);
@@ -815,4 +820,12 @@ public final class DeveloperScreen extends AbstractContainerScreen<DeveloperMenu
     /** テスト用: コンソールが遡っている行数。 */
     public int consoleScroll() { return console == null ? 0 : console.scrolled(); }
     public float pageScale() { return scale; }
+
+    /**
+     * 参加中のサーバーが送ったLv5の初期CP（F4のDebugConsoleと同じ取り方）。まだ届いていなければnullで、標準の値をサーバーの値として使わない。
+     */
+    private static Float level5BaseCp() {
+        return io.github.pinchan4273.reacademycraft.config.SyncedAcademyRules.received()
+                ? Float.valueOf(io.github.pinchan4273.reacademycraft.config.SyncedAcademyRules.initCp(5)) : null;
+    }
 }

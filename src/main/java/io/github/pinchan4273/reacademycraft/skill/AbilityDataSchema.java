@@ -47,6 +47,21 @@ public final class AbilityDataSchema {
 
     public static final String COOLDOWN = "CooldownData";
 
+    /**
+     * プレイヤーが選ぶ技能の設定（このmodの付記、工程2で追加）。schemaの版は変えない: これより前の版は知らない区分として残し、
+     * 知らない設定のキーや知らない値も、この版は書き換えずに残す（プレイヤーが同じ設定を変えたときだけ、その値を書く）。
+     */
+    public static final String SETTINGS = "SkillSettings";
+    /** Light Shieldの盾の向きの選び方（{@link LightShieldMode#id()}、"auto"か"manual"）。無ければ{@link LightShieldMode#DEFAULT}。 */
+    public static final String LIGHT_SHIELD_MODE = "lightShieldMode";
+    /** Electron Missileの照準のモード（F9-02、{@link ElectronMissileAimMode#id()}、"auto"・"semi"）。無ければ{@link ElectronMissileAimMode#DEFAULT}。 */
+    public static final String ELECTRON_MISSILE_AIM = "electronMissileAim";
+    /**
+     * Electron Missileの攻撃対象のフィルター（F9-02）: 区分の中に、プレイヤーが選んだ分類（{@link ElectronMissileTargetKind#id()}）だけを
+     * 真偽（byte）で書く。無い分類は{@link ElectronMissileTargetKind#defaultOn()}。知らないキーはそのまま残す。
+     */
+    public static final String ELECTRON_MISSILE_TARGETS = "electronMissileTargets";
+
     private AbilityDataSchema() { }
 
     /** 根の区分。無い（または区分でない値がある）ときは空の区分を置いて返す。返した区分への変更は根に残る。 */

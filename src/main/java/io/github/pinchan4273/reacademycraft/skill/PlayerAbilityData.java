@@ -47,6 +47,15 @@ public final class PlayerAbilityData {
     private float bonusOverload;
     private float levelExperience;
     /**
+     * Light Shieldのモード（工程2）。nullは「プレイヤーが選んでいない」で、{@link LightShieldMode#DEFAULT}として動く。選んでいないときは
+     * 保存で何も書かないので、読んだときにあった知らない値（新しい版のモードなど）はそのまま残る。
+     */
+    private @Nullable LightShieldMode lightShieldMode;
+    /** Electron Missileの照準のモード（F9-02）。nullは「選んでいない」で、{@link ElectronMissileAimMode#DEFAULT}（AUTO）として動く。 */
+    private @Nullable ElectronMissileAimMode electronMissileAimMode;
+    /** Electron Missileの攻撃対象のフィルターのうち、プレイヤーが選んだもの（F9-02）。無い分類は既定（{@link ElectronMissileTargetKind#defaultOn()}）。 */
+    private final java.util.EnumMap<ElectronMissileTargetKind, Boolean> electronMissileTargets = new java.util.EnumMap<>(ElectronMissileTargetKind.class);
+    /**
      * このデータが属するサーバーのプレイヤー（原作の能力イベント用）。どのプレイヤーにも属さないデータ（写し、テスト専用のもの）や
      * クライアントにあるデータではnullで、その場合は何も送らない。
      */
@@ -670,6 +679,13 @@ public final class PlayerAbilityData {
         CompoundTag cooling = section(tag, COOLDOWN);
         for (String key : java.util.List.copyOf(cooling.getAllKeys())) if (managesCooldown(key)) cooling.remove(key);
         skills.keySet().forEach(id -> { int ticks = getCooldown(id); if (ticks > 0) cooling.putInt(id.toString(), ticks); });
+        // 選んだ設定だけを書く。選んでいなければ区分に触れない（区分が無ければ作らない）。
+        if (lightShieldMode != null) section(tag, SETTINGS).putString(LIGHT_SHIELD_MODE, lightShieldMode.id());
+        if (electronMissileAimMode != null) section(tag, SETTINGS).putString(ELECTRON_MISSILE_AIM, electronMissileAimMode.id());
+        if (!electronMissileTargets.isEmpty()) {
+            CompoundTag targets = section(section(tag, SETTINGS), ELECTRON_MISSILE_TARGETS);
+            electronMissileTargets.forEach((kind, on) -> targets.putBoolean(kind.id(), on));
+        }
         return tag;
     }
 
@@ -687,6 +703,9 @@ public final class PlayerAbilityData {
         maxCp = DEFAULT_MAX_CP;
         maxOverload = DEFAULT_MAX_OVERLOAD;
         active = false;
+        lightShieldMode = null;
+        electronMissileAimMode = null;
+        electronMissileTargets.clear();
         CompoundTag source = PlayerDataMigration.needed(tag) ? PlayerDataMigration.fromSchemaOne(tag) : tag;
         preserved = source.copy();
         readOnly = !source.contains(VERSION_KEY, Tag.TAG_INT) || source.getInt(VERSION_KEY) != VERSION;
@@ -731,6 +750,12 @@ public final class PlayerAbilityData {
             }
         }
         if (hasAbility() && !(cpPart.contains(CP_MODEL, Tag.TAG_INT) && cpPart.getInt(CP_MODEL) >= CURRENT_CP_MODEL)) migrateCapacity(cpPart);
+        // 設定は能力の有無に関わらず読む（能力を失っても、選んだモードは残る）。知らない値は読まず、保存でも書き換えない。
+        lightShieldMode = LightShieldMode.parse(source.getCompound(SETTINGS).getString(LIGHT_SHIELD_MODE));
+        electronMissileAimMode = ElectronMissileAimMode.parse(source.getCompound(SETTINGS).getString(ELECTRON_MISSILE_AIM));
+        CompoundTag targets = source.getCompound(SETTINGS).getCompound(ELECTRON_MISSILE_TARGETS);
+        for (var kind : ElectronMissileTargetKind.values())
+            if (targets.contains(kind.id(), Tag.TAG_BYTE)) electronMissileTargets.put(kind, targets.getBoolean(kind.id()));
     }
 
     /**
@@ -767,6 +792,39 @@ public final class PlayerAbilityData {
     public int getCpRecoveryDelay() { return cpRecoveryDelay; }
     /** オーバーロードの回復が始まるまでの残りtick（原作CPData.untilOverloadRecover）。 */
     public int getOverloadRecoveryDelay() { return overloadRecoveryDelay; }
+
+    /** Light Shieldのモード。選んでいなければ{@link LightShieldMode#DEFAULT}。 */
+    public LightShieldMode getLightShieldMode() { return lightShieldMode == null ? LightShieldMode.DEFAULT : lightShieldMode; }
+    /** プレイヤーがモードを選んだか（選んでいなければ既定で動き、保存にも書かない）。 */
+    public boolean hasChosenLightShieldMode() { return lightShieldMode != null; }
+    /** モードを選ぶ。読み取り専用のデータでは例外（呼び出し元の{@link LightShieldSettings}が先に断る）。 */
+    public void setLightShieldMode(LightShieldMode mode) {
+        requireWritable();
+        lightShieldMode = java.util.Objects.requireNonNull(mode);
+    }
+
+    /** Electron Missileの照準のモード（F9-02）。選んでいなければ{@link ElectronMissileAimMode#DEFAULT}（AUTO）。 */
+    public ElectronMissileAimMode getElectronMissileAimMode() {
+        return electronMissileAimMode == null ? ElectronMissileAimMode.DEFAULT : electronMissileAimMode;
+    }
+    /** プレイヤーが照準のモードを選んだか（選んでいなければ既定で動き、保存にも書かない）。 */
+    public boolean hasChosenElectronMissileAimMode() { return electronMissileAimMode != null; }
+    /** 照準のモードを選ぶ。読み取り専用のデータでは例外（呼び出し元の{@link ElectronMissileSettings}が先に断る）。 */
+    public void setElectronMissileAimMode(ElectronMissileAimMode mode) {
+        requireWritable();
+        electronMissileAimMode = java.util.Objects.requireNonNull(mode);
+    }
+    /** Electron Missileがこの分類を撃ってよいか（F9-02）。選んでいなければ既定。 */
+    public boolean electronMissileTargets(ElectronMissileTargetKind kind) {
+        return electronMissileTargets.getOrDefault(kind, kind.defaultOn());
+    }
+    /** プレイヤーがこの分類のON／OFFを選んだか。 */
+    public boolean hasChosenElectronMissileTarget(ElectronMissileTargetKind kind) { return electronMissileTargets.containsKey(kind); }
+    /** この分類のON／OFFを選ぶ。読み取り専用のデータでは例外（呼び出し元の{@link ElectronMissileSettings}が先に断る）。 */
+    public void setElectronMissileTarget(ElectronMissileTargetKind kind, boolean on) {
+        requireWritable();
+        electronMissileTargets.put(java.util.Objects.requireNonNull(kind), on);
+    }
 
     public void copyFrom(PlayerAbilityData other) {
         load(other.save());

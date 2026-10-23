@@ -25,6 +25,10 @@ import net.minecraftforge.fml.common.Mod;
  * 原作ElectronMissile（WeAthFolD/KSkun）: meltdownerのレベル5。
  *
  * 術者の横に最大5つのオーブが集まり、8tickごとにランダムに選んだ1つが、広がっていく範囲内で最も近い生き物へ発射する。
+ * オーブの生成は8tickごと（2026-10-23の開発司令室9でF9-01として正式採用。原作と1.2.0は10tick）。発射の間隔8tickと同じなので、
+ * 発射のtickでは「1つ生成してから1つ撃つ」になる。
+ * 撃つ相手は、プレイヤーが選ぶ攻撃対象のフィルター（敵対・中立・友好・プレイヤー）と照準のモード（AUTO／SEMI）で決まる
+ * （F9-02、{@link ElectronMissileTargeting}）。既定は敵対だけをAUTOで撃つ。
  * ElectronBombやScatterBombと同じオーブ・光線の表示を、一度にではなく少しずつ消費する。
  *
  * 原作はキーを押し続け、lerp(80, 200, exp)tick後に終わる。移植版は原作とは異なる仕様として、1回押すとオン、次に押すとオフになり、
@@ -43,8 +47,8 @@ import net.minecraftforge.fml.common.Mod;
 @Mod.EventBusSubscriber(modid = "academy")
 public final class ElectronMissile {
     public static final ResourceLocation ID = ResourceLocation.fromNamespaceAndPath("academy", "electron_missile");
-    /** 原作MAX_HOLD、生成の間隔、攻撃の間隔。 */
-    private static final int MAX_ORBS = 5, SPAWN_INTERVAL = 10, ATTACK_INTERVAL = 8;
+    /** 原作MAX_HOLD、生成の間隔（F9-01で10から8）、攻撃の間隔。 */
+    public static final int MAX_ORBS = 5, SPAWN_INTERVAL = 8, ATTACK_INTERVAL = 8;
     /** 原作overload_keep: ここの毎tickや攻撃ごとのコストと違い、lerpではなく固定。 */
     /** 起動のオーバーロード（2026-10-16、統合指示書3章。原作の固定200から、熟練度でlerp(100, 60)）。 */
     public static float startOverload(float exp) { return ArcGen.lerp(100, 60, exp); }
@@ -59,6 +63,11 @@ public final class ElectronMissile {
         final Level level; final int preset, slot; final float exp, overloadFloor;
         final List<Orb> orbs = new ArrayList<>();
         int ticks;
+        /**
+         * オーブを生成する間隔。モードを始めたときのサーバー設定（electron_missile.orb_spawn_interval、既定は{@link #SPAWN_INTERVAL}の8）
+         * で決まる。比較テスト（10/8）は{@link #spawnIntervalForTest}でも変える。
+         */
+        int spawnInterval = io.github.pinchan4273.reacademycraft.config.AcademyConfig.electronMissileSpawnInterval();
         /** 能力データが毎tick精算する維持コストへの、この技能の要求。 */
         PlayerAbilityData.Upkeep upkeep;
         Session(ServerPlayer player, PlayerAbilityData data, int slot) {
@@ -165,9 +174,12 @@ public final class ElectronMissile {
     private static void attack(ServerPlayer player, PlayerAbilityData data, Session session) {
         if (session.orbs.isEmpty()) return;
         var level = player.serverLevel();
+        // F9-01・F9-02: 撃ってよい相手（攻撃対象のフィルターがONの分類で、SkillCombat.mayAttackが断らない相手）だけを候補にし、
+        // 照準のモードで1つ選ぶ。撃ってよい相手がいなければ、費用を払わず、オーブも使わない（設定は発射のtickごとに読む）。
         List<Entity> targets = level.getEntities(player, player.getBoundingBox().inflate(session.range()),
                 e -> e instanceof LivingEntity && e.isAlive() && !e.isSpectator());
-        if (targets.isEmpty()) return;
+        Entity nearest = ElectronMissileTargeting.choose(player, data, targets);
+        if (nearest == null) return;
         if (!data.consume(ID, session.attackConsumption(), session.attackOverload(), player.getAbilities().instabuild)) return;
         // 自動射撃のtickは待機ではない（docs/CP_RECOVERY_TOGGLE_SPEC_JA.md）。
         data.upkeepActed(session.upkeep);
@@ -175,11 +187,6 @@ public final class ElectronMissile {
         // （このセッションも含み、オーブも退く）を止める。止まったセッションはそれ以上撃たない: オーバーロードさせたコストは払われ、
         // ミサイルは飛ばず、経験値も与えない。
         if (!running(player, session) || session.orbs.isEmpty()) return;
-        Entity nearest = null; double closest = Double.MAX_VALUE;
-        for (var candidate : targets) {
-            double distance = candidate.distanceToSqr(player);
-            if (distance < closest) { closest = distance; nearest = candidate; }
-        }
         var orb = session.orbs.remove(player.getRandom().nextInt(session.orbs.size()));
         var origin = player.position().add(orb.subX(), orb.subY() + player.getEyeHeight(), orb.subZ());
         var target = new net.minecraft.world.phys.Vec3(nearest.getX(), nearest.getY() + nearest.getEyeHeight(), nearest.getZ());
@@ -216,7 +223,7 @@ public final class ElectronMissile {
         if (ACTIVE.get(player.getUUID()) != session) return;
         if (!continues(player, data, session) || !data.upkeepHeld(session.upkeep)) { stop(player); return; }
         // 原作はtickを増やす前に判定と動作を行うので、オーブは10tick待たずに最初のtickで生成される。
-        if (session.ticks % SPAWN_INTERVAL == 0 && session.orbs.size() < MAX_ORBS) spawn(player, session);
+        if (session.ticks % session.spawnInterval == 0 && session.orbs.size() < MAX_ORBS) spawn(player, session);
         if (session.ticks != 0 && session.ticks % ATTACK_INTERVAL == 0) attack(player, data, session);
         if (!running(player, session)) return;
         if (session.ticks != 0 && session.ticks % RENEW_INTERVAL == 0)
@@ -230,6 +237,15 @@ public final class ElectronMissile {
     public static void discardOrbsForTest(ServerPlayer player) {
         var session = ACTIVE.get(player.getUUID());
         if (session != null) session.orbs.clear();
+    }
+    /**
+     * テスト用の入口（10/8の比較用）: 動作中のセッションの生成間隔だけを変える。本番の間隔は設定のまま（既定8）。GameTestは並行して
+     * 走るので、共有の静的な値ではなく、そのセッションだけに持たせる。
+     */
+    public static void spawnIntervalForTest(ServerPlayer player, int interval) {
+        if (interval <= 0) throw new IllegalArgumentException("Spawn interval must be positive: " + interval);
+        var session = ACTIVE.get(player.getUUID());
+        if (session != null) session.spawnInterval = interval;
     }
 
     private static List<ServerPlayer> listeners(ServerPlayer player) {
@@ -256,4 +272,9 @@ public final class ElectronMissile {
             io.github.pinchan4273.reacademycraft.network.SkillModeState.send(p, ID, false);
     }
     @SubscribeEvent public static void stopped(ServerStoppedEvent e) { ACTIVE.clear(); }
+    /** F9-01: サーバーが実際に読み込んだ生成間隔を記録する（古い設定ファイルの値が残っていないかを、dedicatedのログでも確かめられる）。 */
+    @SubscribeEvent public static void started(net.minecraftforge.event.server.ServerStartedEvent e) {
+        com.mojang.logging.LogUtils.getLogger().info("ACADEMY_ELECTRON_MISSILE_INTERVALS: spawn={} attack={} maxOrbs={}",
+                io.github.pinchan4273.reacademycraft.config.AcademyConfig.electronMissileSpawnInterval(), ATTACK_INTERVAL, MAX_ORBS);
+    }
 }
