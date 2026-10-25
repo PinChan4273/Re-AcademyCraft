@@ -1,0 +1,71 @@
+// Re:AcademyCraftの公開API（実験的）だけを使う、小さなサンプルのアドオン（1.4.0のS6）。本体とは別のビルドで、本体の
+// リポジトリの直下から次のように作る（先に本体のJARを作っておく）:
+//   bash gradlew jar
+//   bash gradlew -p samples/academy-api-example build
+// 本体のJARは、本体のbuild/libsから直接読む（APIはGitHub ReleasesのSDKで配り、Mavenの配布は1.4.0には無い）。
+plugins {
+    id 'java'
+    id 'net.minecraftforge.gradle' version '[6.0,6.2)'
+}
+
+group = 'io.github.pinchan4273.academyexample'
+version = '0.1.0'
+base { archivesName = 'academy-api-example-forge-1.20.1' }
+
+java { toolchain.languageVersion = JavaLanguageVersion.of(17) }
+
+// ソースはUTF-8（日本語のコメント）。OSの既定の文字コード（Windowsではwindows-31j）で読むと、コメントが化けて警告になり、環境で結果が変わりうる。
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    options.release = 17
+}
+
+minecraft {
+    mappings channel: 'official', version: '1.20.1'
+    copyIdeResources = true
+    runs {
+        client {
+            workingDirectory project.file('run')
+            mods { academyexample { source sourceSets.main } }
+        }
+        server {
+            workingDirectory project.file('run')
+            args '--nogui'
+            mods { academyexample { source sourceSets.main } }
+        }
+    }
+}
+
+repositories {
+    // 本体のJAR（re-academycraft-forge-1.20.1-<版>.jar）を、本体のビルドの出力から読む。
+    flatDir { dirs '../../build/libs' }
+}
+
+def academyVersion = project.findProperty('academyVersion') ?: '1.4.0'
+
+dependencies {
+    minecraft 'net.minecraftforge:forge:1.20.1-47.4.10'
+    // 本体のJARは配布用の名前（SRG）なので、開発の名前へ戻して使う。サンプルのJARには入らない（配布では、本体のJARをmodsに置く）。
+    // 開発用の起動（runClient・runServer）では、戻した本体も一緒に読み込む。
+    // -PacademyApiOnly を付けると、公開APIだけのJAR（本体のapiJar）に対してコンパイルする（APIの外を使っていないことの確かめ）。
+    implementation fg.deobf("blank:re-academycraft-forge-1.20.1:${academyVersion}" + (project.hasProperty('academyApiOnly') ? ':api' : ''))
+}
+
+tasks.named('processResources', ProcessResources) {
+    filteringCharset = 'UTF-8'
+    inputs.property 'version', project.version
+    filesMatching('META-INF/mods.toml') { expand 'version': project.version }
+}
+
+// サンプルの新しい部分はGPLv3。JARにライセンスの全文と、サンプルの表示を入れる。
+tasks.named('jar', Jar) {
+    from('../../LICENSE')
+    from('NOTICE.md')
+    finalizedBy 'reobfJar'
+}
+
+// 本体と同じく、JARの中身の日時と順番を固定する（同じソースから同じバイトのJARを作る）。
+tasks.withType(AbstractArchiveTask).configureEach {
+    preserveFileTimestamps = false
+    reproducibleFileOrder = true
+}

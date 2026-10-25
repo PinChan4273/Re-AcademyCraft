@@ -27,6 +27,11 @@ public final class AbilityControls {
     public static final KeyMapping EDITOR = key("editor", GLFW.GLFW_KEY_N);
     /** 原作は、データ端末を専用のキーで開く。 */
     public static final KeyMapping TERMINAL = key("terminal", GLFW.GLFW_KEY_LEFT_ALT);
+    /**
+     * 能力設定の画面を直接開く（1.4.0のS1、原作に無い）。既定は割り当てなし（司令室11のD6）。割り当てた後の扱いは、編集のキーと同じ
+     * （画面・ポーズ・フォーカスの喪失を跨いで押していた押下は、離されるまで使わない）。データ端末の「能力設定」アプリからも同じ画面を開く。
+     */
+    public static final KeyMapping SETTINGS = key("ability_settings", GLFW.GLFW_KEY_UNKNOWN);
     public static final KeyMapping[] SLOTS = {mouse("slot1", GLFW.GLFW_MOUSE_BUTTON_LEFT), mouse("slot2", GLFW.GLFW_MOUSE_BUTTON_RIGHT),
             key("slot3", GLFW.GLFW_KEY_R), key("slot4", GLFW.GLFW_KEY_F)};
     private static final boolean[] HELD = new boolean[4];
@@ -60,7 +65,7 @@ public final class AbilityControls {
         return keys;
     }
     static boolean ours(KeyMapping mapping) {
-        if (mapping == TOGGLE || mapping == PRESET || mapping == EDITOR || mapping == TERMINAL) return true;
+        if (mapping == TOGGLE || mapping == PRESET || mapping == EDITOR || mapping == TERMINAL || mapping == SETTINGS) return true;
         for (var key : SLOTS) if (mapping == key) return true;
         return false;
     }
@@ -85,7 +90,7 @@ public final class AbilityControls {
     @Mod.EventBusSubscriber(modid = "academy", value = Dist.CLIENT, bus = Mod.EventBusSubscriber.Bus.MOD)
     public static final class Registration {
         @SubscribeEvent public static void keys(RegisterKeyMappingsEvent event) {
-            event.register(TOGGLE); event.register(PRESET); event.register(EDITOR); event.register(TERMINAL);
+            event.register(TOGGLE); event.register(PRESET); event.register(EDITOR); event.register(TERMINAL); event.register(SETTINGS);
             for (var key : SLOTS) event.register(key);
         }
     }
@@ -105,6 +110,7 @@ public final class AbilityControls {
         terminalBoundary(client, null, -1);
         boolean terminalOpen = TerminalHud.isOpen();
         EDITOR_LATCH.update(!canSend, physical(client, EDITOR));
+        SETTINGS_LATCH.update(!canSend, physical(client, SETTINGS));
         TERMINAL_LATCH.update(!canSend, physical(client, TERMINAL));
         TOGGLE_LATCH.update(!canSend, physical(client, TOGGLE));
         PRESET_LATCH.update(!canSend, physical(client, PRESET));
@@ -112,6 +118,7 @@ public final class AbilityControls {
         // F03: このtickのフォーカスを印へ知らせる（キーボードのキーは、フォーカスの無いtickで印を付ける。マウスのボタンは付けない）。
         boolean windowActive = client.isWindowActive();
         EDITOR_LATCH.focusTick(windowActive, keyboard(EDITOR));
+        SETTINGS_LATCH.focusTick(windowActive, keyboard(SETTINGS));
         TERMINAL_LATCH.focusTick(windowActive, keyboard(TERMINAL));
         TOGGLE_LATCH.focusTick(windowActive, keyboard(TOGGLE));
         PRESET_LATCH.focusTick(windowActive, keyboard(PRESET));
@@ -122,6 +129,12 @@ public final class AbilityControls {
         var holder = client.player == null ? null : client.player.getCapability(AbilityCapabilities.PLAYER_ABILITY).orElse(null);
         if (open && canSend && EDITOR_LATCH.usable() && client.player.isAlive() && holder != null && holder.hasAbility()) {
             client.setScreen(new PresetEditorScreen()); canSend = false;
+        }
+        boolean settings = false;
+        while (SETTINGS.consumeClick()) settings = true;
+        // 能力設定の画面（1.4.0のS1）。能力系統が無くても開ける（設定はサーバーに保存され、習得した後に効く。コマンドと同じ）。
+        if (settings && canSend && SETTINGS_LATCH.usable() && client.player.isAlive()) {
+            client.setScreen(new AbilitySettingsScreen(null)); canSend = false;
         }
         boolean terminal = false;
         while (TERMINAL.consumeClick()) terminal = true;
@@ -192,7 +205,8 @@ public final class AbilityControls {
         safeStopIntensify(client);
     }
     private static final boolean[] WAS_DOWN = new boolean[4];
-    private static final SkillKeyGate.Latch EDITOR_LATCH = new SkillKeyGate.Latch(), TERMINAL_LATCH = new SkillKeyGate.Latch(),
+    private static final SkillKeyGate.Latch EDITOR_LATCH = new SkillKeyGate.Latch(), SETTINGS_LATCH = new SkillKeyGate.Latch(),
+            TERMINAL_LATCH = new SkillKeyGate.Latch(),
             TOGGLE_LATCH = new SkillKeyGate.Latch(), PRESET_LATCH = new SkillKeyGate.Latch();
     private static final SkillKeyGate.Latch[] SLOT_LATCHES = { new SkillKeyGate.Latch(), new SkillKeyGate.Latch(),
             new SkillKeyGate.Latch(), new SkillKeyGate.Latch() };
@@ -261,6 +275,7 @@ public final class AbilityControls {
     /** 全てのラッチを、今の物理的な状態で、操作できない間にする。能力キーの0.3秒の計時も消す。 */
     static void suspendAll(Minecraft client) {
         EDITOR_LATCH.update(true, physical(client, EDITOR));
+        SETTINGS_LATCH.update(true, physical(client, SETTINGS));
         TERMINAL_LATCH.update(true, physical(client, TERMINAL));
         TOGGLE_LATCH.update(true, physical(client, TOGGLE));
         PRESET_LATCH.update(true, physical(client, PRESET));
@@ -291,6 +306,7 @@ public final class AbilityControls {
         boolean operable = client.player != null && client.screen == null && !client.isPaused() && active;
         boolean slotOperable = operable && !TerminalHud.isOpen();
         if (key.equals(EDITOR.getKey())) latchEvent(client, EDITOR_LATCH, EDITOR, key, action, active, operable);
+        if (key.equals(SETTINGS.getKey())) latchEvent(client, SETTINGS_LATCH, SETTINGS, key, action, active, operable);
         if (key.equals(TERMINAL.getKey())) latchEvent(client, TERMINAL_LATCH, TERMINAL, key, action, active, operable);
         if (key.equals(TOGGLE.getKey())) latchEvent(client, TOGGLE_LATCH, TOGGLE, key, action, active, operable);
         if (key.equals(PRESET.getKey())) latchEvent(client, PRESET_LATCH, PRESET, key, action, active, operable);
@@ -317,6 +333,7 @@ public final class AbilityControls {
         if (now == lastTerminalOpen) return;
         lastTerminalOpen = now;
         EDITOR_LATCH.update(true, downBefore(client, EDITOR, key, action));
+        SETTINGS_LATCH.update(true, downBefore(client, SETTINGS, key, action));
         TOGGLE_LATCH.update(true, downBefore(client, TOGGLE, key, action));
         PRESET_LATCH.update(true, downBefore(client, PRESET, key, action));
         toggleDownNanos = -1;
@@ -415,6 +432,7 @@ public final class AbilityControls {
         toggleDownNanos = -1;
         while (PRESET.consumeClick()) { }
         while (EDITOR.consumeClick()) { }
+        while (SETTINGS.consumeClick()) { }
         for (var key : SLOTS) while (key.consumeClick()) { }
     }
     @SubscribeEvent public static void hud(RenderGuiEvent.Post event) {

@@ -230,14 +230,19 @@ public final class DeveloperScreen extends AbstractContainerScreen<DeveloperMenu
         }
     }
 
+    /** この描画で出す、外部の系統の正式な名前の案内（無ければnull）。 */
+    private @Nullable net.minecraft.network.chat.Component nameTooltip;
     @Override public void render(GuiGraphics g, int x, int y, float partialTick) {
         mouseX = x; mouseY = y;
         var pose = g.pose();
         pose.pushPose();
         pose.translate(ox, oy, 0); pose.scale(scale, scale, 1);
+        nameTooltip = null;
         drawRight(g);
         drawLeft(g);
         pose.popPose();
+        // 外部の系統の正式な名前の案内（1.4.0のS4）。技能の詳細などの上には出さない。
+        if (nameTooltip != null && view == null && linkPage == null) g.renderTooltip(font, nameTooltip, x, y);
         if (view != null) view.draw(g);
         if (linkPage != null) linkPage.draw(g);
     }
@@ -360,7 +365,23 @@ public final class DeveloperScreen extends AbstractContainerScreen<DeveloperMenu
         // 能力のパネル。
         var category = data == null || !data.hasAbility() ? null : data.getAbility();
         quad(pose, SkillTreeLayout.categoryIcon(category), ABILITY_X, ABILITY_Y, 32, 32, 1, 1, 1, 1);
-        text(g, category == null ? I18n.get("academy.developer.machine.not_available") : I18n.get("academy.ability." + category.getPath()), ABILITY_X + 31, ABILITY_Y + 2, 13, Align.LEFT, 0xffffffff);
+        String name = category == null ? I18n.get("academy.developer.machine.not_available")
+                : io.github.pinchan4273.reacademycraft.ability.RegistryViews.categoryName(category).getString();
+        float nameSize = 13;
+        // 1.4.0のS4: 外部の系統は名前の長さが決まっていない。パネルに収まるよう縮めるが、読める大きさ（9）より小さくはせず、
+        // 収まらない分は「…」で切る。導入されていない系統は短い名前を出す。どちらも、名前にマウスを置くと正式な名前を案内に出す
+        // （手動確認 2026-10-25: 長い名前を収めるために縮めると、GUIの大きさ2で読めなかった）。本体の系統は原作どおりの大きさで描く。
+        if (category != null && !"academy".equals(category.getNamespace())) {
+            var full = io.github.pinchan4273.reacademycraft.ability.RegistryViews.categoryName(category);
+            if (!io.github.pinchan4273.reacademycraft.ability.RegistryViews.categoryRegistered(category))
+                name = I18n.get("academy.ability.not_installed_short");
+            float room = LEFT_X + LEFT_W - (ABILITY_X + 31) - 2, width = font.width(name) * 13 / 9f;
+            if (width > room) nameSize = Math.max(9, 13 * room / width);
+            int fits = (int) (room / (nameSize / 9));
+            if (font.width(name) > fits) name = font.plainSubstrByWidth(name, fits - font.width("…")) + "…";
+            if (inside(localX(mouseX), localY(mouseY), ABILITY_X, ABILITY_Y, LEFT_X + LEFT_W - ABILITY_X, 16)) nameTooltip = full;
+        }
+        text(g, name, ABILITY_X + 31, ABILITY_Y + 2, nameSize, Align.LEFT, 0xffffffff);
         float progress = category == null ? 0 : Math.max(.02f, data.getLevelProgress());
         rect(pose, ABILITY_X + 31, ABILITY_Y + (32 - 1.5f) / 2 - 2, 70, 1.5f, 102 / 255f, 102 / 255f, 102 / 255f, 76 / 255f);
         rect(pose, ABILITY_X + 31, ABILITY_Y + (32 - 1.5f) / 2 - 2, 70 * progress, 1.5f, 1, 1, 1, 1);
@@ -485,6 +506,8 @@ public final class DeveloperScreen extends AbstractContainerScreen<DeveloperMenu
         int action() {
             return level ? DevelopmentSession.LEVEL_UP : DevelopmentSession.actionFor(node.skill());
         }
+        /** 外部の技能（1.4.0のS4。旧い行動番号を持たない）か。 */
+        boolean addon() { return !level && node != null && !"academy".equals(node.skill().getNamespace()); }
         int estimate() {
             var data = ability();
             return level ? menu.tier().cost(5 * (data.getLevel() + 1))
@@ -527,10 +550,13 @@ public final class DeveloperScreen extends AbstractContainerScreen<DeveloperMenu
             if (menu.energy() < estimate()) message = I18n.get("academy.developer.ui.noenergy");
             else if (!level && SkillCatalog.find(node.skill()).level() > data.getLevel())
                 message = I18n.get("academy.developer.ui.level_fail", SkillCatalog.find(node.skill()).level());
-            else if ((menu.availability() & DevelopmentSession.availabilityBit(action())) == 0)
+            else if (addon() ? !ClientDevelopAddons.available(node.skill()) : (menu.availability() & DevelopmentSession.availabilityBit(action())) == 0)
                 message = I18n.get("academy.developer.ui.condition_fail");
             else {
-                if (minecraft.gameMode != null) minecraft.gameMode.handleInventoryButtonClick(menu.containerId, action());
+                // 1.4.0のS4（D11）: 外部の技能は、旧いボタンの番号でなく、技能の名前で学習を求める。
+                if (addon()) io.github.pinchan4273.reacademycraft.network.AcademyNetwork.sendToServer(
+                        new io.github.pinchan4273.reacademycraft.network.DevelopAddonSkill(node.skill()));
+                else if (minecraft.gameMode != null) minecraft.gameMode.handleInventoryButtonClick(menu.containerId, action());
                 requested = true; canClose = false; waited = 0; sawDeveloping = false;
             }
             buttonVisible = false;
@@ -563,7 +589,7 @@ public final class DeveloperScreen extends AbstractContainerScreen<DeveloperMenu
                     var passive = io.github.pinchan4273.reacademycraft.skill.PassiveSkillDisplay.line(data, node.skill(), level5BaseCp());
                     text(g, passive != null ? I18n.get(passive.key(), passive.args().toArray())
                             : I18n.get("academy.developer.ui.skill_exp") + (int) (data.getProficiency(node.skill()) * 100) + "%", cx, ty + 15, 8, Align.CENTER, 0xffa1e1ff);
-                    wrapped(g, Component.translatable("academy.developer.desc." + node.skill().getPath()).getString(), cx, ty + 24, 200, 9, 0xffffffff);
+                    wrapped(g, Component.translatable(io.github.pinchan4273.reacademycraft.ability.RegistryViews.skillDescriptionKey(node.skill())).getString(), cx, ty + 24, 200, 9, 0xffffffff);
                 } else {
                     actionIcon(pose, node.icon(), cx - 25, cy - 25, progress, progress == 1);
                     text(g, name + " (LV " + definition.level() + ")", cx, ty + 3, 12, Align.CENTER, 0xffffffff);

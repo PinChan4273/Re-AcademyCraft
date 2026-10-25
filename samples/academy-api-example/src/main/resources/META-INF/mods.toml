@@ -1,0 +1,28 @@
+modLoader="javafml"
+loaderVersion="[47,48)"
+license="GPLv3 (the new parts written by the Re:AcademyCraft project; see LICENSE and NOTICE.md in this JAR)"
+
+[[mods]]
+modId="academyexample"
+version="${version}"
+displayName="Re:AcademyCraft API Example"
+description='''
+Re:AcademyCraftの公開API（実験的）の使い方を示す、小さなサンプルのアドオンです。新しいカテゴリ「Kinetics」と2つの技能、
+既存のElectromasterへの技能1つを足します。試験と学習のためのもので、遊ぶための調整はしていません。
+A small sample add-on for the experimental Re:AcademyCraft API: a new category "Kinetics" with two skills, and one skill
+added to the built-in Electromaster. It is for testing and learning, not balanced for play.
+'''
+
+[[dependencies.academyexample]]
+modId="academy"
+mandatory=true
+versionRange="[1.4.0,1.5)"
+ordering="AFTER"
+side="BOTH"
+
+[[dependencies.academyexample]]
+modId="forge"
+mandatory=true
+versionRange="[47.4.10,48)"
+ordering="NONE"
+side="BOTH"

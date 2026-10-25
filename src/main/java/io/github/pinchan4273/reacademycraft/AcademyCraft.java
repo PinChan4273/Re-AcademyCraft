@@ -48,7 +48,19 @@ public final class AcademyCraft {
     }
 
     private void commonSetup(FMLCommonSetupEvent event) {
-        event.enqueueWork(() -> LOGGER.info("AcademyCraft gameplay systems initialized on Forge 1.20.1"));
+        event.enqueueWork(() -> {
+            // 1.4.0のS2: アドオンの能力の登録の窓を開いて閉じる（すべてのmodのバスへ1回だけ出し、すぐに凍結する）。
+            net.minecraftforge.fml.ModLoader.get().postEvent(new io.github.pinchan4273.reacademycraft.api.forge.RegisterAbilitiesEvent());
+            io.github.pinchan4273.reacademycraft.ability.AbilityRegistry.INSTANCE.freeze();
+            // 1.4.0のS4: 外部の技能の振る舞いの窓も閉じ、振り分けの表へ足す。
+            io.github.pinchan4273.reacademycraft.ability.SkillBehaviorRegistry.INSTANCE.freeze();
+            // 1.4.0のS4（D12）: 外部の技能の設定（名前空間ごとのサーバーの設定ファイル）。
+            io.github.pinchan4273.reacademycraft.config.AddonSkillConfig.register(io.github.pinchan4273.reacademycraft.ability.AbilityRegistry.INSTANCE);
+            LOGGER.info("AcademyCraft ability registry frozen: {} categories, {} skills",
+                    io.github.pinchan4273.reacademycraft.ability.AbilityRegistry.INSTANCE.categories().size(),
+                    io.github.pinchan4273.reacademycraft.ability.AbilityRegistry.INSTANCE.skills().size());
+            LOGGER.info("AcademyCraft gameplay systems initialized on Forge 1.20.1");
+        });
     }
 
     private void registerCommands(RegisterCommandsEvent event) {

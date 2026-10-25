@@ -79,7 +79,8 @@ public final class AbilityCommands {
                 .executes(c -> run(c, who, (player, data) -> {
                     reply(c, data.hasAbility()
                             ? Component.translatable("academy.command.category",
-                                    Component.translatable(AbilityCategory.find(data.getAbility()).translation()))
+                                    // 保存されたカテゴリが登録されていない（アドオンを外した後など）ときも落とさず、「導入されていない系統（名前）」と出す。
+                                    io.github.pinchan4273.reacademycraft.ability.RegistryViews.categoryName(data.getAbility()))
                             : Component.translatable("academy.command.no_category"));
                     return 1;
                 }))

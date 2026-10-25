@@ -71,15 +71,15 @@ public final class KeyHintHud {
         float y = 0;
         for (int slot = 0; slot < 4; slot++) {
             var skill = data.getSlot(data.getCurrentPreset(), slot);
-            var node = skill == null ? null : SkillTreeLayout.node(skill);
-            if (node == null) continue;
+            var icon = SkillTreeLayout.icon(skill);
+            if (icon == null) continue;
             pose.pushPose();
             // 原作の既定のグループ: x = -200、行の間隔92。
             pose.translate(-200, y, 0);
             boolean inUse = AbilityControls.held(slot) || ClientSkillModes.active(skill)
                     || (io.github.pinchan4273.reacademycraft.skill.Flashing.ID.equals(skill) && ClientFlashing.active())
                     || (io.github.pinchan4273.reacademycraft.skill.StormWing.ID.equals(skill) && ClientStormWing.state() >= 0);
-            single(g, data, AbilityControls.SLOTS[slot], skill, node.icon(), inUse, alpha, sin);
+            single(g, data, AbilityControls.SLOTS[slot], skill, icon, inUse, alpha, sin);
             pose.popPose();
             y += 92;
         }
@@ -127,7 +127,7 @@ public final class KeyHintHud {
         var font = client.font;
         for (int slot = 0; slot < 4; slot++) {
             var skill = data.getSlot(data.getCurrentPreset(), slot);
-            if (skill == null || SkillTreeLayout.node(skill) == null) continue;
+            if (SkillTreeLayout.icon(skill) == null) continue;
             rows++;
             name = Math.max(name, font.width(AbilityControls.SLOTS[slot].getTranslatedKeyMessage().getString()));
         }

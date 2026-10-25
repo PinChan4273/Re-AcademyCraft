@@ -17,6 +17,8 @@ public final class TerminalApps {
     public static final TerminalApp FREQ_TRANSMITTER = register(new TerminalApp("freq_transmitter", false, TerminalApp.Kind.FREQ_TRANSMITTER));
     /** 原作AppTutorial。原作でプリインストール。 */
     public static final TerminalApp TUTORIAL = register(new TerminalApp("tutorial", true, TerminalApp.Kind.TUTORIAL));
+    /** 能力設定（1.4.0のS1、原作に無い）。プリインストール（端末を持つすべてのプレイヤーに出る。保存データには何も足さない）。 */
+    public static final TerminalApp ABILITY_SETTINGS = register(new TerminalApp("ability_settings", true, TerminalApp.Kind.ABILITY_SETTINGS));
     /** 原作AppSettings、@RegApp(priority = -1)。原作でプリインストール。 */
     public static final TerminalApp SETTINGS = register(new TerminalApp("settings", true, TerminalApp.Kind.SETTINGS));
     /** 原作AppAbout、@RegApp(priority = -2)。原作でプリインストール。 */

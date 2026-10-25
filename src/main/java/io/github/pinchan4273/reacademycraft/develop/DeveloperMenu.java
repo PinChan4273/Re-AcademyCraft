@@ -96,9 +96,30 @@ public final class DeveloperMenu extends AbstractContainerMenu {
         if (button < 0 || button > DevelopmentSession.MAX_ACTION || lastStartTick == player.level().getGameTime()) return false;
         lastStartTick = player.level().getGameTime(); return session.start(button);
     }
-    public void serverTick() {
-        if (session != null && owner.containerMenu == this) session.tick();
+    /**
+     * 外部の技能の学習を始める（1.4.0のS4、通知{@code DevelopAddonSkill}）。ボタンと同じく、1tickに1回まで。
+     */
+    public boolean startAddon(Player player, net.minecraft.resources.ResourceLocation skill) {
+        if (player != owner || player.containerMenu != this || session == null || !stillValid(player)
+                || lastStartTick == player.level().getGameTime()) return false;
+        lastStartTick = player.level().getGameTime(); return session.startAddon(skill);
     }
+    /** 最後に画面へ送った、学べる外部の技能の一覧。 */
+    private java.util.List<net.minecraft.resources.ResourceLocation> sentAddons;
+    public void serverTick() {
+        if (session != null && owner.containerMenu == this) {
+            session.tick();
+            // 学べる外部の技能が変わったときだけ送る（メニューのデータの48ビットには入れない）。
+            var addons = session.addonAvailability();
+            if (owner instanceof ServerPlayer player && !addons.equals(sentAddons)) {
+                sentAddons = addons;
+                io.github.pinchan4273.reacademycraft.network.AcademyNetwork.send(player,
+                        new io.github.pinchan4273.reacademycraft.network.DevelopAddonAvailability(containerId, addons));
+            }
+        }
+    }
+    /** 学んでいる外部の技能（試験と画面のため。学んでいなければnull）。 */
+    public @javax.annotation.Nullable net.minecraft.resources.ResourceLocation addonSkill() { return session == null ? null : session.addonSkill(); }
     @SubscribeEvent public static void tick(TickEvent.PlayerTickEvent event) {
         if (event.phase == TickEvent.Phase.START && event.player instanceof ServerPlayer player
                 && player.containerMenu instanceof DeveloperMenu menu) menu.serverTick();

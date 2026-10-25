@@ -116,8 +116,12 @@ public final class LegacyMdRayAnimation {
     private double widthWiggle, glowWiggle;
 
     public LegacyMdRayAnimation() { this(Profile.SMALL, Profile.SMALL.defaultLength); }
-    public LegacyMdRayAnimation(Profile profile, double fullLength) {
-        if (profile == null || !Double.isFinite(fullLength) || fullLength <= 0 || fullLength > 64)
+    /** 自然能力の光線の長さの上限（通信のMdRayEffectと同じ64）。 */
+    public static final double NATURAL_MAX_LENGTH = 64;
+    public LegacyMdRayAnimation(Profile profile, double fullLength) { this(profile, fullLength, NATURAL_MAX_LENGTH); }
+    /** 長さの上限を指定して作る。外部の演出（api.client、最大96）だけが64より大きい上限を渡す。自然能力は64のまま。 */
+    public LegacyMdRayAnimation(Profile profile, double fullLength, double maxLength) {
+        if (profile == null || !Double.isFinite(fullLength) || fullLength <= 0 || fullLength > maxLength)
             throw new IllegalArgumentException("Invalid md ray");
         this.profile = profile; this.fullLength = fullLength;
     }

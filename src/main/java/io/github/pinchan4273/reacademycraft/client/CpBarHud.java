@@ -89,7 +89,9 @@ public final class CpBarHud {
     private CpBarHud() { }
     private static ResourceLocation tex(String name) { return ResourceLocation.fromNamespaceAndPath("academy", "textures/guis/cpbar/" + name + ".png"); }
     /** 原作Category.getOverlayIcon。 */
-    static ResourceLocation overlay(ResourceLocation category) {
+    static @javax.annotation.Nullable ResourceLocation overlay(ResourceLocation category) {
+        // 1.4.0のS4: 外部のカテゴリには、本体の重ね絵が無い（カテゴリの無いときと同じく描かない）。
+        if (!"academy".equals(category.getNamespace())) return null;
         return ResourceLocation.fromNamespaceAndPath("academy", "textures/abilities/" + category.getPath() + "/icon_overlay.png");
     }
     /** バーを表示して描いたフレーム数（テスト用）。実際の見え方は画像で判定する。 */

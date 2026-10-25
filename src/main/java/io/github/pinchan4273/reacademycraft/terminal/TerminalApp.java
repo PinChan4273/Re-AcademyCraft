@@ -21,7 +21,9 @@ public record TerminalApp(String name, boolean preInstalled, Kind kind) {
         /** 原作AppTutorial: ミサカクラウド。プリインストール。 */
         TUTORIAL,
         /** 原作AppFreqTransmitter: nodeと機械を繋ぐFreqTransmitterUI。 */
-        FREQ_TRANSMITTER
+        FREQ_TRANSMITTER,
+        /** 能力設定（1.4.0のS1、原作に無い）: 技能ごとの設定（Electron Missile・Light Shieldのモードなど）を切り替える画面。 */
+        ABILITY_SETTINGS
     }
     public TerminalApp {
         if (name == null || name.isEmpty() || name.length() > 32) throw new IllegalArgumentException("Invalid app name");

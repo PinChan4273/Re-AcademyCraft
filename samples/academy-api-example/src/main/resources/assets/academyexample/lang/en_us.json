@@ -1,0 +1,13 @@
+{
+  "item.academyexample.kinetics_factor": "Kinetics Factor (example)",
+  "academyexample.ability.kinetics": "Kinetics (example)",
+  "academyexample.skill.pulse": "Pulse",
+  "academyexample.skill.pulse.desc": "A shock around you. Pushes back only what the server lets you hurt.",
+  "academyexample.skill.glide": "Glide",
+  "academyexample.skill.glide.desc": "While on, you fall slowly. Costs CP every tick.",
+  "academyexample.skill.spark_step": "Spark Step",
+  "academyexample.skill.spark_step.desc": "A short teleport forward, up to four blocks.",
+  "block.academyexample.kinetic_charge": "Kinetic Charge (sample)",
+  "academyexample.skill.burst": "Burst",
+  "academyexample.skill.burst.desc": "An explosion set off by a Kinetic Charge, attributed to the player who placed it."
+}

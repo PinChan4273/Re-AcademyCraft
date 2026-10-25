@@ -1,0 +1,13 @@
+{
+  "item.academyexample.kinetics_factor": "キネティクスの因子（サンプル）",
+  "academyexample.ability.kinetics": "キネティクス（サンプル）",
+  "academyexample.skill.pulse": "パルス",
+  "academyexample.skill.pulse.desc": "まわりへの衝撃。サーバーが攻撃を許した相手だけを押し返す。",
+  "academyexample.skill.glide": "グライド",
+  "academyexample.skill.glide.desc": "ONの間、ゆっくり落ちる。tickごとにCPを払う。",
+  "academyexample.skill.spark_step": "スパークステップ",
+  "academyexample.skill.spark_step.desc": "前へ最大4ブロックの短い瞬間移動。",
+  "block.academyexample.kinetic_charge": "キネティックチャージ（サンプル）",
+  "academyexample.skill.burst": "バースト",
+  "academyexample.skill.burst.desc": "キネティックチャージが起こす爆発。置いた人の操作として扱う。"
+}

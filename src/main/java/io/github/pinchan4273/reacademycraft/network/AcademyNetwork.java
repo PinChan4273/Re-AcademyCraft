@@ -18,9 +18,12 @@ public final class AcademyNetwork {
      * 心拍とキーアップでLight Shieldを動かすので、新しいサーバーへ繋がせない）。
      * 63: Light Shieldの盾面の状態（LightShieldState、50番）を足し、Light Shieldの表示をSkillVisualから移した（工程2。62のクライアントは
      * 盾の向きを知らないので繋がせない）。
+     * 64: 能力設定の画面（1.4.0のS1）の通知を足した（SkillSettingEdit 51番、SkillSettingsSnapshot 52番）。63のクライアントは
+     * 設定の値を受け取れないので繋がせない。1.4.0のS4で、開発機の外部の技能の学習（DevelopAddonSkill 53番、
+     * DevelopAddonAvailability 54番）と、ログインの時の登録簿の照合（AbilityRegistryCheck 55番、AbilityRegistryVerdict 56番）も足した（1.4.0の公開の前なので、版は64のまま。設計の文書13.4の4）。
      * 版が違う相手とは、ログインの時点で接続を断る（古い通知を誤って読むところまで進ませない）。
      */
-    public static final String VERSION = "63";
+    public static final String VERSION = "64";
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             ResourceLocation.fromNamespaceAndPath("academy", "main"), () -> VERSION, AcademyNetwork::accepts, AcademyNetwork::accepts);
 
@@ -232,6 +235,32 @@ public final class AcademyNetwork {
                 .encoder(LightShieldState::encode).decoder(LightShieldState::decode)
                 .consumerMainThread((packet, context) -> DistExecutor.unsafeRunWhenOn(Dist.CLIENT,
                         () -> () -> io.github.pinchan4273.reacademycraft.client.ClientLightShieldEffect.receive(packet))).add();
+        CHANNEL.messageBuilder(SkillSettingEdit.class, 51, NetworkDirection.PLAY_TO_SERVER)
+                .encoder(SkillSettingEdit::encode).decoder(SkillSettingEdit::decode)
+                .consumerMainThread((packet, context) -> packet.handle(context.get().getSender())).add();
+        CHANNEL.messageBuilder(SkillSettingsSnapshot.class, 52, NetworkDirection.PLAY_TO_CLIENT)
+                .encoder(SkillSettingsSnapshot::encode).decoder(SkillSettingsSnapshot::decode)
+                .consumerMainThread((packet, context) -> DistExecutor.unsafeRunWhenOn(Dist.CLIENT,
+                        () -> () -> io.github.pinchan4273.reacademycraft.client.ClientSkillSettings.receive(packet))).add();
+        // 1.4.0のS4（司令室11の裁定D11）: 開発機の、外部の技能の学習（旧い48ビットの外）。
+        CHANNEL.messageBuilder(DevelopAddonSkill.class, 53, NetworkDirection.PLAY_TO_SERVER)
+                .encoder(DevelopAddonSkill::encode).decoder(DevelopAddonSkill::decode)
+                .consumerMainThread((packet, context) -> packet.handle(context.get().getSender())).add();
+        CHANNEL.messageBuilder(DevelopAddonAvailability.class, 54, NetworkDirection.PLAY_TO_CLIENT)
+                .encoder(DevelopAddonAvailability::encode).decoder(DevelopAddonAvailability::decode)
+                .consumerMainThread((packet, context) -> DistExecutor.unsafeRunWhenOn(Dist.CLIENT,
+                        () -> () -> io.github.pinchan4273.reacademycraft.client.ClientDevelopAddons.receive(packet))).add();
+        // 1.4.0のS4（司令室11の裁定D7）: ログインの時の、能力の登録簿の照合。
+        CHANNEL.messageBuilder(AbilityRegistryCheck.class, 55, NetworkDirection.PLAY_TO_CLIENT)
+                .encoder(AbilityRegistryCheck::encode).decoder(AbilityRegistryCheck::decode)
+                .consumerMainThread((packet, context) -> DistExecutor.unsafeRunWhenOn(Dist.CLIENT,
+                        () -> () -> io.github.pinchan4273.reacademycraft.client.ClientRegistryCheck.receive(packet))).add();
+        CHANNEL.messageBuilder(AbilityRegistryVerdict.class, 56, NetworkDirection.PLAY_TO_SERVER)
+                .encoder(AbilityRegistryVerdict::encode).decoder(AbilityRegistryVerdict::decode)
+                .consumerMainThread((packet, context) -> {
+                    var sender = context.get().getSender();
+                    if (sender != null) io.github.pinchan4273.reacademycraft.ability.RegistryCheck.answer(sender, packet);
+                }).add();
     }
 
     public static void lightning(net.minecraft.server.level.ServerLevel level, net.minecraft.world.phys.Vec3 position) {
@@ -240,6 +269,19 @@ public final class AcademyNetwork {
                 position.x, position.y, position.z, 128, level.dimension())), effect);
     }
 
+    public static void send(ServerPlayer player, SkillSettingsSnapshot snapshot) {
+        if (player.connection != null) CHANNEL.send(PacketDistributor.PLAYER.with(() -> player), snapshot);
+    }
+    public static void send(ServerPlayer player, DevelopAddonAvailability availability) {
+        if (player.connection != null) CHANNEL.send(PacketDistributor.PLAYER.with(() -> player), availability);
+    }
+    /** 開発機の画面から、外部の技能の学習を求める（クライアント）。 */
+    public static void sendToServer(DevelopAddonSkill request) { CHANNEL.sendToServer(request); }
+    public static void send(ServerPlayer player, AbilityRegistryCheck check) {
+        if (player.connection != null) CHANNEL.send(PacketDistributor.PLAYER.with(() -> player), check);
+    }
+    /** 登録簿の照合の答え（クライアント）。 */
+    public static void sendToServer(AbilityRegistryVerdict verdict) { CHANNEL.sendToServer(verdict); }
     public static void send(ServerPlayer player, ChargingLoopEffect effect) {
         if (player.connection != null) CHANNEL.send(PacketDistributor.PLAYER.with(() -> player), effect);
     }

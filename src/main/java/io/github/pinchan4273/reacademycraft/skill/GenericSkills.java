@@ -15,9 +15,13 @@ public final class GenericSkills {
     public static final ResourceLocation ADVANCED_BRAIN = ResourceLocation.fromNamespaceAndPath("academy", "brain_course_advanced");
     public static final ResourceLocation MIND = ResourceLocation.fromNamespaceAndPath("academy", "mind_course");
     private GenericSkills() { }
-    /** Meltdowner自身の受動技能は汎用コースではないが、装備はできない。 */
-    public static boolean isPassive(ResourceLocation id) { return BRAIN.equals(id) || ADVANCED_BRAIN.equals(id) || MIND.equals(id)
-            || RadiationIntensify.ID.equals(id) || DimFoldingTheorem.ID.equals(id) || SpaceFluctuation.ID.equals(id); }
+    /**
+     * 受動技能か（装備できない）。1.4.0のS2から、登録簿の発動の種類（PASSIVE）で決める。本体の受動技能は1.3.0と同じ6つ
+     * （3つのコースと、Meltdowner自身のRadiation Intensify、Teleporterの次元折り畳み・空間の揺らぎ）。登録されていない技能は受動でない。
+     */
+    public static boolean isPassive(ResourceLocation id) {
+        return io.github.pinchan4273.reacademycraft.ability.RegistryViews.kind(id) == io.github.pinchan4273.reacademycraft.api.ActivationKind.PASSIVE;
+    }
     /** 1.0.0がコースで最大CPに加えていた量。1.0.0のセーブを移すときにだけ使う。 */
     public static float legacyCpBonus(PlayerAbilityData d) { return (d.hasLearned(BRAIN) ? 1000 : 0) + (d.hasLearned(ADVANCED_BRAIN) ? 1500 : 0); }
     public static float overloadBonus(PlayerAbilityData d) { return d.hasLearned(ADVANCED_BRAIN) ? 100 : 0; }

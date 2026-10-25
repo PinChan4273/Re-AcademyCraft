@@ -67,6 +67,8 @@ public final class TerminalHud {
     /** 原作App.getIcon: guis/apps/<name>/icon.png。 */
     public static ResourceLocation icon(TerminalApp app) {
         if (app.kind() == TerminalApp.Kind.TUTORIAL) return tutorialIcon;
+        // 能力設定は原作に無いアプリなので、新しい画像を作らず、原作の編集の印（guis/icons/edit.png）を使う。
+        if (app.kind() == TerminalApp.Kind.ABILITY_SETTINGS) return ResourceLocation.fromNamespaceAndPath("academy", "textures/guis/icons/edit.png");
         return ResourceLocation.fromNamespaceAndPath("academy", "textures/guis/apps/" + app.name() + "/icon.png");
     }
     /**
@@ -144,6 +146,7 @@ public final class TerminalHud {
         switch (app.kind()) {
             case SKILL_TREE -> io.github.pinchan4273.reacademycraft.network.AcademyNetwork.CHANNEL.sendToServer(new io.github.pinchan4273.reacademycraft.network.TerminalOpenApp(app.name()));
             case SETTINGS -> client.setScreen(new TerminalSettingsScreen(null));
+            case ABILITY_SETTINGS -> client.setScreen(new AbilitySettingsScreen(null));
             case MEDIA_PLAYER -> client.setScreen(new MediaScreen());
             case ABOUT -> client.setScreen(new AboutScreen());
             case TUTORIAL -> client.setScreen(new TutorialScreen());

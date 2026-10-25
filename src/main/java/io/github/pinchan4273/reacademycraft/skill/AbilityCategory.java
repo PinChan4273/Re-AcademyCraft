@@ -23,7 +23,11 @@ public record AbilityCategory(ResourceLocation id, Supplier<Item> factor, List<I
         return level >= 1 && level <= legacyControllable.size() ? legacyControllable.get(level - 1) : 0;
     }
 
-    public String translation() { return "academy.ability." + id.getPath(); }
+    /** 因子のアイテムがあるか（1.4.0のS4。外部のカテゴリは因子を持たないことがある）。 */
+    public boolean hasFactor() { var item = factor.get(); return item != null && item != net.minecraft.world.item.Items.AIR; }
+
+    /** 名前の翻訳キー（1.4.0のS2から登録簿の表示の情報。本体のカテゴリは1.3.0と同じ{@code academy.ability.<path>}）。 */
+    public String translation() { return io.github.pinchan4273.reacademycraft.ability.RegistryViews.categoryNameKey(id); }
 
     public static final AbilityCategory ELECTROMASTER = new AbilityCategory(ArcGen.CATEGORY,
             AcademyContent.FACTOR_ELECTROMASTER, List.of(2, 2, 2, 2, 1));
@@ -49,7 +53,20 @@ public record AbilityCategory(ResourceLocation id, Supplier<Item> factor, List<I
     public static final AbilityCategory VECMANIP = new AbilityCategory(
             ResourceLocation.fromNamespaceAndPath("academy", "vecmanip"),
             AcademyContent.FACTOR_VECMANIP, List.of(2, 2, 2, 2, 1));
-    public static final List<AbilityCategory> REGISTERED = List.of(ELECTROMASTER, MELTDOWNER, TELEPORTER, VECMANIP);
+    private static final List<AbilityCategory> BUILT_IN = List.of(ELECTROMASTER, MELTDOWNER, TELEPORTER, VECMANIP);
+    /**
+     * 登録されたカテゴリ（1.4.0のS2から、登録簿の読み取りの窓）。本体の4つは上の定数そのもの（ほかのコードが定数と比べる）で、並びは1.3.0のまま。
+     * 外部のアドオンのカテゴリは、その定義から作った物が、登録の順に本体の後ろに並ぶ（因子のアイテムが無い・見つからなければ空気）。
+     */
+    public static final List<AbilityCategory> REGISTERED = io.github.pinchan4273.reacademycraft.ability.RegistryViews.list(
+            io.github.pinchan4273.reacademycraft.ability.AbilityRegistry.INSTANCE::categories, AbilityCategory::adapt);
+    private static AbilityCategory adapt(io.github.pinchan4273.reacademycraft.api.CategoryDefinition definition) {
+        var id = io.github.pinchan4273.reacademycraft.ability.RegistryViews.location(definition.id());
+        for (var builtIn : BUILT_IN) if (builtIn.id().equals(id)) return builtIn;
+        var factor = definition.factorItem() == null ? null : io.github.pinchan4273.reacademycraft.ability.RegistryViews.location(definition.factorItem());
+        return new AbilityCategory(id, () -> factor == null ? net.minecraft.world.item.Items.AIR
+                : net.minecraftforge.registries.ForgeRegistries.ITEMS.getValue(factor), definition.controllablePerLevel());
+    }
 
     public static AbilityCategory find(ResourceLocation id) {
         return REGISTERED.stream().filter(category -> category.id().equals(id)).findFirst().orElse(null);

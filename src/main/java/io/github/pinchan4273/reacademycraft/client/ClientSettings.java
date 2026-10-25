@@ -23,6 +23,15 @@ public final class ClientSettings {
     private ClientSettings() { }
 
     public static boolean get(String id) { return Boolean.parseBoolean(load().getProperty(id, "false")); }
+    /**
+     * 整数の設定（範囲の外は端へ寄せる。読めなければ既定）。外部の演出の持ち主ごとの光線の上限{@code externalBeamsPerOwner}
+     * （1〜256、既定32は採用済みの値。Issue #5 AAA-RE-VFX-20261025-001、6399564392）に使う。ファイルには書き戻さない（手で書いた値だけを読む）。
+     */
+    public static int getInt(String id, int fallback, int min, int max) {
+        try { return Math.max(min, Math.min(max, Integer.parseInt(load().getProperty(id, Integer.toString(fallback)).trim()))); }
+        catch (NumberFormatException e) { return fallback; }
+    }
+    public static final String EXTERNAL_BEAMS_PER_OWNER = "externalBeamsPerOwner";
     public static void set(String id, boolean on) {
         load().setProperty(id, Boolean.toString(on));
         try {

@@ -27,21 +27,24 @@ public final class AbilitySyncEvents {
                 LAST_SENT.put(player, snapshot);
             }
         });
+        // 能力設定の値（1.4.0のS1）は、変わったときだけ送る（技能のキーのたびの強制の同期では送り直さない）。
+        // ログイン・リスポーン・次元の移動では、下で前に送った値を忘れてから呼ぶので、必ず送る。
+        SkillSettingsSync.sync(player, false);
     }
 
     @SubscribeEvent public static void login(PlayerEvent.PlayerLoggedInEvent event) {
-        if (event.getEntity() instanceof ServerPlayer player) sync(player, true);
+        if (event.getEntity() instanceof ServerPlayer player) { SkillSettingsSync.forget(player); sync(player, true); }
     }
     @SubscribeEvent public static void respawn(PlayerEvent.PlayerRespawnEvent event) {
-        if (event.getEntity() instanceof ServerPlayer player) sync(player, true);
+        if (event.getEntity() instanceof ServerPlayer player) { SkillSettingsSync.forget(player); sync(player, true); }
     }
     @SubscribeEvent public static void dimension(PlayerEvent.PlayerChangedDimensionEvent event) {
-        if (event.getEntity() instanceof ServerPlayer player) sync(player, true);
+        if (event.getEntity() instanceof ServerPlayer player) { SkillSettingsSync.forget(player); sync(player, true); }
     }
     @SubscribeEvent public static void logout(PlayerEvent.PlayerLoggedOutEvent event) {
-        if (event.getEntity() instanceof ServerPlayer player) LAST_SENT.remove(player);
+        if (event.getEntity() instanceof ServerPlayer player) { LAST_SENT.remove(player); SkillSettingsSync.forget(player); }
     }
-    @SubscribeEvent public static void stop(ServerStoppedEvent event) { LAST_SENT.clear(); }
+    @SubscribeEvent public static void stop(ServerStoppedEvent event) { LAST_SENT.clear(); SkillSettingsSync.clear(); }
 
     @SubscribeEvent public static void tick(TickEvent.PlayerTickEvent event) {
         if (event.phase != TickEvent.Phase.END || !(event.player instanceof ServerPlayer player)) return;

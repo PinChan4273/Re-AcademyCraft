@@ -6,7 +6,7 @@ plugins {
 }
 
 group = 'io.github.pinchan4273.reacademycraft'
-version = '1.3.0'
+version = '1.4.0'
 base { archivesName = 're-academycraft-forge-1.20.1' }
 
 java {
@@ -37,6 +37,9 @@ minecraft {
             if (project.hasProperty('runtimeSmokeTest')) {
                 workingDirectory project.file('run/client-smoke')
                 property 'academy.runtimeSmokeTest', 'true'
+                // 1.4.0のS4: 統合サーバーのclient smokeでも試験だけのアドオンを登録する（クライアントとサーバーが同じ登録簿）。
+                // dedicatedのクライアントには付けない（製品のJARのサーバーと同じ登録簿で、ログインの照合が通ることを確かめる）。
+                property 'academy.testAddon', 'true'
                 mods { academy { source sourceSets.test } }
             }
             // 実クライアント2人の接触の試験（tools/run_mp_contact.py、MultiplayerContactCheck）。名前ごとに作業フォルダを分ける。
@@ -46,6 +49,11 @@ minecraft {
                 property 'academy.mpContact', project.property('mpContactRole')
                 // 1.3.0-rc2の複数クライアントの確認（tools/run_mp_rc2.py、Rc2MultiplayerCheck）。このプロパティを付けたときだけ効く。
                 if (project.hasProperty('mpRc2Role')) property 'academy.mpRc2', project.property('mpRc2Role')
+                // 1.4.0の司令室13の条件C（tools/run_mp_addon.py、AddonMultiplayerCheck）。このプロパティを付けたときだけ効く。
+                if (project.hasProperty('mpAddonRole')) property 'academy.mpAddon', project.property('mpAddonRole')
+                if (project.hasProperty('mpAddonSession')) property 'academy.mpAddonSession', project.property('mpAddonSession')
+                // 能力の登録だけを足す試験のアドオン（登録の不一致の切断の確かめ。Forgeの登録簿には何も足さない）。
+                if (project.hasProperty('mpTestAddon')) property 'academy.testAddon', 'true'
                 property 'academy.mpQaServer', project.property('mpQaServer')
                 args '--username', project.property('mpQaName')
                 jvmArgs '-Xmx1536m'
@@ -56,6 +64,8 @@ minecraft {
         gameTestServer {
             workingDirectory project.file('run/gametest')
             property 'forge.enabledGameTestNamespaces', 'academy'
+            // 1.4.0のS4: 試験だけのアドオン（src/testのTestAddon）を登録する。GameTestのサーバーだけで効き、製品のJARとclient smokeには関係しない。
+            property 'academy.testAddon', 'true'
             mods { academy { source sourceSets.test } }
         }
     }
@@ -63,6 +73,13 @@ minecraft {
 
 dependencies {
     minecraft 'net.minecraftforge:forge:1.20.1-47.4.10'
+}
+
+// 1.4.0の司令室13の条件C: 複数クライアントの確認で、配布用のサンプルのアドオンのJAR（-PmpWithSample=<JARのあるフォルダ>）を、開発の名前へ戻して
+// 開発のクライアントへ読み込む（サーバーには同じJARをそのまま入れる）。このプロパティを付けたときだけ効き、製品のJARには関係しない。
+if (project.hasProperty('mpWithSample')) {
+    repositories { flatDir { dirs project.property('mpWithSample') } }
+    dependencies { runtimeOnly fg.deobf("blank:academy-api-example-forge-1.20.1:${project.findProperty('mpSampleVersion') ?: '0.1.0'}") }
 }
 
 tasks.withType(JavaCompile).configureEach {
@@ -92,6 +109,83 @@ tasks.named('sourcesJar', Jar).configure {
     from('LICENSE')
     from('NOTICE.md')
     from('licenses') { into 'META-INF/licenses' }
+}
+
+// 1.4.0のS6: 公開APIだけのJAR・sources・Javadoc。司令室13の裁定D10で、GitHub ReleasesのSDKとして配る（本体と同じGPLv3。再ライセンスしない）。
+// どのJARにも、LICENSE・NOTICE.md・licenses/（原作のREADMEの追加の文言とGradleのライセンス）を入れる。
+// 公開の範囲は、パッケージapi・api.mc・api.forge・api.clientだけ。APIのJARはアドオンのコンパイルのためのもので、実行には本体のJARが要る。
+// APIのクラスはMinecraftのメソッドを呼ばず（委譲とインターフェースだけ）、1.20.1のクラスの名前は配布用と開発用で同じなので、名前の変換
+// （reobf）はしない。reobfに入れると通常のbuildでもAPIのJARが作られ、製品のJARが1つだけであることの判定（check_production_jar）に反する。
+def apiPackages = 'io/github/pinchan4273/reacademycraft/api/**'
+tasks.register('apiJar', Jar) {
+    group = 'build'
+    description = 'Builds the experimental public API classes only (SDK; GPLv3, needs the main mod at runtime).'
+    archiveClassifier = 'api'
+    from(sourceSets.main.output) { include apiPackages }
+    from('LICENSE')
+    from('NOTICE.md')
+    from('licenses') { into 'META-INF/licenses' }
+    manifest {
+        attributes 'Implementation-Title': 'Re:AcademyCraft API (experimental)',
+                   'Implementation-Version': project.version,
+                   'Academy-Api-Version': '1'
+    }
+}
+tasks.register('apiSourcesJar', Jar) {
+    group = 'build'
+    archiveClassifier = 'api-sources'
+    from(sourceSets.main.allJava) { include apiPackages }
+    from('LICENSE')
+    from('NOTICE.md')
+    from('licenses') { into 'META-INF/licenses' }
+}
+// APIのJavadocは、OpenJDK（Eclipse AdoptiumのTemurin。GPLv2とClasspath例外）のjavadocで作る。javadocは、JDKのスタイル・スクリプト・画像と
+// jQuery・jQuery UIを出力へ写し、legal/にはJDKの本文を指すだけの1行を置く。Oracle JDKではその本文がNo-Fee Termsで、写した部品の条件が違う。
+// そこで、JDKを決め、指すだけの行の代わりにそのJDKの本文をJARへ入れる（司令室13の裁定D10・条件F）。CIもTemurin。
+def apiJavadocTool = javaToolchains.javadocToolFor {
+    languageVersion = JavaLanguageVersion.of(17)
+    vendor = JvmVendorSpec.ADOPTIUM
+}
+def apiJavadocJdkLegal = apiJavadocTool.map { it.metadata.installationPath.dir('legal/java.base') }
+tasks.register('apiJavadoc', Javadoc) {
+    group = 'documentation'
+    javadocTool = apiJavadocTool
+    source = sourceSets.main.allJava.matching { include apiPackages }
+    classpath = sourceSets.main.compileClasspath + sourceSets.main.output
+    destinationDir = file("$buildDir/docs/api-javadoc")
+    options.encoding = 'UTF-8'
+    options.docEncoding = 'UTF-8'
+    options.charSet = 'UTF-8'
+    options.addStringOption('Xdoclint:none', '-quiet')
+}
+tasks.register('apiJavadocJar', Jar) {
+    group = 'build'
+    archiveClassifier = 'api-javadoc'
+    from(tasks.named('apiJavadoc')) { exclude 'legal/LICENSE', 'legal/COPYRIGHT', 'legal/ASSEMBLY_EXCEPTION', 'legal/ADDITIONAL_LICENSE_INFO' }
+    from(apiJavadocJdkLegal) { include 'LICENSE', 'ASSEMBLY_EXCEPTION', 'ADDITIONAL_LICENSE_INFO'; into 'legal' }
+    from('licenses-sdk') { include 'API-JAVADOC-THIRD-PARTY.md' }
+    from('LICENSE')
+    from('NOTICE.md')
+    from('licenses') { into 'META-INF/licenses' }
+    doFirst {
+        def jdkLicense = apiJavadocJdkLegal.get().file('LICENSE').asFile
+        if (!jdkLicense.isFile() || !jdkLicense.getText('UTF-8').contains('"CLASSPATH" EXCEPTION TO THE GPL'))
+            throw new GradleException("The javadoc JDK's licence is not GPLv2 with the Classpath Exception: ${jdkLicense}")
+        // 第三者の部品の一覧（licenses-sdk）が、javadocが実際に写したjQuery・jQuery UIのパスと版に合っていること（JDKの版でずれる）。
+        def out = tasks.named('apiJavadoc').get().destinationDir
+        def list = file('licenses-sdk/API-JAVADOC-THIRD-PARTY.md').getText('UTF-8')
+        def scripts = new File(out, 'script-dir').listFiles()?.findAll { it.name ==~ /jquery-[0-9.]+\.min\.js/ } ?: []
+        if (scripts.isEmpty()) throw new GradleException('The API Javadoc has no script-dir/jquery-*.min.js')
+        scripts.each { js ->
+            def v = (js.name =~ /jquery-([0-9.]+)\.min\.js/)[0][1]
+            if (!list.contains("script-dir/${js.name}") || !list.contains("jQuery ${v}"))
+                throw new GradleException("licenses-sdk/API-JAVADOC-THIRD-PARTY.md does not list script-dir/${js.name} (jQuery ${v})")
+        }
+        def ui = new File(out, 'script-dir/jquery-ui.min.js')
+        def uiVersion = ui.isFile() ? (ui.getText('UTF-8') =~ /jQuery UI - v([0-9.]+)/).with { it.find() ? it.group(1) : null } : null
+        if (uiVersion == null || !list.contains("jQuery UI ${uiVersion}"))
+            throw new GradleException("licenses-sdk/API-JAVADOC-THIRD-PARTY.md does not list jQuery UI ${uiVersion}")
+    }
 }
 
 tasks.withType(AbstractArchiveTask).configureEach {
