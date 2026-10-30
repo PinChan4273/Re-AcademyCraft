@@ -1,0 +1,12 @@
+{
+  "type": "academy:metal_forming",
+  "operation": "refine",
+  "ingredient": {
+    "item": "academy:constraint_metal"
+  },
+  "amount": 1,
+  "result": {
+    "item": "academy:constraint_ingot",
+    "count": 2
+  }
+}

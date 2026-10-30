@@ -1,0 +1,69 @@
+package io.github.pinchan4273.reacademycraft.client;
+
+import com.mojang.blaze3d.systems.RenderSystem;
+import com.mojang.blaze3d.vertex.BufferBuilder;
+import com.mojang.blaze3d.vertex.DefaultVertexFormat;
+import com.mojang.blaze3d.vertex.Tesselator;
+import com.mojang.blaze3d.vertex.VertexFormat;
+import java.io.IOException;
+import javax.annotation.Nullable;
+import net.minecraft.client.particle.ParticleRenderType;
+import net.minecraft.client.renderer.GameRenderer;
+import net.minecraft.client.renderer.ShaderInstance;
+import net.minecraft.client.renderer.texture.TextureAtlas;
+import net.minecraft.client.renderer.texture.TextureManager;
+import net.minecraft.resources.ResourceLocation;
+import net.neoforged.api.distmarker.Dist;
+import net.neoforged.neoforge.client.event.RegisterShadersEvent;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.common.Mod;
+
+/**
+ * 原作は、一部の効果をalphaテストなし（glDisable(GL_ALPHA_TEST)）で描いた。Storm WingとPlasma Cannonの竜巻の輪、
+ * Vector Accelerationの放物線、Jet Engineの菱形の盾、Ground Shockの煙。そのため、淡いtexelもフェードもすべて見えていた。
+ * Minecraftのposition-tex-colourとparticleのシェーダーは、alpha 0.1未満の画素をすべて捨てるので、それらのtexelが欠け、
+ * フェードが早く終わる。ここで登録するのは、同じ2つのシェーダーの、完全に透明な画素だけを捨てる版。
+ */
+@net.neoforged.fml.common.EventBusSubscriber(modid = "academy", value = Dist.CLIENT)
+public final class LegacyAlphaShaders {
+    @Nullable private static ShaderInstance positionTexColor, particle;
+    private LegacyAlphaShaders() { }
+
+    @SubscribeEvent public static void registerLegacyAlphaShaders(RegisterShadersEvent event) throws IOException {
+        event.registerShader(new ShaderInstance(event.getResourceProvider(), ResourceLocation.fromNamespaceAndPath("academy", "position_tex_color_keep"),
+                DefaultVertexFormat.POSITION_TEX_COLOR), shader -> positionTexColor = shader);
+        event.registerShader(new ShaderInstance(event.getResourceProvider(), ResourceLocation.fromNamespaceAndPath("academy", "particle_keep"),
+                DefaultVertexFormat.PARTICLE), shader -> particle = shader);
+    }
+    /** position-tex-colour（alphaテストなし）。 */
+    @Nullable public static ShaderInstance positionTexColor() { return positionTexColor; }
+    /**
+     * ワールドの中の効果に使うposition-tex-colour。ふだんはalphaテストなしの版（positionTexColor）。
+     * Oculusがシェーダーパックを使っている間は、Minecraft自身のものを返す: Oculusはそれだけをシェーダーパックのプログラムへ
+     * 置き換えるので、独自の版で描いたものは画面に出ない（ShaderPackCompat）。その間、淡いtexelの扱いはシェーダーパックに従う。
+     */
+    @Nullable public static ShaderInstance worldPositionTexColor() {
+        return ShaderPackCompat.inUse() ? GameRenderer.getPositionTexColorShader() : positionTexColor;
+    }
+    /** Minecraftのparticleのシェーダー（alphaテストなし）。 */
+    @Nullable public static ShaderInstance particle() { return particle; }
+    /**
+     * ワールドの粒子に使うparticleのシェーダー。ふだんはalphaテストなしの版。Oculusがシェーダーパックを使っている間は、独自の版では
+     * 何も書かれないので（ShaderPackCompat）、Minecraft自身のもの（Oculusがシェーダーパックのプログラムへ置き換える）を返す。
+     */
+    @Nullable public static ShaderInstance worldParticle() { return ShaderPackCompat.inUse() ? GameRenderer.getParticleShader() : particle; }
+
+    /** Minecraftの半透明の粒子のシート（alphaテストなし）。 */
+    public static final ParticleRenderType PARTICLE_SHEET_TRANSLUCENT = new ParticleRenderType() {
+        // 1.21: beginはTesselatorから描画用のバッファを始めて返し、endは無い（ParticleEngineが描く）。
+        @Override public BufferBuilder begin(Tesselator tesselator, TextureManager textures) {
+            RenderSystem.depthMask(true);
+            RenderSystem.setShader(LegacyAlphaShaders::worldParticle);
+            RenderSystem.setShaderTexture(0, TextureAtlas.LOCATION_PARTICLES);
+            RenderSystem.enableBlend();
+            RenderSystem.defaultBlendFunc();
+            return tesselator.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.PARTICLE);
+        }
+        @Override public String toString() { return "ACADEMY_PARTICLE_SHEET_TRANSLUCENT_ALPHA_TEST_OFF"; }
+    };
+}

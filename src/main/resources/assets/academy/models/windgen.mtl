@@ -1,0 +1,3 @@
+# Re:AcademyCraft: the one material of the wind generator models. Each model JSON names its texture as "texture".
+newmtl windgen
+map_Kd #texture

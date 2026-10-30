@@ -1,0 +1,16 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    "III"
+  ],
+  "key": {
+    "I": {
+      "item": "academy:constraint_ingot"
+    }
+  },
+  "result": {
+    "id": "academy:constraint_plate",
+    "count": 2
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "type": "academy:metal_forming",
+  "operation": "etch",
+  "ingredient": {
+    "item": "academy:data_chip"
+  },
+  "amount": 1,
+  "result": {
+    "item": "academy:calc_chip",
+    "count": 1
+  }
+}

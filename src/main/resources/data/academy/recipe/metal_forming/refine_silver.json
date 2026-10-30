@@ -1,0 +1,28 @@
+{
+  "type": "academy:metal_forming",
+  "neoforge:conditions": [
+    {
+      "type": "neoforge:not",
+      "value": {
+        "type": "neoforge:tag_empty",
+        "tag": "c:ores/silver"
+      }
+    },
+    {
+      "type": "neoforge:not",
+      "value": {
+        "type": "neoforge:tag_empty",
+        "tag": "c:ingots/silver"
+      }
+    }
+  ],
+  "operation": "refine",
+  "ingredient": {
+    "tag": "c:ores/silver"
+  },
+  "amount": 1,
+  "result": {
+    "tag": "c:ingots/silver",
+    "count": 2
+  }
+}

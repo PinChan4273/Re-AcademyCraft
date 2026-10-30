@@ -1,0 +1,28 @@
+{
+  "type": "academy:metal_forming",
+  "neoforge:conditions": [
+    {
+      "type": "neoforge:not",
+      "value": {
+        "type": "neoforge:tag_empty",
+        "tag": "c:ores/nickel"
+      }
+    },
+    {
+      "type": "neoforge:not",
+      "value": {
+        "type": "neoforge:tag_empty",
+        "tag": "c:ingots/nickel"
+      }
+    }
+  ],
+  "operation": "refine",
+  "ingredient": {
+    "tag": "c:ores/nickel"
+  },
+  "amount": 1,
+  "result": {
+    "tag": "c:ingots/nickel",
+    "count": 2
+  }
+}

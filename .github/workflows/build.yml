@@ -1,0 +1,32 @@
+name: Re:AcademyCraft 1.21.1 NeoForge build
+on:
+  # 手動実行と、releaseのtag（例: 1.21.1-neoforge-v1.3.0）で動く。tagのcommitからclean buildし、JARのSHA-256をログとStep Summaryに残す。
+  # tagで動くworkflowは、そのtagのcommitにあるもの（このブランチのもの）だけ。
+  # JARはArtifactとして保存しない（公式のJARはCurseForgeだけで配布する）。
+  workflow_dispatch:
+  push:
+    tags:
+      - '*-v*'
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+      - name: ビルド（clean build）
+        run: |
+          chmod +x gradlew
+          ./gradlew clean build --no-daemon
+      - name: SHA256SUMSを作る
+        working-directory: build/libs
+        run: |
+          sha256sum re-academycraft-neoforge-1.21.1-*.jar > SHA256SUMS
+          cat SHA256SUMS
+          { echo '```'; cat SHA256SUMS; echo '```'; } >> "$GITHUB_STEP_SUMMARY"

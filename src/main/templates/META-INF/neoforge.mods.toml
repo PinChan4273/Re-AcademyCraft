@@ -1,0 +1,43 @@
+modLoader="javafml"
+loaderVersion="${loader_version_range}"
+license="${mod_license}"
+issueTrackerURL="https://github.com/PinChan4273/Re-AcademyCraft/issues"
+
+[[mods]]
+modId="${mod_id}"
+version="${mod_version}"
+displayName="${mod_name}"
+displayURL="https://github.com/PinChan4273/Re-AcademyCraft"
+authors="Lambda Innovation; Re:AcademyCraft contributors"
+description='''
+AcademyCraft（Lambda Innovation）の、Minecraft 1.21.1 / NeoForge向けの非公式移植版です（移植中）。
+電撃使い・原子崩し・空間移動・ベクトル操作の4系統の能力、能力開発、機械、素材、無線エネルギー、データ端末とゲーム内チュートリアルを含みます。
+既知の制限は README.md を見てください。原作者・Lambda Innovation・MohistMC の公認ではありません。
+
+An unofficial port of AcademyCraft (Lambda Innovation) to Minecraft 1.21.1 / NeoForge (port in progress): four ability categories
+(Electromaster, Meltdowner, Teleporter, Vector Manipulation), ability development, machines, materials,
+wireless energy, the data terminal and the in-game tutorial. See README.md for known limitations.
+Not endorsed by the original authors, Lambda Innovation or MohistMC.
+'''
+
+[[dependencies.${mod_id}]]
+    modId="neoforge"
+    type="required"
+    versionRange="[${neo_version},)"
+    ordering="NONE"
+    side="BOTH"
+
+[[dependencies.${mod_id}]]
+    modId="minecraft"
+    type="required"
+    versionRange="${minecraft_version_range}"
+    ordering="NONE"
+    side="BOTH"
+
+# FML 4 (NeoForge 1.20.5+) reads access transformers only when the mod lists them.
+[[accessTransformers]]
+file="META-INF/accesstransformer.cfg"
+
+# Forge 1.20.1版のLivingAttackEvent・LivingHurtEventと同じ段階で被弾を扱うためのmixin（event/DamagePhaseHooks）。
+[[mixins]]
+config="academy.mixins.json"

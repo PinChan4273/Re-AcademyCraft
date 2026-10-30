@@ -1,0 +1,66 @@
+package io.github.pinchan4273.reacademycraft.skill;
+
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.LivingEntity;
+import io.github.pinchan4273.reacademycraft.event.AcademyLivingHurtEvent;
+import net.neoforged.bus.api.EventPriority;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.common.Mod;
+
+/**
+ * 原作RadiationIntensify（WeAthFolD、KSkun）: meltdownerで唯一の受動技能。
+ *
+ * meltdownerの技能がダメージを与えたものは3秒間被曝した状態になり、印がある間にそれへ当てたすべての攻撃はlerp(1.4, 1.8, rate)倍の
+ * ダメージになる。
+ *
+ * 熟練度は獲得するものではなく導出する: 原作はgetSkillExpを上書きし、術者の最大CPがレベル5の術者の初期CPにどれだけ近づいたかを
+ * 返す。習得してから最大CPを上げることで強くなる。
+ *
+ * 印は原作と同じくmapではなく印を付けたエンティティの永続データにあるので、エンティティに何が触れても残り、独自の後始末も要らない。
+ */
+@net.neoforged.fml.common.EventBusSubscriber(modid = "academy")
+public final class RadiationIntensify {
+    public static final ResourceLocation ID = ResourceLocation.fromNamespaceAndPath("academy", "rad_intensify");
+    /** 原作MARKIDとRATEID、および印の最短60tick。 */
+    private static final String MARK_TICKS = "academy_md_mark_ticks", MARK_RATE = "academy_md_mark_rate";
+    public static final int MARK_DURATION = 60;
+
+    private RadiationIntensify() { }
+
+    /** 原作getSkillExp: 術者の最大CPが、レベル5の術者の開始時の値へどこまで近づいたか。 */
+    public static float derivedProficiency(PlayerAbilityData data) { return derivedProficiency(data.getMaxCp(), PlayerAbilityData.initialCp(5)); }
+    /** 同じ式を、基準の値を渡して計算する。F4の表示は、参加中のサーバーが送ったLv5の初期CPを渡す。 */
+    public static float derivedProficiency(float maxCp, float reference) {
+        return reference <= 0 ? 0 : Math.max(0, Math.min(1, maxCp / reference));
+    }
+
+    public static float rate(PlayerAbilityData data) { return rate(derivedProficiency(data)); }
+    /** 実効熟練度からの倍率。 */
+    public static float rate(float proficiency) { return ArcGen.lerp(1.4f, 1.8f, proficiency); }
+
+    /** 術者がそもそもこの受動技能を習得していれば、たった今当てた対象に印を付ける。 */
+    public static void mark(PlayerAbilityData data, Entity target) {
+        if (data == null || !data.hasLearned(ID) || !AbilityCategory.MELTDOWNER.id().equals(data.getAbility())) return;
+        target.getPersistentData().putInt(MARK_TICKS, MARK_DURATION);
+        target.getPersistentData().putFloat(MARK_RATE, rate(data));
+    }
+
+    public static int markTicks(Entity target) { return target.getPersistentData().getInt(MARK_TICKS); }
+    public static float markRate(Entity target) { return target.getPersistentData().getFloat(MARK_RATE); }
+
+    /** Forge版のLivingTickEvent（LivingEntity.tickの最初）。NeoForgeはEntityTickEvent.Pre（tickの前）で、生き物だけを見る。 */
+    @SubscribeEvent public static void tick(net.neoforged.neoforge.event.tick.EntityTickEvent.Pre event) {
+        if (!(event.getEntity() instanceof LivingEntity entity)) return;
+        int ticks = markTicks(entity);
+        if (ticks > 0) entity.getPersistentData().putInt(MARK_TICKS, ticks - 1);
+    }
+
+    /** 他の処理が既に決めた値に印の倍率を掛けるよう、後で実行する。原作自身の処理も他の技能に対してこの位置にある。 */
+    @SubscribeEvent(priority = EventPriority.LOW) public static void hurt(AcademyLivingHurtEvent event) {
+        LivingEntity entity = event.getEntity();
+        if (markTicks(entity) <= 0) return;
+        float rate = markRate(entity);
+        if (rate > 0) event.setAmount(event.getAmount() * rate);
+    }
+}

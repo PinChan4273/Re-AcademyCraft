@@ -1,0 +1,12 @@
+// 公式MDK（NeoForgeMDKs/MDK-1.21.1-ModDevGradle @ 3bca8f1e）のsettings.gradleに、プロジェクト名だけを足した。
+pluginManagement {
+    repositories {
+        gradlePluginPortal()
+    }
+}
+
+plugins {
+    id 'org.gradle.toolchains.foojay-resolver-convention' version '1.0.0'
+}
+
+rootProject.name = 're-academycraft-neoforge-1.21.1'

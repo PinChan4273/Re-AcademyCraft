@@ -1,0 +1,30 @@
+{
+  "parent": "minecraft:block/block",
+  "gui_light": "front",
+  "textures": {
+    "front": "academy:item/coin_front",
+    "back": "academy:item/coin_back",
+    "particle": "academy:item/coin_front"
+  },
+  "elements": [
+    {
+      "from": [0, 0, 7.36],
+      "to": [16, 16, 8.64],
+      "faces": {
+        "north": {"uv": [0, 0, 16, 16], "texture": "#back"},
+        "south": {"uv": [0, 0, 16, 16], "texture": "#front"},
+        "up": {"uv": [0, 0, 16, 0.5], "texture": "#front"},
+        "down": {"uv": [0, 15.5, 16, 16], "texture": "#front"},
+        "east": {"uv": [15.5, 0, 16, 16], "texture": "#front"},
+        "west": {"uv": [0, 0, 0.5, 16], "texture": "#front"}
+      }
+    }
+  ],
+  "display": {
+    "ground": {"translation": [0, 1.6, 0], "scale": [-0.3, -0.3, 0.3]},
+    "thirdperson_righthand": {"rotation": [0, -90, 55], "translation": [0, 1.92, 0.8], "scale": [0.2, 0.2, 0.2]},
+    "thirdperson_lefthand": {"rotation": [0, 90, -55], "translation": [0, 1.92, 0.8], "scale": [0.2, 0.2, 0.2]},
+    "firstperson_righthand": {"rotation": [0, -90, 25], "translation": [3.2, 0, -1.6], "scale": [0.5, 0.5, 0.5]},
+    "firstperson_lefthand": {"rotation": [0, 90, -25], "translation": [3.2, 0, -1.6], "scale": [0.5, 0.5, 0.5]}
+  }
+}

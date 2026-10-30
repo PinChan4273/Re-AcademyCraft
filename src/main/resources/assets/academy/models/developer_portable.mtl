@@ -1,0 +1,3 @@
+# Not in the original, which binds textures/models/developer_portable.png itself.
+newmtl Material01
+map_Kd academy:models/developer_portable

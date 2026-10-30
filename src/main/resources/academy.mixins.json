@@ -1,0 +1,14 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "io.github.pinchan4273.reacademycraft.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "mixins": [
+    "ChunkMapUnloadLivelockMixin",
+    "LivingEntityDamageMixin",
+    "PlayerDamageMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

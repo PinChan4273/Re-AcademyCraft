@@ -1,0 +1,20 @@
+{
+  "variants": {
+    "facing=north": {
+      "model": "academy:block/solar_gen",
+      "y": 0
+    },
+    "facing=east": {
+      "model": "academy:block/solar_gen",
+      "y": 90
+    },
+    "facing=south": {
+      "model": "academy:block/solar_gen",
+      "y": 180
+    },
+    "facing=west": {
+      "model": "academy:block/solar_gen",
+      "y": 270
+    }
+  }
+}

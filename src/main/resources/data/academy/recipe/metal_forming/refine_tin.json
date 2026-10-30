@@ -1,0 +1,28 @@
+{
+  "type": "academy:metal_forming",
+  "neoforge:conditions": [
+    {
+      "type": "neoforge:not",
+      "value": {
+        "type": "neoforge:tag_empty",
+        "tag": "c:ores/tin"
+      }
+    },
+    {
+      "type": "neoforge:not",
+      "value": {
+        "type": "neoforge:tag_empty",
+        "tag": "c:ingots/tin"
+      }
+    }
+  ],
+  "operation": "refine",
+  "ingredient": {
+    "tag": "c:ores/tin"
+  },
+  "amount": 1,
+  "result": {
+    "tag": "c:ingots/tin",
+    "count": 2
+  }
+}

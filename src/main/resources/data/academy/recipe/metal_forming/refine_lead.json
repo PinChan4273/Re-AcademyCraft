@@ -1,0 +1,28 @@
+{
+  "type": "academy:metal_forming",
+  "neoforge:conditions": [
+    {
+      "type": "neoforge:not",
+      "value": {
+        "type": "neoforge:tag_empty",
+        "tag": "c:ores/lead"
+      }
+    },
+    {
+      "type": "neoforge:not",
+      "value": {
+        "type": "neoforge:tag_empty",
+        "tag": "c:ingots/lead"
+      }
+    }
+  ],
+  "operation": "refine",
+  "ingredient": {
+    "tag": "c:ores/lead"
+  },
+  "amount": 1,
+  "result": {
+    "tag": "c:ingots/lead",
+    "count": 2
+  }
+}

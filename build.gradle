@@ -1,0 +1,221 @@
+// Re:AcademyCraft — Minecraft 1.21.1 / NeoForge の移植の作業場。
+// 公式MDK NeoForgeMDKs/MDK-1.21.1-ModDevGradle @ 3bca8f1e0756c001e4b71f266c328d1568d29363 のbuild.gradleを元にした（MIT、TEMPLATE_LICENSE.txt）。
+// Forge 1.20.1版（リポジトリのルートのbuild.gradle）の、JARのmanifest・時刻と順序の固定・UTF-8の指定を引き継いだ。
+// 移植が揃うまでは、移したpackageだけをコンパイルする（Forge版のソースはルートのsrc/のまま変えない）。
+plugins {
+    id 'java-library'
+    id 'net.neoforged.moddev' version '2.0.148'
+}
+
+tasks.named('wrapper', Wrapper).configure {
+    distributionType = Wrapper.DistributionType.BIN
+}
+
+version = mod_version
+group = mod_group_id
+
+base {
+    archivesName = 're-academycraft-neoforge-1.21.1'
+}
+
+java.toolchain.languageVersion = JavaLanguageVersion.of(21)
+// Forge 1.20.1版と同じく、ソースのJARも作る（GPLv3の配布物。帰属文書も同じく入れる）。
+java.withSourcesJar()
+
+neoForge {
+    version = project.neo_version
+
+    parchment {
+        mappingsVersion = project.parchment_mappings_version
+        minecraftVersion = project.parchment_minecraft_version
+    }
+
+    // Forge 1.20.1版（ルートのbuild.gradle）と同じく、GameTestサーバーではいつも、クライアントはclient smokeのときだけテストを読み込む。
+    // テストのclassは、各起動のsourceSetをtestにしたときだけ実行のclasspathに入る（製品のJARはmainだけ）。
+    runs {
+        client {
+            client()
+            gameDirectory = project.file('run/client')
+            systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
+            if (project.hasProperty('dedicatedSmokeTest')) {
+                gameDirectory = project.file('run/dedicated-client')
+                systemProperty 'academy.dedicatedSmokeTest', 'true'
+                programArguments.addAll('--username', 'AcademySmoke')
+                jvmArgument '-Xmx1536m'
+                sourceSet = sourceSets.test
+            }
+            // シェーダーの見た目の確認（client smokeの外の、手動の撮影。smoke/client/ShaderVisualCheck）。-PshaderVisualTest=vanilla|iris。
+            // IrisとSodiumのjar、シェーダーパックは、run/shader-<mode>/のmodsとshaderpacksへ手で置く（リポジトリには入れない）。
+            if (project.hasProperty('shaderVisualTest')) {
+                gameDirectory = project.file("run/shader-${project.property('shaderVisualTest')}")
+                systemProperty 'academy.shaderVisualTest', project.property('shaderVisualTest').toString()
+                systemProperty 'academy.shaderVisualTag', (project.findProperty('shaderVisualTag') ?: 'run').toString()
+                programArguments.addAll('--width', '1920', '--height', '1080')
+                sourceSet = sourceSets.test
+            }
+            // Forge 1.3.0の描画の撮影（client smokeの外の、人が見比べる撮影）。Forge版は-Dacademy.<名前>で動かした。
+            // -PlsVisualTest=<モード>（smoke/client/LightShieldVisualCheck）、-PjetDepthTest=vanilla|iris（JetDepthVisualCheck）、
+            // -PguiPassiveTest=<モード>（GuiPassiveVisualCheck）。それぞれ-P<名前>Tag=<撮影の名前>。世界は撮影ごとの作業場に作る。
+            for (def visual in ['lsVisual', 'jetDepth', 'guiPassive']) {
+                def key = visual == 'lsVisual' ? 'lsVisualTest' : visual + 'Test'
+                def tag = visual == 'lsVisual' ? 'lsVisualTag' : visual + 'Tag'
+                if (project.hasProperty(key)) {
+                    gameDirectory = project.file("run/${visual}-${project.property(key)}")
+                    systemProperty "academy.${key}", project.property(key).toString()
+                    systemProperty "academy.${tag}", (project.findProperty(tag) ?: 'run').toString()
+                    sourceSet = sourceSets.test
+                }
+            }
+            // 実クライアント2人の試験（Forge版と同じ。tools/run_mp_contact.pyのMultiplayerContactCheck、tools/run_mp_rc2.pyのRc2MultiplayerCheck）。
+            // 名前ごとに作業フォルダを分ける。このプロパティを付けたときだけ効き、製品のJARには関係しない。
+            if (project.hasProperty('mpQaName')) {
+                gameDirectory = project.file('run/mp-' + project.property('mpQaName'))
+                systemProperty 'academy.mpContact', project.property('mpContactRole').toString()
+                if (project.hasProperty('mpRc2Role')) systemProperty 'academy.mpRc2', project.property('mpRc2Role').toString()
+                systemProperty 'academy.mpQaServer', project.property('mpQaServer').toString()
+                programArguments.addAll('--username', project.property('mpQaName').toString())
+                jvmArgument '-Xmx1536m'
+                sourceSet = sourceSets.test
+            }
+            // 本物の専用サーバーでの、保存・死亡・End帰還・停止と再起動の確かめ（smoke/client/DedicatedLifecycleCheck、tools/dedicated_smoke.py lifecycle）。
+            // 保存の追加の確かめ（smoke/client/DedicatedLifecycleExtraCheck、tools/dedicated_smoke.py lifecycle-extra）。
+            if (project.hasProperty('dedicatedLifecycleExtraTest')) {
+                gameDirectory = project.file('run/lifecycle-extra-client')
+                systemProperty 'academy.dedicatedLifecycleExtraTest', 'true'
+                programArguments.addAll('--username', 'AcademySmoke')
+                jvmArgument '-Xmx1536m'
+                sourceSet = sourceSets.test
+            }
+            if (project.hasProperty('dedicatedLifecycleTest')) {
+                gameDirectory = project.file('run/lifecycle-client')
+                systemProperty 'academy.dedicatedLifecycleTest', 'true'
+                programArguments.addAll('--username', 'AcademySmoke')
+                jvmArgument '-Xmx1536m'
+                sourceSet = sourceSets.test
+            }
+            // 「保存して終了」が止まる現象（M-03）の再現実験（smoke/client/ShutdownStressCheck）。-PshutdownStress、
+            // -PshutdownStressGen=off（本MODのワールド生成を切る）、-PshutdownStressRounds=N、-PshutdownProbeAfterMs=N（停止の記録を始めるまで）。
+            if (project.hasProperty('shutdownStress')) {
+                gameDirectory = project.file("run/shutdown-stress-${project.findProperty('shutdownStressGen') ?: 'on'}")
+                systemProperty 'academy.shutdownStress', 'true'
+                systemProperty 'academy.shutdownStressGen', (project.findProperty('shutdownStressGen') ?: 'on').toString()
+                systemProperty 'academy.shutdownStressRounds', (project.findProperty('shutdownStressRounds') ?: '12').toString()
+                systemProperty 'academy.shutdownProbeAfterMs', (project.findProperty('shutdownProbeAfterMs') ?: '30000').toString()
+                jvmArgument '-Xlog:gc:file=gc.log:time,uptime'
+                sourceSet = sourceSets.test
+            }
+            if (project.hasProperty('runtimeSmokeTest')) {
+                gameDirectory = project.file('run/client-smoke')
+                systemProperty 'academy.runtimeSmokeTest', 'true'
+                // GCの停止を、描画やサーバーの遅れと切り分けるため（作業場のgc.log。CIの証拠に入る）。
+                jvmArgument '-Xlog:gc:file=gc.log:time,uptime'
+                sourceSet = sourceSets.test
+            }
+        }
+        server {
+            server()
+            gameDirectory = project.file('run/server')
+            programArgument '--nogui'
+            systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
+        }
+        gameTestServer {
+            type = "gameTestServer"
+            // -PphaseLakeExtended: 位相液体の湖の追加の試験（smoke/PhaseLakeExtendedGameTests）も登録し、別の作業場で動かす。
+            // 通常の実行（872件）の数と世界は変えない。
+            // -PpayloadRiskTests: 通信の高リスクの経路の実行試験（smoke/PayloadRiskGameTests）。これも別の作業場。
+            // -Pm03UnloadTests: M-03の回避（W1）の試験（smoke/ChunkUnloadW1GameTests）。これも別の作業場。
+            def gameTestDirectory = project.hasProperty('phaseLakeExtended') ? 'run/gametest-phaselake'
+                    : project.hasProperty('payloadRiskTests') ? 'run/gametest-payloadrisk'
+                    : project.hasProperty('m03UnloadTests') ? 'run/gametest-m03unload' : 'run/gametest'
+            gameDirectory = project.file(gameTestDirectory)
+            systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
+            // 1件ごとの結果のJUnit形式のXML（試験のsmoke/GameTestJUnitReport）。
+            systemProperty 'academy.gameTestReport', project.file("${gameTestDirectory}/gametest-junit.xml").absolutePath
+            if (project.hasProperty('phaseLakeExtended')) systemProperty 'academy.phaseLakeExtended', 'true'
+            if (project.hasProperty('payloadRiskTests')) systemProperty 'academy.payloadRiskTests', 'true'
+            if (project.hasProperty('m03UnloadTests')) systemProperty 'academy.m03UnloadTests', 'true'
+            sourceSet = sourceSets.test
+        }
+        configureEach {
+            systemProperty 'forge.logging.markers', 'REGISTRIES'
+            logLevel = org.slf4j.event.Level.INFO
+            // -PunloadMonitor: チャンクの解放の待ちの監視（試験のsmoke/ChunkUnloadMonitor、M-03のW1の確かめ）。試験のsourceSetの起動だけで働く。
+            // -PunloadMonitorEvery=N: 記録の間隔（tick、既定100）。
+            if (project.hasProperty('unloadMonitor')) {
+                systemProperty 'academy.unloadMonitor', 'true'
+                systemProperty 'academy.unloadMonitorEvery', (project.findProperty('unloadMonitorEvery') ?: '100').toString()
+            }
+        }
+    }
+
+    mods {
+        "${mod_id}" {
+            sourceSet(sourceSets.main)
+            sourceSet(sourceSets.test)
+        }
+    }
+}
+
+// テストもNeoForgeとMinecraftに対してコンパイルする。
+neoForge.addModdingDependenciesTo(sourceSets.test)
+
+// 試験のsourceSetはGameTest（runGameTestServerで走らせる）とclient smokeのcheckで、JUnitの試験は無い。Gradle 9は、試験の
+// ソースがあるのに試験が見つからないと`test`を失敗にするので、それを止める（JUnitの試験を足せば、そのまま走る）。
+tasks.named('test', Test).configure {
+    failOnNoDiscoveredTests = false
+}
+
+var generateModMetadata = tasks.register("generateModMetadata", ProcessResources) {
+    var replaceProperties = [
+            minecraft_version      : minecraft_version,
+            minecraft_version_range: minecraft_version_range,
+            neo_version            : neo_version,
+            loader_version_range   : loader_version_range,
+            mod_id                 : mod_id,
+            mod_name               : mod_name,
+            mod_license            : mod_license,
+            mod_version            : mod_version,
+    ]
+    inputs.properties replaceProperties
+    expand replaceProperties
+    filteringCharset = 'UTF-8'
+    from "src/main/templates"
+    into "build/generated/sources/modMetadata"
+}
+sourceSets.main.resources.srcDir generateModMetadata
+neoForge.ideSyncTask generateModMetadata
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+}
+
+// 移植の途中は、コンパイルの誤りを全部見られるよう上限を上げ、非推奨のAPIの使用も表示する。
+tasks.withType(JavaCompile).configureEach {
+    options.compilerArgs += ['-Xmaxerrs', '10000']
+    options.deprecation = true
+}
+
+// Forge 1.20.1版と同じく、GPLv3の全文・NOTICE・原作のREADMEの原文などの帰属文書をJARへ入れる。作業場の中の写しを使う
+// （製品のbranchのルートへ移しても同じ形で入る）。NeoForgeのMDKのテンプレートのMIT Licenseも入れる。
+tasks.named('jar', Jar).configure {
+    from('LICENSE')
+    from('NOTICE.md')
+    from('licenses') { into 'META-INF/licenses' }
+    from('TEMPLATE_LICENSE.txt') { into 'META-INF/licenses' }
+    manifest {
+        attributes 'Implementation-Title': 'Re:AcademyCraft',
+                   'Implementation-Version': project.version
+    }
+}
+
+tasks.named('sourcesJar', Jar).configure {
+    from('LICENSE')
+    from('NOTICE.md')
+    from('licenses') { into 'META-INF/licenses' }
+    from('TEMPLATE_LICENSE.txt') { into 'META-INF/licenses' }
+}
+
+tasks.withType(AbstractArchiveTask).configureEach {
+    preserveFileTimestamps = false
+    reproducibleFileOrder = true
+}

@@ -1,0 +1,13 @@
+{
+  "replace": false,
+  "values": [
+    "minecraft:rail",
+    "minecraft:iron_bars",
+    "minecraft:iron_block",
+    "minecraft:activator_rail",
+    "minecraft:detector_rail",
+    "minecraft:powered_rail",
+    "minecraft:sticky_piston",
+    "minecraft:piston"
+  ]
+}
