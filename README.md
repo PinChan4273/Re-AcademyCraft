@@ -12,11 +12,14 @@
 | Minecraft | ローダー | Re:AcademyCraft | sourceのブランチ | release |
 | --- | --- | --- | --- | --- |
 | 1.20.1 | Forge `[47.4.10,48)` | 1.4.0 | [`1.20.1`](https://github.com/PinChan4273/Re-AcademyCraft/tree/1.20.1) | [`1.20.1-v1.4.0`](https://github.com/PinChan4273/Re-AcademyCraft/releases/tag/1.20.1-v1.4.0) |
+| 1.21.1 | NeoForge `[21.1.259,)` | 1.3.0 | [`1.21.1-neoforge`](https://github.com/PinChan4273/Re-AcademyCraft/tree/1.21.1-neoforge) | [`1.21.1-neoforge-v1.3.0`](https://github.com/PinChan4273/Re-AcademyCraft/releases/tag/1.21.1-neoforge-v1.3.0) |
 
 - releaseの一覧: <https://github.com/PinChan4273/Re-AcademyCraft/releases>
-- 公式の導入用JARは、CurseForge（<https://www.curseforge.com/minecraft/mc-mods/re-academycraft>、Project ID `1735500`）だけで配布します。GitHubのreleaseは更新情報とsourceの参照用です。1.4.0からは、アドオンの開発者向けのSDK（導入用ではないJAR）をreleaseに添付します。
+- 公式の導入用JARは、CurseForge（<https://www.curseforge.com/minecraft/mc-mods/re-academycraft>、Project ID `1735500`）だけで配布します。GitHubのreleaseは更新情報とsourceの参照用です。Forge 1.20.1版は1.4.0から、アドオンの開発者向けのSDK（導入用ではないJAR）をreleaseに添付します。
+- NeoForge 1.21.1版の1.3.0は、Forge 1.20.1版の1.3.0と同じ機能です（1.4.0のアドオン用の公開APIとSDKは含みません）。
+- Forge版とNeoForge版のJARは別のものです。同時に入れないでください。
 - 導入方法・動作要件・既知の問題は、各ブランチの`README.md`を見てください。
-- tagは`<Minecraftのバージョン>-v<Re:AcademyCraftのバージョン>`の形です（例: `1.20.1-v1.0.0`）。
+- tagは`<Minecraftのバージョン>[-<ローダー>]-v<Re:AcademyCraftのバージョン>`の形です（例: `1.20.1-v1.0.0`、`1.21.1-neoforge-v1.3.0`）。Forge 1.20.1版のtagにはローダーの名前を付けていません。
 
 ## 不具合の報告・要望
 
