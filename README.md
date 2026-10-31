@@ -11,7 +11,7 @@
 
 | Minecraft | ローダー | Re:AcademyCraft | sourceのブランチ | release |
 | --- | --- | --- | --- | --- |
-| 1.20.1 | Forge `[47.4.10,48)` | 1.4.0 | [`1.20.1`](https://github.com/PinChan4273/Re-AcademyCraft/tree/1.20.1) | [`1.20.1-v1.4.0`](https://github.com/PinChan4273/Re-AcademyCraft/releases/tag/1.20.1-v1.4.0) |
+| 1.20.1 | Forge `[47.4.10,48)` | 1.4.1 | [`1.20.1`](https://github.com/PinChan4273/Re-AcademyCraft/tree/1.20.1) | [`1.20.1-v1.4.1`](https://github.com/PinChan4273/Re-AcademyCraft/releases/tag/1.20.1-v1.4.1) |
 | 1.21.1 | NeoForge `[21.1.259,)` | 1.3.0 | [`1.21.1-neoforge`](https://github.com/PinChan4273/Re-AcademyCraft/tree/1.21.1-neoforge) | [`1.21.1-neoforge-v1.3.0`](https://github.com/PinChan4273/Re-AcademyCraft/releases/tag/1.21.1-neoforge-v1.3.0) |
 
 - releaseの一覧: <https://github.com/PinChan4273/Re-AcademyCraft/releases>
