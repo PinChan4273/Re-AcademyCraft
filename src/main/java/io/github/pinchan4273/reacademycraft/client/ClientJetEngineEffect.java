@@ -115,6 +115,8 @@ public final class ClientJetEngineEffect {
         });
     }
     static double range(double min, double max) { return min + RANDOM.nextDouble() * (max - min); }
+    /** テスト用の入口: その実体の飛行の菱形が今あるか。 */
+    public static boolean showing(int entityId) { return FLIGHTS.values().stream().anyMatch(flight -> flight.entityId == entityId); }
 
     @SubscribeEvent public static void render(RenderLevelStageEvent event) {
         // VIS-JET-DEPTH-001（第2版）: 狙いの目印は粒子の後、菱形はエンティティの直後（術者の体の深度が確定し、半透明のブロックより前）に描く。

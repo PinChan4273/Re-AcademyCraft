@@ -41,7 +41,7 @@ repositories {
     flatDir { dirs '../../build/libs' }
 }
 
-def academyVersion = project.findProperty('academyVersion') ?: '1.4.0'
+def academyVersion = project.findProperty('academyVersion') ?: '1.4.1'
 
 dependencies {
     minecraft 'net.minecraftforge:forge:1.20.1-47.4.10'

@@ -41,6 +41,16 @@ public final class ClientRailgunHand {
     private static long received, drawn;
     private ClientRailgunHand() { }
 
+    /** 外部の演出を足し、取り除くときに渡す印を返す（自然能力の数には入れない）。 */
+    static Object startExternal(int player) {
+        var burst = new Burst(player, Util.getMillis());
+        BURSTS.add(burst);
+        return burst;
+    }
+    /** その外部の演出が、まだ描く一覧にあるか。 */
+    static boolean hasExternal(Object burst) { return BURSTS.stream().anyMatch(other -> other == burst); }
+    /** 外部の演出をすぐ取り除く。同じ値の自然能力の演出を消さないよう、印そのもので探す。 */
+    static void endExternal(Object burst) { BURSTS.removeIf(other -> other == burst); }
     public static void receive(RailgunHandEffect effect) {
         received++;
         BURSTS.add(new Burst(effect.player(), Util.getMillis()));

@@ -83,6 +83,19 @@ public final class ExternalBeamBook<T> {
         return n;
     }
 
+    /** 持ち主の、条件に合う光線だけを一覧から外し、効果IDを記憶する。外した本数。 */
+    public int clearIf(String ownerModId, Predicate<T> remove) {
+        var owner = owners.get(ownerModId);
+        if (owner == null) return 0;
+        int removed = 0;
+        var it = owner.active.entrySet().iterator();
+        while (it.hasNext()) {
+            var entry = it.next();
+            if (remove.test(entry.getValue())) { owner.recent.put(entry.getKey(), now + RECENT_TICKS); it.remove(); removed++; }
+        }
+        return removed;
+    }
+
     /** すべての持ち主の光線を、記憶ごと消す（ログアウト・世界の切り替え・資源の読み直し）。数は残す。 */
     public void cancelAll() { for (var owner : owners.values()) { owner.active.clear(); owner.recent.clear(); } }
 
@@ -92,6 +105,11 @@ public final class ExternalBeamBook<T> {
     public int active(String ownerModId) { var owner = owners.get(ownerModId); return owner == null ? 0 : owner.active.size(); }
     public int totalActive() { return owners.values().stream().mapToInt(owner -> owner.active.size()).sum(); }
     public long count(String ownerModId, BeamResult result) { var owner = owners.get(ownerModId); return owner == null ? 0 : owner.counts[result.ordinal()]; }
+
+    /** 持ち主のその光線の描画の状態。無ければnull。 */
+    public T get(String ownerModId, long effectId) { var owner = owners.get(ownerModId); return owner == null ? null : owner.active.get(effectId); }
+    /** 持ち主の描いている光線（足した順）。 */
+    public List<T> owned(String ownerModId) { var owner = owners.get(ownerModId); return owner == null ? List.of() : new ArrayList<>(owner.active.values()); }
 
     /** 描いている光線（描く順。持ち主ごとに、足した順）。 */
     public List<T> all() {

@@ -32,6 +32,7 @@ public final class ClientSettings {
         catch (NumberFormatException e) { return fallback; }
     }
     public static final String EXTERNAL_BEAMS_PER_OWNER = "externalBeamsPerOwner";
+    public static final String EXTERNAL_EFFECTS_PER_OWNER = "externalEffectsPerOwner";
     public static void set(String id, boolean on) {
         load().setProperty(id, Boolean.toString(on));
         try {

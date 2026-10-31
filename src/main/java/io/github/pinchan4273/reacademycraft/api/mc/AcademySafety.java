@@ -1,12 +1,15 @@
 package io.github.pinchan4273.reacademycraft.api.mc;
 
 import io.github.pinchan4273.reacademycraft.api.AbilityId;
+import io.github.pinchan4273.reacademycraft.api.ReflectionState;
 import io.github.pinchan4273.reacademycraft.api.TargetRelation;
 import io.github.pinchan4273.reacademycraft.ability.SafetyService;
 import javax.annotation.Nullable;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
 
@@ -58,6 +61,20 @@ public final class AcademySafety {
     public static @Nullable Vec3 checkTeleport(AbilityActor actor, Entity mover, Vec3 to, AbilityId skill) { return SafetyService.checkTeleport(actor, mover, to, skill); }
     /** 相手を同じ世界の中で移す（事前の判定、移動、事後の確かめ）。実際にその位置へ移ったらtrue。 */
     public static boolean teleport(AbilityActor actor, Entity mover, Vec3 to, AbilityId skill) { return SafetyService.teleport(actor, mover, to, skill); }
+    /**
+     * 相手のベクトル反射の状態（読むだけ。API版2）。
+     * {@link ReflectionState#REFLECTING}は、モードが今オンということで、ある攻撃が全部止まることは意味しない: 攻撃の量×熟練度の割合
+     * （0.6〜1.2）が1以上なら丸ごと止まり、1未満なら割合の分だけ減って残りが通る。
+     */
+    public static ReflectionState reflection(@Nullable LivingEntity target) { return SafetyService.reflection(target); }
+    /** Re:AcademyCraftの技能のダメージなら、その技能のID（組み込みと、{@link #attack}を通した外部の技能）。それ以外はnull。API版2。 */
+    public static @Nullable AbilityId skillOf(@Nullable DamageSource source) { return SafetyService.skillOf(source); }
+    /**
+     * Re:AcademyCraftの組み込みの技能のうち、光線として当てるもののダメージか（API版2）。今の一覧は
+     * {@code academy:railgun}・{@code academy:meltdowner}・{@code academy:ray_barrage}・{@code academy:electron_bomb}・
+     * {@code academy:scatter_bomb}・{@code academy:electron_missile}。外部の技能のダメージはfalse。
+     */
+    public static boolean isBeam(@Nullable DamageSource source) { return SafetyService.isBeam(source); }
     /** 主体が今、能力の妨害の範囲の中か。 */
     public static boolean interfered(AbilityActor actor) { return SafetyService.interfered(actor); }
 }

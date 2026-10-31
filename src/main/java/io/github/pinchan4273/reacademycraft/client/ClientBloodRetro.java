@@ -46,7 +46,7 @@ import net.minecraftforge.fml.common.Mod;
  */
 @Mod.EventBusSubscriber(modid = "academy", value = Dist.CLIENT)
 public final class ClientBloodRetro {
-    private static final ResourceLocation[] GROUND = new ResourceLocation[3], WALL = new ResourceLocation[3];
+    static final ResourceLocation[] GROUND = new ResourceLocation[3], WALL = new ResourceLocation[3];
     static {
         for (int i = 0; i < 3; i++) {
             GROUND[i] = ResourceLocation.fromNamespaceAndPath("academy", "textures/effects/blood_spray/grnd/" + i + ".png");

@@ -34,8 +34,8 @@ import net.minecraftforge.fml.common.Mod;
 @Mod.EventBusSubscriber(modid = "academy", value = Dist.CLIENT)
 public final class ClientTeleporterBursts {
     static final int BLOOD_FRAMES = 10, FORMULA_PICTURES = 10;
-    private static final ResourceLocation[] BLOOD = new ResourceLocation[BLOOD_FRAMES];
-    private static final ResourceLocation[] FORMULA = new ResourceLocation[FORMULA_PICTURES];
+    static final ResourceLocation[] BLOOD = new ResourceLocation[BLOOD_FRAMES];
+    static final ResourceLocation[] FORMULA = new ResourceLocation[FORMULA_PICTURES];
     static {
         for (int i = 0; i < BLOOD_FRAMES; i++)
             BLOOD[i] = ResourceLocation.fromNamespaceAndPath("academy", "textures/effects/blood_splash/" + i + ".png");
@@ -178,7 +178,7 @@ public final class ClientTeleporterBursts {
      * iconLift: 血しぶきはLambdaLib2のRenderIconで、四角は大きさの-0.25から0.75まで画面の上方向に伸びる
      * （置く位置から大きさの4分の1上）。数式はLambdaLib2の粒子（Sprite）で、中心に置く。
      */
-    private static void billboard(com.mojang.blaze3d.vertex.PoseStack pose, org.joml.Quaternionf facing,
+    static void billboard(com.mojang.blaze3d.vertex.PoseStack pose, org.joml.Quaternionf facing,
                                   Vec3 at, float size, boolean iconLift, float red, float green, float blue, float alpha) {
         pose.pushPose();
         try {

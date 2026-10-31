@@ -46,6 +46,28 @@ public final class SafetyService {
     public static void onlineForTest(@Nullable Predicate<ServerPlayer> check) { online = check == null ? SafetyService::loggedIn : check; }
 
     private static net.minecraft.resources.ResourceLocation loc(AbilityId id) { return RegistryViews.location(id); }
+    /** 公開APIのベクトル反射の状態。 */
+    public static io.github.pinchan4273.reacademycraft.api.ReflectionState reflection(@javax.annotation.Nullable net.minecraft.world.entity.LivingEntity target) {
+        if (target == null || target.level().isClientSide()) return io.github.pinchan4273.reacademycraft.api.ReflectionState.UNKNOWN;
+        var server = target.getServer();
+        if (server == null || !server.isSameThread()) return io.github.pinchan4273.reacademycraft.api.ReflectionState.UNKNOWN;
+        if (!(target instanceof net.minecraft.server.level.ServerPlayer player)) return io.github.pinchan4273.reacademycraft.api.ReflectionState.NOT_REFLECTING;
+        return io.github.pinchan4273.reacademycraft.skill.VecReflection.active(player) ? io.github.pinchan4273.reacademycraft.api.ReflectionState.REFLECTING
+                : io.github.pinchan4273.reacademycraft.api.ReflectionState.NOT_REFLECTING;
+    }
+    /** 公開APIのダメージの技能のID。 */
+    public static @javax.annotation.Nullable AbilityId skillOf(@javax.annotation.Nullable net.minecraft.world.damagesource.DamageSource source) {
+        return source instanceof io.github.pinchan4273.reacademycraft.skill.SkillDamageSource skill
+                ? AbilityId.tryParse(skill.skill().toString()) : null;
+    }
+    private static final java.util.Set<AbilityId> BEAM_SKILLS = java.util.Set.of(AbilityId.academy("railgun"), AbilityId.academy("meltdowner"),
+            AbilityId.academy("ray_barrage"), AbilityId.academy("electron_bomb"), AbilityId.academy("scatter_bomb"), AbilityId.academy("electron_missile"));
+    /** 公開APIの、光線として当てる組み込みの技能のダメージか。 */
+    public static boolean isBeam(@javax.annotation.Nullable net.minecraft.world.damagesource.DamageSource source) {
+        var skill = skillOf(source);
+        return skill != null && BEAM_SKILLS.contains(skill);
+    }
+
     private static void requireServerThread(AbilityActor actor) {
         var server = actor.level().getServer();
         if (server != null && !server.isSameThread()) throw new IllegalStateException("The safety service must run on the server thread");

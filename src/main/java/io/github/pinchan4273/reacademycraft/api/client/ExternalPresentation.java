@@ -1,10 +1,11 @@
 package io.github.pinchan4273.reacademycraft.api.client;
 
 import io.github.pinchan4273.reacademycraft.client.ClientExternalBeams;
+import io.github.pinchan4273.reacademycraft.client.ClientExternalEffects;
 import io.github.pinchan4273.reacademycraft.visual.ExternalBeamRules;
 
 /**
- * 外部MODのための、見た目だけの演出の入口（公開API、実験的。演出API版1）。
+ * 外部MODのための、見た目だけの演出の入口（公開API、実験的。演出API版2）。
  * <p>
  * <b>クライアント専用。</b>クライアントの主スレッドからだけ呼ぶ。書き込みの入口（beam・end・clear）は、ほかのスレッドからは{@link IllegalStateException}。
  * 読み取りの入口（limit・active・diagnostics）はスレッドを検査せず、ほかのスレッドで読んだ値は保証しない。サーバーや共通のコード（Dedicatedのサーバーで読み込まれうるクラス）から参照しない。アドオンは、自分の通信でサーバーの確定した結果を受け取ったクライアントで呼ぶ。
@@ -24,16 +25,16 @@ import io.github.pinchan4273.reacademycraft.visual.ExternalBeamRules;
 public final class ExternalPresentation {
     private ExternalPresentation() { }
 
-    /** 演出APIの版（この版は1）。 */
-    public static final int API_VERSION = 1;
+    /** 演出APIの版（この版は2。2で{@link BeamStyle#MELTDOWNER_RAY_SMALL}を足した）。 */
+    public static final int API_VERSION = 2;
 
     /** 演出APIの版。実行時の機能の確かめに使う（定数{@link #API_VERSION}はアドオンに埋め込まれる）。 */
     public static int apiVersion() { return API_VERSION; }
 
     /** この版がその見た目を持つか。 */
-    public static boolean supports(BeamStyle style) { return style == BeamStyle.MELTDOWNER_BEAM; }
+    public static boolean supports(BeamStyle style) { return style != null; }
 
-    /** その見た目の光線の最大の長さ（ブロック）。持たない見た目は0。{@link BeamStyle#MELTDOWNER_BEAM}は96。 */
+    /** その見た目の光線の最大の長さ（ブロック）。持たない見た目は0。今の見た目はどれも96。 */
     public static double maxLength(BeamStyle style) { return supports(style) ? ExternalBeamRules.MAX_LENGTH : 0; }
 
     /** 持ち主ごとの今の上限（クライアントの設定。既定32は採用済みの値）。 */
@@ -47,6 +48,51 @@ public final class ExternalPresentation {
 
     /** 持ち主の光線をすべて終える。終えた本数。 */
     public static int clear(String ownerModId) { return ClientExternalBeams.clear(ownerModId); }
+
+    /** この版がその演出を持つか。 */
+    public static boolean supports(EffectStyle style) { return style != null; }
+
+    /** 持ち主ごとの、光線以外の演出の今の上限（{@code config/academy_client.properties}の{@code externalEffectsPerOwner}、1〜256、既定32）。光線とは別に数える。 */
+    public static int effectLimit(String ownerModId) { return ClientExternalEffects.limit(); }
+
+    /**
+     * 一発の演出を1つ出す（{@link EffectStyle#lasting()}がfalseの種類。持続する種類は{@link BeamResult#INVALID}。演出API版2）。結果は{@link BeamResult}。{@link BeamResult#ACCEPTED}以外では何も出さない。
+     * 効果IDは光線とは別に数え、終わってから200tickの間は重複として扱う。
+     */
+    public static BeamResult play(EffectRequest request) { return ClientExternalEffects.play(request); }
+
+    /** 持続する演出が、更新なしで続く期間（tick）。呼び出し側がいなくなっても残り続けないため。 */
+    public static final int EFFECT_LEASE_TICKS = 100;
+
+    /**
+     * 持続する演出を始める（{@link EffectStyle#lasting()}がtrueの種類。演出API版2）。{@link #EFFECT_LEASE_TICKS}の間に
+     * {@link #updateEffect}が無ければ自動で終わる。持ち主ごとの上限は光線以外の演出で共通。{@link EffectStyle#PLASMA_CANNON}はさらに同時2つまで。
+     */
+    public static BeamResult startEffect(EffectRequest request) { return ClientExternalEffects.start(request); }
+
+    /**
+     * 持続する演出を更新し、期間を延ばす。{@code position}と{@code target}は、変えないならnull（{@link EffectStyle}の種類が使わない欄は無視する）。
+     * 合わせた値を受け付けと同じ規則で確かめ、通らなければ何も変えずにfalse（期間も延びない）。更新できたらtrue。一発の演出もfalse。
+     */
+    public static boolean updateEffect(String ownerModId, long effectId, @javax.annotation.Nullable net.minecraft.world.phys.Vec3 position,
+                                       @javax.annotation.Nullable net.minecraft.world.phys.Vec3 target) {
+        return ClientExternalEffects.update(ownerModId, effectId, position, target);
+    }
+
+    /**
+     * 持ち主のその演出を、寿命の前に終える。描いていればtrue。すぐ消える。ただし{@link EffectStyle#STORM_WING}と{@link EffectStyle#PLASMA_CANNON}は
+     * 自然能力と同じように薄れて消え、消えるまで上限の枠と効果IDを使う（薄れている途中はfalse、更新もできない）。出した後の粒子と雷は消せない。
+     */
+    public static boolean endEffect(String ownerModId, long effectId) { return ClientExternalEffects.end(ownerModId, effectId); }
+
+    /** 持ち主の光線以外の演出をすべて終える（薄れる種類は{@link #endEffect}と同じ）。終えた数。 */
+    public static int clearEffects(String ownerModId) { return ClientExternalEffects.clear(ownerModId); }
+
+    /** 持ち主の、光線以外の今の演出の数。 */
+    public static int activeEffects(String ownerModId) { return ClientExternalEffects.active(ownerModId); }
+
+    /** 光線以外の演出の計数（負荷の計測と試験のため）。形は光線と同じ{@link Diagnostics}。 */
+    public static Diagnostics effectDiagnostics(String ownerModId) { return ClientExternalEffects.diagnostics(ownerModId); }
 
     /** 持ち主の今の本数。 */
     public static int active(String ownerModId) { return ClientExternalBeams.active(ownerModId); }

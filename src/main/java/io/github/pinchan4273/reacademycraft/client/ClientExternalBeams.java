@@ -44,11 +44,35 @@ public final class ClientExternalBeams {
         final BeamRequest request; final LegacyMdRayAnimation animation;
         final LegacyChargingArcPose.Orientation orientation;
         final RandomSource random = RandomSource.create();
+        final float[][] scatter;
+        final java.util.List<ClientMdEffects.SubArc> arcs;
+        boolean small() { return request.style() == io.github.pinchan4273.reacademycraft.api.client.BeamStyle.MELTDOWNER_RAY_SMALL; }
+        /** 自然能力と同じく、始点を術者の手元へずらす種類。 */
+        boolean handFixed() {
+            return switch (request.style()) { case MELTDOWNER_BEAM, RAILGUN, BARRAGE_AIM -> true; case MELTDOWNER_RAY_SMALL, BARRAGE_SCATTER -> false; };
+        }
+        static LegacyMdRayAnimation.Profile profile(io.github.pinchan4273.reacademycraft.api.client.BeamStyle style) {
+            return switch (style) {
+                case MELTDOWNER_BEAM -> LegacyMdRayAnimation.Profile.MELTDOWNER;
+                case MELTDOWNER_RAY_SMALL -> LegacyMdRayAnimation.Profile.SMALL;
+                case RAILGUN -> LegacyMdRayAnimation.Profile.RAILGUN;
+                case BARRAGE_AIM -> LegacyMdRayAnimation.Profile.BARRAGE_PRE;
+                case BARRAGE_SCATTER -> LegacyMdRayAnimation.Profile.BARRAGE;
+            };
+        }
         Beam(BeamRequest request) {
             this.request = request;
             var delta = request.to().subtract(request.from());
             orientation = LegacyChargingArcPose.rayOrientation(delta.x, delta.y, delta.z);
-            animation = new LegacyMdRayAnimation(LegacyMdRayAnimation.Profile.MELTDOWNER, delta.length(), MAX_LENGTH);
+            animation = new LegacyMdRayAnimation(profile(request.style()), delta.length(), MAX_LENGTH);
+            if (request.style() == io.github.pinchan4273.reacademycraft.api.client.BeamStyle.BARRAGE_SCATTER) {
+                float range = 50 + random.nextFloat() * 10;
+                scatter = new float[25 + random.nextInt(5)][];
+                for (int i = 0; i < scatter.length; i++)
+                    scatter[i] = new float[] {-range + random.nextFloat() * 2 * range, -range / 2 + random.nextFloat() * range};
+            } else scatter = new float[0][];
+            arcs = request.style() == io.github.pinchan4273.reacademycraft.api.client.BeamStyle.RAILGUN
+                    ? ClientMdEffects.railgunArcs(delta.length(), random) : new java.util.ArrayList<>();
         }
     }
     private static final ExternalBeamBook<Beam> BOOK = new ExternalBeamBook<>();
@@ -94,9 +118,25 @@ public final class ClientExternalBeams {
         if (client.getOverlay() != null) { BOOK.cancelAll(); return; }
         if (client.isPaused()) return;
         BOOK.advance();
-        for (var beam : BOOK.all()) beam.animation.tick(beam.random);
+        for (var beam : BOOK.all()) {
+            beam.animation.tick(beam.random);
+            // 自然能力のレールガンと同じ: 光線が30tick経つと弧を消す。
+            if (!beam.arcs.isEmpty()) {
+                if (beam.animation.elapsedTicks() >= 30) beam.arcs.clear();
+                else { for (var arc : beam.arcs) arc.tick(beam.random); beam.arcs.removeIf(arc -> arc.dead); }
+            }
+            // 自然能力の細い光線と同じ（原作EntityMdRaySmall.onUpdate）: 光線に沿って、1tickに1つmdの粒子を出す。
+            if (beam.small() && !beam.animation.snapshot().finished()) {
+                var delta = beam.request.to().subtract(beam.request.from());
+                var at = beam.request.from().add(delta.normalize().scale(beam.random.nextDouble() * Math.min(10, delta.length())));
+                client.level.addParticle(io.github.pinchan4273.reacademycraft.world.AcademyParticles.MD.get(), at.x, at.y, at.z,
+                        wiggle(beam.random), wiggle(beam.random), wiggle(beam.random));
+            }
+        }
         BOOK.retire(beam -> beam.animation.snapshot().finished());
     }
+
+    private static double wiggle(RandomSource random) { return -.015 + random.nextDouble() * .03; }
 
     /** 術者（番号とUUIDの両方が合う、この世界の生きたプレイヤー）。いなければnull。 */
     private static @Nullable Player caster(BeamRequest request) {
@@ -121,7 +161,7 @@ public final class ClientExternalBeams {
         for (var beam : beams) {
             var origin = beam.request.from();
             var orientation = beam.orientation;
-            var caster = caster(beam.request);
+            var caster = beam.handFixed() ? caster(beam.request) : null;
             if (caster != null) {
                 // 自然能力のMeltdownerと同じく、始点を撃った者の手元へずらす（自分なら一人称・三人称に合わせる）。術者がいなければずらさない。
                 var hand = LegacyChargingArcPose.handOffset(client.options.getCameraType().isFirstPerson(), caster == client.player);
@@ -138,6 +178,11 @@ public final class ClientExternalBeams {
             pose.pushPose();
             try {
                 pose.translate(at.x, at.y, at.z);
+                if (beam.scatter.length > 0) {
+                    lastFrameQuads += ClientMdEffects.drawExternalSubrays(pose, clipped, profile, orientation.yawDegrees(), orientation.pitchDegrees(), beam.scatter, origin.subtract(camera));
+                    lastFrameBatches += beam.scatter.length * 3;
+                    continue;
+                }
                 var direction = beam.request.to().subtract(origin).normalize();
                 var broadside = direction.cross(origin.subtract(camera));
                 if (broadside.lengthSqr() > 1e-6) {
@@ -150,7 +195,7 @@ public final class ClientExternalBeams {
                 pose.mulPose(Axis.YP.rotationDegrees(-(orientation.yawDegrees() + 90)));
                 pose.mulPose(Axis.ZP.rotationDegrees(-orientation.pitchDegrees()));
                 int drawn = LegacyMdRenderer.drawBeam(pose, clipped, profile, MAX_LENGTH);
-                lastFrameQuads += drawn;
+                lastFrameQuads += drawn + ClientMdEffects.drawSubArcs(pose, beam.arcs);
                 // 円柱は内と外の2本で、それぞれ1回確定する。
                 if (drawn > 0) lastFrameBatches += 2;
             } finally { pose.popPose(); }

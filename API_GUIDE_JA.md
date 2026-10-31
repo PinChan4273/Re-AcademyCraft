@@ -1,6 +1,6 @@
-# Re:AcademyCraft 1.4.0 公開API 開発者ガイド
+# Re:AcademyCraft 1.4.1 公開API 開発者ガイド
 
-このガイドでは、Minecraft 1.20.1 / Forge向けのRe:AcademyCraft 1.4.0で、アドオンから能力系統や技能を追加する方法、装備や機械から技能を発動する方法、本体の演出を利用する方法を説明します。
+このガイドでは、Minecraft 1.20.1 / Forge向けのRe:AcademyCraft 1.4.1で、アドオンから能力系統や技能を追加する方法、装備や機械から技能を発動する方法、本体の演出を利用する方法を説明します。
 
 公開APIは実験的な機能です。今後のバージョンでAPIの名称や仕様が変更される場合があります。変更内容は「10. 変更履歴」に記載します。
 
@@ -15,13 +15,13 @@
 | `io.github.pinchan4273.reacademycraft.api` | ID、能力系統・技能の定義、発動方式、実行結果、停止理由、発動元の種類・関係、スキルツリー上の配置、APIバージョン | Javaのみ。Minecraftの型は使用しません |
 | `...api.mc` | 発動元、発動時の情報、技能の実行処理、リソース消費方針、外部発動、技能習得、安全判定 | Minecraft 1.20.1の型 |
 | `...api.forge` | 能力・技能の登録イベント（`RegisterAbilitiesEvent`） | Forge |
-| `...api.client` | 描画専用の演出API（`ExternalPresentation`、演出APIバージョン1） | Minecraft 1.20.1のクライアント |
+| `...api.client` | 描画専用の演出API（`ExternalPresentation`、演出APIバージョン2） | Minecraft 1.20.1のクライアント |
 
 表中の `...` は `io.github.pinchan4273.reacademycraft` を表します。
 
 `ability` や `skill` など、上記以外のパッケージは内部実装です。予告なく変更される場合があるため、アドオンの連携には公開APIを使用してください。
 
-`AcademyApi.VERSION` は公開APIのバージョンを表し、1.4.0では `1` です。通信プロトコルのバージョンとは別に管理します。演出APIの実行時の対応確認については「8. 演出API」を参照してください。
+`AcademyApi.VERSION` は公開APIのバージョンを表し、1.4.1では `2` です（1.4.0では `1`）。通信プロトコルのバージョンとは別に管理します。演出APIの実行時の対応確認については「8. 演出API」を参照してください。
 
 ### このガイドで使う用語
 
@@ -158,6 +158,14 @@ bus.addListener((RegisterAbilitiesEvent event) -> {
 
 爆発では、他のMODの `Detonate` イベントリスナーによる変更後の最終的な対象一覧に対して、対象ごとに判定します。
 
+### 反射の状態とダメージの識別（公開APIバージョン2）
+
+`AcademySafety.reflection(LivingEntity)` は、相手のベクトル反射の状態（`ReflectionState`）を返します。`REFLECTING` は、モードが今オンという意味です。ある攻撃が全部止まることは意味しません。攻撃の量×熟練度の割合（0.6〜1.2）が1以上なら丸ごと止まり、1未満なら割合の分だけ減って残りが通ります。
+
+`AcademySafety.skillOf(DamageSource)` は、Re:AcademyCraftの技能のダメージならその技能のIDを返し、それ以外はnullです。`AcademySafety.isBeam(DamageSource)` は、組み込みの技能のうち、光線として当てるもの（`railgun`、`meltdowner`、`ray_barrage`、`electron_bomb`、`scatter_bomb`、`electron_missile`）のダメージならtrueです。
+
+どれも読むだけで、サーバーのスレッドで呼びます。実行時に `AcademyApi.VERSION` は確かめられないので、`LinkageError` で見分けてください。
+
 ### 空間移動
 
 `checkTeleport`・`teleport` では、移動先が読み込み済みで、ワールド境界と有効な高さの範囲内にあり、Forgeのテレポートイベントで許可されることを確認します。
@@ -276,6 +284,57 @@ final class BeamPresenter {
 
 この例では、`DUPLICATE` の場合も独自演出へ切り替えません。同じ効果を二重に表示しないためです。`DUPLICATE` には表示終了後の再送も含まれるので、現在も画面に光線が表示されていることを保証する結果ではありません。
 
+### 光線以外の演出（演出APIバージョン2）
+
+1.4.1から、4系統の能力の演出を使えます。入口は2つです。
+
+- **一発の演出**: `ExternalPresentation.play(EffectRequest)`。寿命で自動的に消えます。
+- **持続する演出**: `startEffect(EffectRequest)` で始め、`updateEffect(持ち主, 効果ID, 位置, 向かう先)` で更新します。更新が `EFFECT_LEASE_TICKS`（100tick）無いと自動で終わります。`endEffect` ですぐ消せます。ただし `STORM_WING` と `PLASMA_CANNON` は、自然能力と同じように薄れて消え、消えるまで上限の枠と効果IDを使います（期間切れも同じです）。`updateEffect` は、受け付けと同じ規則に合わない値なら何も変えずに `false` を返します。
+
+どちらも結果は `BeamResult` です。入口と種類が合わないとき（一発の入口に持続の種類など）は `INVALID` です。
+
+上限は、持ち主のMOD IDごとの同時の数です。光線とは別に数えます。設定は `config/academy_client.properties` の `externalEffectsPerOwner`（1〜256、既定32）です。満杯のときは `FULL` を返し、古い演出を押し出しません。`PLASMA_CANNON` は負荷が高いので、さらに持ち主ごとに同時2つまでです。
+
+本人の画面や操作そのもの（HUD、照準、画面の色、手の構え、視線や歩行の変更）は公開していません。コインと飛ぶ磁力ブロックも、サーバーの実体が前提なので公開していません。
+
+| 系統 | 種類（`EffectStyle`） | 入口 | 要る欄 |
+| --- | --- | --- | --- |
+| 電撃使い | `ARC_WEAK`、`ARC_STRONG` | 一発 | `position`→`target`（20ブロックまで）。実体を付けると、自然能力と同じく手元からずれます |
+| 電撃使い | `ARC_AREA` | 一発 | `position`→`target`（20ブロックまで） |
+| 電撃使い | `ARC_BURST` | 一発 | 実体か `position` |
+| 電撃使い | `LIGHTNING` | 一発 | `position`。バニラの雷なので、バニラと同じ音が鳴ります |
+| 電撃使い | `RAILGUN_HAND` | 一発 | 実体（プレイヤー）。本人の一人称の手元に出ます |
+| 電撃使い | `ARC_CONTINUOUS` | 持続 | `position`→`target`（20ブロックまで）。実体を付けると、手元からずれます |
+| 電撃使い | `ARC_SURROUND`（細い）、`ARC_SURROUND_NORMAL`、`ARC_SURROUND_BOLD`（太い） | 持続 | 実体か `position`。`scale` は箱の大きさ（実体が無いとき。32まで） |
+| 電撃使い | `RIPPLE` | 持続 | `position`。水平の輪です |
+| 原子崩し | `ORB` | 持続 | `position`。実体を付けると、そのずれを保って追従します。更新で `position` を渡すと、そこから新しいずれになります。`null` ならずれは変わりません |
+| 原子崩し | `LIGHT_SHIELD` | 持続 | 実体、`target`（盾の向き）、`scale`（半径、8まで） |
+| 原子崩し | `JET_SHIELD` | 持続 | 実体（向きは視線） |
+| 原子崩し | `MINE_RAY_BASIC`、`MINE_RAY_EXPERT`、`MINE_RAY_LUCK` | 持続 | 実体（視線に沿って15ブロック） |
+| 空間移動 | `TELEPORT_TRAIL`、`SHIFT_TRAIL` | 一発 | `position`→`target`（96ブロックまで） |
+| 空間移動 | `CRITICAL_FORMULA` | 一発 | 実体か `position` |
+| ベクトル操作 | `WAVE_RINGS` | 一発 | `position`→`target`（向き）、`scale`（8まで） |
+| ベクトル操作 | `BLOOD_SPLASH`、`BLOOD_SPLASH_LARGE`（大きい） | 一発 | 実体か `position` |
+| ベクトル操作 | `BLOOD_SPRAY` | 一発 | `position`→`target`。線が当たったブロックの面に付き、1200tick残ります（その間、上限の枠を使います） |
+| ベクトル操作 | `GROUND_DEBRIS` | 一発 | `position`、`scale`（半径、6まで） |
+| ベクトル操作 | `STORM_WING` | 持続 | 実体 |
+| ベクトル操作 | `PLASMA_CANNON` | 持続 | `position`、`scale`（球の大きさの倍率。1が自然能力と同じ、4まで。竜巻は変わりません）。`target` を付けて更新すると竜巻が薄れます |
+
+光線の種類（`BeamStyle`）には、`MELTDOWNER_RAY_SMALL`、`RAILGUN`、`BARRAGE_AIM`、`BARRAGE_SCATTER` を足しました。入口は今までの `beam` です。
+
+実体は、番号（`entityId`）とUUIDの両方が合うものだけを追従します。実体が要る種類で見つからなければ `INVALID` です。受け付けた後にいなくなるか、同じ番号が別の実体に使われたら、演出は終わります。
+
+種類を使う前に、`ExternalPresentation.apiVersion() >= 2` を確かめてください。1.4.0では `EffectStyle` が無いので、確かめずに参照すると `LinkageError` になります。
+
+### 音の名前
+
+演出APIは音を鳴らしません（`LIGHTNING` を除く）。音はアドオンが、`api.mc.AcademySoundIds` の名前で鳴らします。誰に聞かせるかもアドオンが決めます。
+
+```java
+var sound = ForgeRegistries.SOUND_EVENTS.getValue(AcademySoundIds.EM_RAILGUN);
+level.playSound(null, x, y, z, sound, SoundSource.PLAYERS, 1.0f, 1.0f);
+```
+
 ### 描画負荷の計測
 
 `diagnostics` では、MODごとの表示本数と受付結果別の件数、および外部光線全体の描画情報を取得できます。
@@ -332,5 +391,7 @@ Minecraft・Forge本体、および原作の画像・音声・モデルは、SDK
 
 ## 10. 変更履歴
 
+- **1.4.1／公開APIバージョン2（実験的）**：`AcademySafety.reflection`・`skillOf`・`isBeam`、`ReflectionState`、`AcademySoundIds` を追加。
+- **1.4.1／演出APIバージョン2（実験的）**：`EffectStyle`・`EffectRequest`、`play`・`startEffect`・`updateEffect`・`endEffect`・`clearEffects` を追加。光線に `MELTDOWNER_RAY_SMALL`・`RAILGUN`・`BARRAGE_AIM`・`BARRAGE_SCATTER` を追加。通信プロトコルは変えていません。
 - **1.4.0／公開APIバージョン1（実験的）**：最初の公開APIを提供。
 - **1.4.0／演出APIバージョン1（実験的）**：`api.client` にアドオン向け光線演出を追加。`MELTDOWNER_BEAM` は最大96ブロックに対応し、同時表示数は各クライアントでMOD IDごとに既定32本。

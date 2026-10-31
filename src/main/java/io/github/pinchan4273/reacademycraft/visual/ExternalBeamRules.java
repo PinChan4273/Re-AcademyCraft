@@ -2,7 +2,6 @@ package io.github.pinchan4273.reacademycraft.visual;
 
 import io.github.pinchan4273.reacademycraft.api.client.BeamRequest;
 import io.github.pinchan4273.reacademycraft.api.client.BeamResult;
-import io.github.pinchan4273.reacademycraft.api.client.BeamStyle;
 import java.util.function.Predicate;
 import javax.annotation.Nullable;
 import net.minecraft.resources.ResourceLocation;
@@ -10,7 +9,7 @@ import net.minecraft.world.phys.Vec3;
 
 /**
  * 外部の演出の光線の要求の検査（演出API版1）。描画とMinecraftのクライアントに依存しない（GameTestで確かめる）。
- * 結果はnullなら通る。順番: 見た目（無い・持たない）→ 持ち主 → 効果ID → 次元 → 座標 → 長さ。
+ * 結果はnullなら通る。順番: 見た目（無い）→ 持ち主 → 効果ID → 次元 → 座標 → 長さ。
  */
 public final class ExternalBeamRules {
     private ExternalBeamRules() { }
@@ -27,7 +26,6 @@ public final class ExternalBeamRules {
      */
     public static @Nullable BeamResult check(BeamRequest request, @Nullable ResourceLocation currentDimension, Predicate<String> modLoaded) {
         if (request == null || request.style() == null) return BeamResult.INVALID;
-        if (request.style() != BeamStyle.MELTDOWNER_BEAM) return BeamResult.UNSUPPORTED;
         var owner = request.ownerModId();
         if (owner == null || owner.isEmpty() || owner.equals("academy") || !modLoaded.test(owner)) return BeamResult.INVALID;
         if (request.effectId() <= 0) return BeamResult.INVALID;

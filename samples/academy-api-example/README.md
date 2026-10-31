@@ -1,6 +1,6 @@
 # Re:AcademyCraft API Example（サンプルのアドオン）
 
-Re:AcademyCraft 1.4.0の公開API（**実験的**。版の間で変わりうる）だけを使う、小さなサンプルです。
+Re:AcademyCraft 1.4.1の公開API（**実験的**。版の間で変わりうる）だけを使う、小さなサンプルです。
 公開の型は`io.github.pinchan4273.reacademycraft.api`（Minecraftの型を使わない定義）、`api.mc`（実行の契約と安全のサービス）、
 `api.forge`（Forgeの登録の窓）、`api.client`（クライアント専用の見た目だけの演出。このサンプルは使わない）だけです。ほかのパッケージは内部の物で、予告なく変わります。
 

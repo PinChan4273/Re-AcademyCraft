@@ -103,7 +103,7 @@ public final class ClientMdEffects {
         }
     }
     /** 原作SubArc: 光線のどこかで30tickのあいだちらつく小さな弧。 */
-    private static final class SubArc {
+    static final class SubArc {
         final Vec3 local; final double rotX, rotY, rotZ;
         int template, ticks; boolean draw, dead;
         SubArc(Vec3 local, RandomSource random) {
@@ -118,6 +118,39 @@ public final class ClientMdEffects {
             if (draw) { if (random.nextDouble() < .4) draw = false; }
             else if (random.nextDouble() < .3) draw = true;
         }
+    }
+
+    /** 外部の光線の、Railgunと同じ弧の並び（{@link Beam}の作り方と同じ）。 */
+    static List<SubArc> railgunArcs(double length, RandomSource random) {
+        var arcs = new ArrayList<SubArc>();
+        for (double at = 1; at <= length; at += 1 + random.nextDouble()) {
+            double angle = random.nextDouble() * Math.PI * 2, radius = .1 + random.nextDouble() * .15;
+            arcs.add(new SubArc(new Vec3(at, radius * Math.sin(angle), radius * Math.cos(angle)), random));
+        }
+        return arcs;
+    }
+    /** 外部の光線の、Ray Barrageの副光線（{@link #drawSubrays}と同じ描き方。自然能力の計数は増やさない）。描いた四角形の数を返す。 */
+    static int drawExternalSubrays(com.mojang.blaze3d.vertex.PoseStack pose, LegacyMdRayAnimation.Snapshot clipped, LegacyMdRayAnimation.Profile profile,
+                                   float yaw, float pitch, float[][] scatter, Vec3 view) {
+        int quads = 0;
+        for (var sub : scatter) {
+            var turned = new org.joml.Vector3f(1, 0, 0).rotate(new org.joml.Quaternionf()
+                    .rotateY((float) Math.toRadians(-(yaw + sub[0] + 90)))
+                    .rotateZ((float) Math.toRadians(-(pitch + sub[1]))));
+            var broadside = new Vec3(turned.x(), turned.y(), turned.z()).cross(view);
+            if (broadside.lengthSqr() > 1e-6) {
+                broadside = broadside.normalize();
+                quads += LegacyMdRenderer.drawBeamGlow(pose, clipped, profile, turned,
+                        new org.joml.Vector3f((float) broadside.x, (float) broadside.y, (float) broadside.z));
+            }
+            pose.pushPose();
+            try {
+                pose.mulPose(Axis.YP.rotationDegrees(-(yaw + sub[0] + 90)));
+                pose.mulPose(Axis.ZP.rotationDegrees(-(pitch + sub[1])));
+                quads += LegacyMdRenderer.drawBeam(pose, clipped, profile);
+            } finally { pose.popPose(); }
+        }
+        return quads;
     }
 
     private static final class Beam {
@@ -362,9 +395,11 @@ public final class ClientMdEffects {
      * 原作SubArcHandler.drawAll（光線自身の空間で）: このtickに見えている弧を、光線上のそれぞれの位置に、
      * 3つの角度で回し、3分の1の大きさで中心を合わせて描く。
      */
-    private static int drawArcs(com.mojang.blaze3d.vertex.PoseStack pose, Beam beam) {
+    private static int drawArcs(com.mojang.blaze3d.vertex.PoseStack pose, Beam beam) { return drawSubArcs(pose, beam.arcs); }
+    /** 外部の光線も使う、弧の描画。 */
+    static int drawSubArcs(com.mojang.blaze3d.vertex.PoseStack pose, List<SubArc> arcs) {
         int drawn = 0;
-        for (var arc : beam.arcs) {
+        for (var arc : arcs) {
             if (!arc.draw || arc.dead) continue;
             var mesh = RailgunArcs.MESHES.get(arc.template);
             if (mesh.quads().isEmpty()) continue;

@@ -144,6 +144,8 @@ public final class ClientLightShieldEffect {
         } finally { RenderSystem.enableCull(); }
     }
     private static void clear() { SHIELDS.clear(); ENDED.clear(); }
+    /** 外部の演出の盾を消す（自然能力の終わった番号の記憶を使わない）。 */
+    static void endExternal(long token) { SHIELDS.remove(token); }
     @SubscribeEvent public static void loggedOut(ClientPlayerNetworkEvent.LoggingOut event) { clear(); world = null; }
     /** テスト用の入口。 */
     public static long drawn() { return drawn; }

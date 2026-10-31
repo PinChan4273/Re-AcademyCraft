@@ -10,8 +10,8 @@ package io.github.pinchan4273.reacademycraft.api;
  */
 public final class AcademyApi {
     private AcademyApi() { }
-    /** 公開APIの版。 */
-    public static final int VERSION = 1;
+    /** 公開APIの版（2: 1.4.1で、反射の状態・ダメージの技能の識別・音の名前を足した）。 */
+    public static final int VERSION = 2;
     /** 実験的か（1.4.0ではtrue）。 */
     public static final boolean EXPERIMENTAL = true;
 }
