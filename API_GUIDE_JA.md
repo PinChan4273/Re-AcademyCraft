@@ -55,7 +55,7 @@ bus.addListener((RegisterAbilitiesEvent event) -> {
 
 ### 登録時の制約
 
-次の登録は例外となります。既存の登録を暗黙に上書きすることはありません。
+次の登録は拒否され、例外が発生します。既存の登録を暗黙に上書きすることはありません。
 
 - 同じIDを重複して登録する。
 - 本体用の名前空間 `academy` を使って登録する。
@@ -68,7 +68,7 @@ bus.addListener((RegisterAbilitiesEvent event) -> {
 
 ### スキルツリーへの表示
 
-本体の能力系統にも技能を追加できます。例えば `academy:electromaster` に追加した技能は、本体の技能の後に並びます。本体系統への技能追加と、本体用の名前空間 `academy` で新しいIDを登録することは別です。
+本体の能力系統にも技能を追加できます。例えば `academy:electromaster` に追加した技能は、本体の技能の後に並びます。本体の能力系統に技能を追加する場合も、新しい技能のIDにはアドオン自身の名前空間を使用してください。
 
 `TreePosition` を指定した技能は、能力開発機のスキルツリーに表示され、開発機で習得できます。指定しない技能はスキルツリーには表示されず、`AbilityLearning.grant` で付与します。
 
@@ -158,13 +158,13 @@ bus.addListener((RegisterAbilitiesEvent event) -> {
 
 爆発では、他のMODの `Detonate` イベントリスナーによる変更後の最終的な対象一覧に対して、対象ごとに判定します。
 
-### 反射の状態とダメージの識別（公開APIバージョン2）
+### 反射状態の確認とダメージの識別（公開APIバージョン2）
 
-`AcademySafety.reflection(LivingEntity)` は、相手のベクトル反射の状態（`ReflectionState`）を返します。`REFLECTING` は、モードが今オンという意味です。ある攻撃が全部止まることは意味しません。攻撃の量×熟練度の割合（0.6〜1.2）が1以上なら丸ごと止まり、1未満なら割合の分だけ減って残りが通ります。
+`AcademySafety.reflection(LivingEntity)` は、対象エンティティのベクトル反射の状態（`ReflectionState`）を返します。`REFLECTING` は反射モードが現在有効であることを示し、個々の攻撃を完全に防げることを保証するものではありません。反射処理のダメージ判定では、受けるダメージ量×熟練度に応じた係数（0.6〜1.2）が1以上の場合は攻撃を無効化し、1未満の場合はその係数に応じてダメージを軽減します。
 
-`AcademySafety.skillOf(DamageSource)` は、Re:AcademyCraftの技能のダメージならその技能のIDを返し、それ以外はnullです。`AcademySafety.isBeam(DamageSource)` は、組み込みの技能のうち、光線として当てるもの（`railgun`、`meltdowner`、`ray_barrage`、`electron_bomb`、`scatter_bomb`、`electron_missile`）のダメージならtrueです。
+`AcademySafety.skillOf(DamageSource)` は、Re:AcademyCraftの技能によるダメージであれば技能IDを返し、それ以外の場合は `null` を返します。`AcademySafety.isBeam(DamageSource)` は、本体の技能のうち、光線として扱う6技能（`railgun`、`meltdowner`、`ray_barrage`、`electron_bomb`、`scatter_bomb`、`electron_missile`）によるダメージであれば `true` を返します。
 
-どれも読むだけで、サーバーのスレッドで呼びます。実行時に `AcademyApi.VERSION` は確かめられないので、`LinkageError` で見分けてください。
+いずれも状態を変更しない参照用メソッドです。サーバースレッド上で呼び出してください。`AcademyApi.VERSION` はコンパイル時に値が埋め込まれる定数のため、実行中のバージョンの判定には使用できません。古いバージョンにも対応する場合は、これらのメソッドの呼び出し時に発生する `LinkageError` を捕捉し、対応していない場合の処理を用意してください。
 
 ### 空間移動
 
@@ -191,7 +191,7 @@ bus.addListener((RegisterAbilitiesEvent event) -> {
 
 `config/academy-addon-<名前空間>.toml`
 
-設定対象は、技能の有効・無効、ダメージ倍率、CP消費・過負荷の消費率、熟練度の上昇率、ブロック破壊です。ファイルの変更は、次回のゲーム起動時に反映されます。
+設定対象は、技能の有効・無効、ダメージ倍率、CP消費量・過負荷加算量の倍率、熟練度獲得量の倍率、ブロック破壊の可否です。ファイルの変更は、次回のゲームまたはサーバーの起動時に反映されます。
 
 ### アドオンを取り外した場合の保存データ
 
@@ -203,24 +203,24 @@ bus.addListener((RegisterAbilitiesEvent event) -> {
 
 ログイン時に、サーバーとクライアントの能力系統、および技能のID・発動方式・所属系統を照合します。不一致がある場合は、該当するIDを示して接続を拒否します。
 
-1.4.0では、サーバーだけに導入するアドオンはサポートしていません。
+1.4.1では、サーバーだけに導入するアドオンはサポートしていません。
 
 ## 8. 演出API
 
 ### 対応範囲と役割
 
-`io.github.pinchan4273.reacademycraft.api.client` は、アドオンから本体の視覚効果を利用するための公開APIです。演出APIバージョン1では、メルトダウナーの光線（`MELTDOWNER_BEAM`）に対応しています。
+`io.github.pinchan4273.reacademycraft.api.client` は、アドオンから本体の視覚効果を利用するための公開APIです。1.4.1の演出APIバージョン2では、従来のメルトダウナーの光線（`MELTDOWNER_BEAM`）に加えて、4種類の光線と27種類の演出に対応しています。追加された種類と使い方は、後述の「光線以外の演出（演出APIバージョン2）」を参照してください。
 
-このAPIは描画専用です。ダメージ・命中判定・リソース消費・通信・効果音の再生は行いません。
+このAPIは描画専用で、ダメージ・命中判定・リソース消費・通信は行いません。効果音も原則として再生しませんが、`LIGHTNING` ではバニラの雷と同じ音が鳴ります。
 
-アドオン側でサーバーの確定結果をクライアントへ送信し、受信したクライアントで演出APIを呼び出してください。通信や効果音の再生は、アドオン側で実装します。
+アドオン側でサーバーの確定結果をクライアントへ送信し、受信したクライアントで演出APIを呼び出してください。通信や、上記の例外以外の効果音の再生は、アドオン側で実装します。
 
 ### 呼び出すスレッドとクラスの分離
 
 `ExternalPresentation` はクライアント専用です。クライアントのメインスレッドから呼び出してください。
 
-- 状態を変更する `beam`・`end`・`clear` は、別のスレッドから呼び出すと `IllegalStateException` を送出します。
-- 状態を参照する `limit`・`active`・`diagnostics` は、呼び出し元のスレッドを検査しません。ただし、別のスレッドから読み取った値は保証しません。
+- 状態を変更する `beam`・`end`・`clear` と、バージョン2で追加された `play`・`startEffect`・`updateEffect`・`endEffect`・`clearEffects` は、別のスレッドから呼び出すと `IllegalStateException` を送出します。
+- 状態を参照する `limit`・`active`・`diagnostics` と、バージョン2の `effectLimit`・`activeEffects`・`effectDiagnostics` は、呼び出し元のスレッドを検査しません。ただし、別のスレッドから読み取った値は保証しません。
 - 専用サーバーで読み込まれる可能性のある共通コードやサーバー側コードから、`ExternalPresentation` を参照しないでください。
 - データ型の `BeamRequest`・`BeamResult`・`BeamStyle` は、クライアント以外のコードからも使用できます。
 
@@ -286,49 +286,55 @@ final class BeamPresenter {
 
 ### 光線以外の演出（演出APIバージョン2）
 
-1.4.1から、4系統の能力の演出を使えます。入口は2つです。
+1.4.1から、4系統の能力に属する、以下の27種類の演出を利用できます。本体のすべての演出に対応しているわけではありません。演出の種類に応じて、次の2つのメソッドを使い分けます。
 
-- **一発の演出**: `ExternalPresentation.play(EffectRequest)`。寿命で自動的に消えます。
-- **持続する演出**: `startEffect(EffectRequest)` で始め、`updateEffect(持ち主, 効果ID, 位置, 向かう先)` で更新します。更新が `EFFECT_LEASE_TICKS`（100tick）無いと自動で終わります。`endEffect` ですぐ消せます。ただし `STORM_WING` と `PLASMA_CANNON` は、自然能力と同じように薄れて消え、消えるまで上限の枠と効果IDを使います（期間切れも同じです）。`updateEffect` は、受け付けと同じ規則に合わない値なら何も変えずに `false` を返します。
+- **単発の演出**：`ExternalPresentation.play(EffectRequest)` で表示します。表示期間が終了すると自動的に消えます。
+- **持続する演出**：`startEffect(EffectRequest)` で開始し、`updateEffect(ownerModId, effectId, position, target)` で更新します。`EFFECT_LEASE_TICKS`（100tick）の間に更新されなければ、自動的に終了します。`endEffect` を呼び出して終了することもできます。ただし、風の翼（`STORM_WING`）とプラズマ砲（`PLASMA_CANNON`）は、本体の能力と同じように徐々に薄れて消え、完全に消えるまでは表示枠と効果IDを使用します。更新期限が切れた場合も同様です。
 
-どちらも結果は `BeamResult` です。入口と種類が合わないとき（一発の入口に持続の種類など）は `INVALID` です。
+`updateEffect` では、変更しない `position`・`target` に `null` を指定できます。更新後の値が新規受付時と同じ検証条件を満たさない場合は、状態も更新期限も変更せずに `false` を返します。
 
-上限は、持ち主のMOD IDごとの同時の数です。光線とは別に数えます。設定は `config/academy_client.properties` の `externalEffectsPerOwner`（1〜256、既定32）です。満杯のときは `FULL` を返し、古い演出を押し出しません。`PLASMA_CANNON` は負荷が高いので、さらに持ち主ごとに同時2つまでです。
+`play` と `startEffect` の戻り値は、どちらも `BeamResult` です。メソッドと演出の種類が一致しない場合（単発用の `play` に持続する演出を指定した場合など）は、`INVALID` を返します。
 
-本人の画面や操作そのもの（HUD、照準、画面の色、手の構え、視線や歩行の変更）は公開していません。コインと飛ぶ磁力ブロックも、サーバーの実体が前提なので公開していません。
+同時表示数の上限は、各クライアントで、呼び出し元のMOD IDごとに管理します。光線の表示枠とは別枠です。設定は `config/academy_client.properties` の `externalEffectsPerOwner` で、設定範囲は1〜256、既定値は32です。上限に達すると `FULL` を返し、表示中の古い演出を新しい演出で置き換えることはありません。描画負荷の高いプラズマ砲（`PLASMA_CANNON`）には、さらにMOD IDごとに同時2件までの上限があります。
 
-| 系統 | 種類（`EffectStyle`） | 入口 | 要る欄 |
+HUD・照準・画面の色・手の構え・視線・歩行など、プレイヤーの画面表示や操作を直接変更する機能は、このAPIの対象外です。コインと飛行中の磁力ブロックも、サーバー側のエンティティを必要とするため対象外です。
+
+表の「エンティティ」は、`entityId` と `entityUuid` で指定する、演出の追従先です。`position` と `target` はワールド座標で指定します。新規受付時には、エンティティを指定する場合も、有効な `position` が必要です。表で上限を示した `scale` には、いずれも0より大きい値を指定してください。
+
+| 系統 | 種類（`EffectStyle`） | 表示方式 | 使用する項目と描画内容 |
 | --- | --- | --- | --- |
-| 電撃使い | `ARC_WEAK`、`ARC_STRONG` | 一発 | `position`→`target`（20ブロックまで）。実体を付けると、自然能力と同じく手元からずれます |
-| 電撃使い | `ARC_AREA` | 一発 | `position`→`target`（20ブロックまで） |
-| 電撃使い | `ARC_BURST` | 一発 | 実体か `position` |
-| 電撃使い | `LIGHTNING` | 一発 | `position`。バニラの雷なので、バニラと同じ音が鳴ります |
-| 電撃使い | `RAILGUN_HAND` | 一発 | 実体（プレイヤー）。本人の一人称の手元に出ます |
-| 電撃使い | `ARC_CONTINUOUS` | 持続 | `position`→`target`（20ブロックまで）。実体を付けると、手元からずれます |
-| 電撃使い | `ARC_SURROUND`（細い）、`ARC_SURROUND_NORMAL`、`ARC_SURROUND_BOLD`（太い） | 持続 | 実体か `position`。`scale` は箱の大きさ（実体が無いとき。32まで） |
+| 電撃使い | `ARC_WEAK`、`ARC_STRONG` | 単発 | `position`→`target`（20ブロックまで）。エンティティを指定すると、本体の能力と同じ手元の描画位置補正を適用します |
+| 電撃使い | `ARC_AREA` | 単発 | `position`→`target`（20ブロックまで） |
+| 電撃使い | `ARC_BURST` | 単発 | エンティティ、または `position` |
+| 電撃使い | `LIGHTNING` | 単発 | `position`。バニラの雷と同じ音が鳴ります |
+| 電撃使い | `RAILGUN_HAND` | 単発 | エンティティ（プレイヤー）。本人の一人称視点で手元に表示します |
+| 電撃使い | `ARC_CONTINUOUS` | 持続 | `position`→`target`（20ブロックまで）。エンティティを指定すると、手元の描画位置補正を適用します |
+| 電撃使い | `ARC_SURROUND`（細い）、`ARC_SURROUND_NORMAL`、`ARC_SURROUND_BOLD`（太い） | 持続 | エンティティ、または `position`。エンティティを指定しない場合、`scale` は演出範囲を囲む箱の大きさを指定します（最大32） |
 | 電撃使い | `RIPPLE` | 持続 | `position`。水平の輪です |
-| 原子崩し | `ORB` | 持続 | `position`。実体を付けると、そのずれを保って追従します。更新で `position` を渡すと、そこから新しいずれになります。`null` ならずれは変わりません |
-| 原子崩し | `LIGHT_SHIELD` | 持続 | 実体、`target`（盾の向き）、`scale`（半径、8まで） |
-| 原子崩し | `JET_SHIELD` | 持続 | 実体（向きは視線） |
-| 原子崩し | `MINE_RAY_BASIC`、`MINE_RAY_EXPERT`、`MINE_RAY_LUCK` | 持続 | 実体（視線に沿って15ブロック） |
-| 空間移動 | `TELEPORT_TRAIL`、`SHIFT_TRAIL` | 一発 | `position`→`target`（96ブロックまで） |
-| 空間移動 | `CRITICAL_FORMULA` | 一発 | 実体か `position` |
-| ベクトル操作 | `WAVE_RINGS` | 一発 | `position`→`target`（向き）、`scale`（8まで） |
-| ベクトル操作 | `BLOOD_SPLASH`、`BLOOD_SPLASH_LARGE`（大きい） | 一発 | 実体か `position` |
-| ベクトル操作 | `BLOOD_SPRAY` | 一発 | `position`→`target`。線が当たったブロックの面に付き、1200tick残ります（その間、上限の枠を使います） |
-| ベクトル操作 | `GROUND_DEBRIS` | 一発 | `position`、`scale`（半径、6まで） |
-| ベクトル操作 | `STORM_WING` | 持続 | 実体 |
-| ベクトル操作 | `PLASMA_CANNON` | 持続 | `position`、`scale`（球の大きさの倍率。1が自然能力と同じ、4まで。竜巻は変わりません）。`target` を付けて更新すると竜巻が薄れます |
+| 原子崩し | `ORB` | 持続 | `position`。エンティティを指定すると、受付時の相対位置を保って追従します。更新時に `position` を渡すと、その座標を基準に相対位置を設定し直します。`null` の場合は相対位置を維持します |
+| 原子崩し | `LIGHT_SHIELD` | 持続 | エンティティ、`target`（エンティティの足元を基準に盾の向きを決める座標）、`scale`（半径、最大8） |
+| 原子崩し | `JET_SHIELD` | 持続 | エンティティ。その視線の向きに合わせます |
+| 原子崩し | `MINE_RAY_BASIC`、`MINE_RAY_EXPERT`、`MINE_RAY_LUCK` | 持続 | エンティティ。マイン・レイの光線を、その視線に沿って15ブロック描画します |
+| 空間移動 | `TELEPORT_TRAIL`、`SHIFT_TRAIL` | 単発 | `position`→`target`（96ブロックまで） |
+| 空間移動 | `CRITICAL_FORMULA` | 単発 | エンティティ、または `position` |
+| ベクトル操作 | `WAVE_RINGS` | 単発 | `position`→`target`（演出の向き）、`scale`（最大8） |
+| ベクトル操作 | `BLOOD_SPLASH`、`BLOOD_SPLASH_LARGE`（大きい） | 単発 | エンティティ、または `position` |
+| ベクトル操作 | `BLOOD_SPRAY` | 単発 | `position`→`target`。その直線が当たったブロックの面に血痕を表示し、1200tick保持します。その間は表示枠を使用します |
+| ベクトル操作 | `GROUND_DEBRIS` | 単発 | `position`、`scale`（半径、最大6） |
+| ベクトル操作 | `STORM_WING` | 持続 | エンティティ。風の翼の演出です |
+| ベクトル操作 | `PLASMA_CANNON` | 持続 | `position`、`scale`（球の大きさの倍率。1で本体の能力と同じ大きさ、最大4。竜巻の大きさは変わりません）。`target` を指定して更新すると竜巻が徐々に薄れます |
 
-光線の種類（`BeamStyle`）には、`MELTDOWNER_RAY_SMALL`、`RAILGUN`、`BARRAGE_AIM`、`BARRAGE_SCATTER` を足しました。入口は今までの `beam` です。
+光線の種類（`BeamStyle`）には、`MELTDOWNER_RAY_SMALL`、`RAILGUN`、`BARRAGE_AIM`、`BARRAGE_SCATTER` を追加しました。従来と同じ `beam` メソッドで表示します。
 
-実体は、番号（`entityId`）とUUIDの両方が合うものだけを追従します。実体が要る種類で見つからなければ `INVALID` です。受け付けた後にいなくなるか、同じ番号が別の実体に使われたら、演出は終わります。
+追従先には、エンティティID（`entityId`）とUUID（`entityUuid`）の両方が一致するエンティティだけを使用します。エンティティが必須の種類で追従先が見つからなければ、`INVALID` を返します。受付後に追従先がいなくなった場合や、同じエンティティIDが別のエンティティに再利用された場合は、演出を終了します。
 
-種類を使う前に、`ExternalPresentation.apiVersion() >= 2` を確かめてください。1.4.0では `EffectStyle` が無いので、確かめずに参照すると `LinkageError` になります。
+追加された演出を使用する前に、`ExternalPresentation.apiVersion() >= 2` を確認してください。1.4.0には `EffectStyle` がないため、対応していない環境で参照すると `LinkageError` が発生します。
 
-### 音の名前
+1.4.0向けアドオンの互換性と、1.4.0と1.4.1の混在接続は未検証です。上記のAPI対応確認だけで動作互換性が保証されるわけではありません。利用するアドオンの対応状況を確認し、マルチプレイではサーバーと全クライアントを1.4.1にそろえることを推奨します。
 
-演出APIは音を鳴らしません（`LIGHTNING` を除く）。音はアドオンが、`api.mc.AcademySoundIds` の名前で鳴らします。誰に聞かせるかもアドオンが決めます。
+### 効果音の識別子
+
+演出APIは、`LIGHTNING` を除き、効果音を再生しません。本体の効果音を利用する場合は、`api.mc.AcademySoundIds` の識別子を使い、アドオン側で再生処理を実装してください。音を聞かせるプレイヤーの範囲も、アドオン側で決めます。
 
 ```java
 var sound = ForgeRegistries.SOUND_EVENTS.getValue(AcademySoundIds.EM_RAILGUN);
@@ -365,7 +371,7 @@ SDKはGitHub Releasesの添付ファイルとして無料で提供します。�
 - 対応ソースとビルド手順
 - ハッシュ一覧
 
-CurseForgeで配布するのは本体のみです。1.4.0では、Maven経由の配布は行いません。
+CurseForgeで配布するのは本体のみです。1.4.1では、Maven経由の配布は行いません。
 
 ### 本体とSDKのライセンス
 
