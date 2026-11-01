@@ -127,9 +127,13 @@ public final class LegacyMdRenderer {
      * ここではアニメーションが与える長さだけを使う。
      */
     public static int drawBeam(PoseStack pose, LegacyMdRayAnimation.Snapshot beam, LegacyMdRayAnimation.Profile profile) {
+        return drawBeam(pose, beam, profile, LegacyMdRayAnimation.NATURAL_MAX_LENGTH);
+    }
+    /** 長さの上限を指定して描く。外部の演出（api.client、最大96）だけが64より大きい上限を渡す。円柱は長さで分割しないので、描く量は長さによらない。 */
+    public static int drawBeam(PoseStack pose, LegacyMdRayAnimation.Snapshot beam, LegacyMdRayAnimation.Profile profile, double maxLength) {
         RenderSystem.assertOnRenderThread();
         // 幅の揺れで、幅は光線ごとの揺れの半径だけ1を超えることがある。EntityRayBaseのままの光線は0.1、Railgunは0.3。
-        if (!Double.isFinite(beam.length()) || beam.length() < 0 || beam.length() > 64
+        if (!Double.isFinite(beam.length()) || beam.length() < 0 || beam.length() > maxLength
                 || !Double.isFinite(beam.width()) || beam.width() < 0 || beam.width() > 1 + profile.wiggleRadius
                 || !Double.isFinite(beam.alpha()) || beam.alpha() < 0 || beam.alpha() > 1)
             throw new IllegalArgumentException("Invalid beam sample");

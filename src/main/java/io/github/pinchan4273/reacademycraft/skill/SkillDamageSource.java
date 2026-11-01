@@ -34,9 +34,18 @@ public final class SkillDamageSource extends DamageSource {
         super(caster.level().registryAccess().registryOrThrow(Registries.DAMAGE_TYPE).getHolderOrThrow(type),caster);
         this.skill=java.util.Objects.requireNonNull(skill);
     }
+    /**
+     * 外部の主体の技能のダメージ（1.4.0のS5）。directは直接の加害（主体の実体。無ければnull）、causingは帰属（確かめられた帰属先の
+     * プレイヤー、無ければ主体の実体）。
+     */
+    public SkillDamageSource(net.minecraft.core.Holder<DamageType> type, @javax.annotation.Nullable net.minecraft.world.entity.Entity direct,
+                             @javax.annotation.Nullable net.minecraft.world.entity.Entity causing, ResourceLocation skill) {
+        super(type, direct, causing);
+        this.skill = java.util.Objects.requireNonNull(skill);
+    }
     public ResourceLocation skill(){return skill;}
     @Override public Component getLocalizedDeathMessage(LivingEntity victim){
-        var definition=SkillCatalog.find(skill);var caster=getEntity();
+        var definition=SkillCatalog.find(skill);var caster=getEntity()!=null?getEntity():getDirectEntity();
         return Component.translatable("death.attack.ac_skill",victim.getDisplayName(),caster==null?Component.literal("?"):caster.getDisplayName(),
                 definition==null?Component.literal(skill.toString()):Component.translatable(definition.translation()));
     }

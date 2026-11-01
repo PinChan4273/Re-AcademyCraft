@@ -63,6 +63,10 @@ public final class ClientStormWingEffect {
     private static long drawnQuads, dust;
     private ClientStormWingEffect() { }
 
+    /** 外部の演出がまだ一覧にあるか（薄れている間も）。 */
+    static boolean hasExternal(long token) { return EFFECTS.containsKey(token); }
+    /** 外部の演出をすぐ取り除く（自然能力では呼ばない）。 */
+    static void endExternal(long token) { EFFECTS.remove(token); }
     public static void receive(SkillVisual packet) {
         var level = Minecraft.getInstance().level;
         if (level != world) { EFFECTS.clear(); world = level; }

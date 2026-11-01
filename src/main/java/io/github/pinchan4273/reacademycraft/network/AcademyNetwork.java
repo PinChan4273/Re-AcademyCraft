@@ -27,10 +27,13 @@ public final class AcademyNetwork {
      * 心拍とキーアップでLight Shieldを動かすので、新しいサーバーへ繋がせない）。
      * 63: Light Shieldの盾面の状態（LightShieldState。payloadのIDは`academy:light_shield_state`）を足し、Light Shieldの表示を
      * SkillVisualから移した（Forge 1.3.0の工程2。62のクライアントは盾の向きを知らないので繋がせない）。
+     * 64: 能力設定の画面（Forge 1.4.0のS1）の通知を足した（SkillSettingEdit、SkillSettingsSnapshot）。63のクライアントは
+     * 設定の値を受け取れないので繋がせない。Forge 1.4.0のS4で、開発機の外部の技能の学習（DevelopAddonSkill、DevelopAddonAvailability）と、
+     * ログインの時の登録簿の照合（AbilityRegistryCheck、AbilityRegistryVerdict）も足した（Forge版の1.4.0と同じく、版は64のまま）。
      * 版が違う相手とは、ログインの時点で接続を断る（NeoForgeのregistrarの版。古い通知を誤って読むところまで進ませない）。
      * NeoForge版の通信はForge版と繋がらないので、版の番号はForge版の番号に合わせている。
      */
-    public static final String VERSION = "63";
+    public static final String VERSION = "64";
     private static final Map<Class<?>, CustomPacketPayload.Type<?>> TYPES = new ConcurrentHashMap<>();
 
     /** 相手の版を受け入れるか。クライアント・サーバーとも同じ版だけ。 */
@@ -123,6 +126,14 @@ public final class AcademyNetwork {
         toClient(registrar, AcademyRulesSnapshot.class, AcademyRulesSnapshot::encode, AcademyRulesSnapshot::decode, (packet, context) -> io.github.pinchan4273.reacademycraft.client.ClientAcademyRules.receive(packet));
         toServer(registrar, StormWingInput.class, StormWingInput::encode, StormWingInput::decode, (packet, context) -> packet.handle((ServerPlayer) context.player()));
         toClient(registrar, LightShieldState.class, LightShieldState::encode, LightShieldState::decode, (packet, context) -> io.github.pinchan4273.reacademycraft.client.ClientLightShieldEffect.receive(packet));
+        toServer(registrar, SkillSettingEdit.class, SkillSettingEdit::encode, SkillSettingEdit::decode, (packet, context) -> packet.handle((ServerPlayer) context.player()));
+        toClient(registrar, SkillSettingsSnapshot.class, SkillSettingsSnapshot::encode, SkillSettingsSnapshot::decode, (packet, context) -> io.github.pinchan4273.reacademycraft.client.ClientSkillSettings.receive(packet));
+        // 1.4.0のS4（司令室11の裁定D11）: 開発機の、外部の技能の学習（旧い48ビットの外）。
+        toServer(registrar, DevelopAddonSkill.class, DevelopAddonSkill::encode, DevelopAddonSkill::decode, (packet, context) -> packet.handle((ServerPlayer) context.player()));
+        toClient(registrar, DevelopAddonAvailability.class, DevelopAddonAvailability::encode, DevelopAddonAvailability::decode, (packet, context) -> io.github.pinchan4273.reacademycraft.client.ClientDevelopAddons.receive(packet));
+        // 1.4.0のS4（司令室11の裁定D7）: ログインの時の、能力の登録簿の照合。
+        toClient(registrar, AbilityRegistryCheck.class, AbilityRegistryCheck::encode, AbilityRegistryCheck::decode, (packet, context) -> io.github.pinchan4273.reacademycraft.client.ClientRegistryCheck.receive(packet));
+        toServer(registrar, AbilityRegistryVerdict.class, AbilityRegistryVerdict::encode, AbilityRegistryVerdict::decode, (packet, context) -> io.github.pinchan4273.reacademycraft.ability.RegistryCheck.answer((ServerPlayer) context.player(), packet));
     }
 
     public static void lightning(net.minecraft.server.level.ServerLevel level, net.minecraft.world.phys.Vec3 position) {
@@ -130,6 +141,19 @@ public final class AcademyNetwork {
         PacketDistributor.sendToPlayersNear(level, null, position.x, position.y, position.z, 128, effect);
     }
 
+    public static void send(ServerPlayer player, SkillSettingsSnapshot snapshot) {
+        if (player.connection != null) PacketDistributor.sendToPlayer(player, snapshot);
+    }
+    public static void send(ServerPlayer player, DevelopAddonAvailability availability) {
+        if (player.connection != null) PacketDistributor.sendToPlayer(player, availability);
+    }
+    /** 開発機の画面から、外部の技能の学習を求める（クライアント）。 */
+    public static void sendToServer(DevelopAddonSkill request) { PacketDistributor.sendToServer(request); }
+    public static void send(ServerPlayer player, AbilityRegistryCheck check) {
+        if (player.connection != null) PacketDistributor.sendToPlayer(player, check);
+    }
+    /** 登録簿の照合の答え（クライアント）。 */
+    public static void sendToServer(AbilityRegistryVerdict verdict) { PacketDistributor.sendToServer(verdict); }
     public static void send(ServerPlayer player, ChargingLoopEffect effect) {
         if (player.connection != null) net.neoforged.neoforge.network.PacketDistributor.sendToPlayer(player, effect);
     }

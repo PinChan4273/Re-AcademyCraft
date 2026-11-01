@@ -61,6 +61,8 @@ public final class ClientPlasmaCannonEffect {
         @Nullable Vec3 position, previous, tornadoAt;
         @Nullable LegacyTornado tornado;
         int phase, tornadoTicks, deadTick; boolean terminated, tornadoDead;
+        /** 球の大きさの倍率。自然能力は常に1（外部の演出だけが変える）。 */
+        float scale = 1;
         float alpha; double initTime = now(), lastAlphaTime = now();
         Effect(Random r) {
             for (int i = 0; i < 4; i++)
@@ -88,13 +90,20 @@ public final class ClientPlasmaCannonEffect {
         if (!packet.starts()) { var effect = EFFECTS.get(packet.token()); if (effect != null) effect.terminated = true; return; }
         if (PlasmaCannon.ID.equals(packet.kind())) EFFECTS.put(packet.token(), new Effect(RANDOM));
     }
+    /** 外部の演出がまだ一覧にあるか（薄れている間も）。 */
+    static boolean hasExternal(long token) { return EFFECTS.containsKey(token); }
+    /** 外部の演出をすぐ取り除く（自然能力では呼ばない）。 */
+    static void endExternal(long token) { EFFECTS.remove(token); }
+    /** 外部の演出の球の大きさ（自然能力では呼ばない）。 */
+    static void scaleExternal(long token, float scale) { var effect = EFFECTS.get(token); if (effect != null) effect.scale = scale; }
     public static void move(SkillVisualMove packet) {
         var effect = EFFECTS.get(packet.token());
         var level = Minecraft.getInstance().level;
         if (effect == null || level == null) return;
         effect.previous = effect.position == null ? packet.position() : effect.position;
         effect.position = packet.position(); effect.phase = packet.phase();
-        if (effect.tornado == null) {
+        // 消え終わった竜巻は作り直さない（deadTickが戻らず、演出がいつまでも一覧に残る。C200-P01）。
+        if (effect.tornado == null && !effect.tornadoDead) {
             // 原作Tornado: 充電の位置から20ブロック下への光線が当たった所、無ければ20下。
             var from = packet.position(); var to = from.add(0, -20, 0);
             var hit = level.clip(new ClipContext(from, to, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, Minecraft.getInstance().player));
@@ -171,9 +180,9 @@ public final class ClientPlasmaCannonEffect {
                 if (i >= count) { balls.put(0).put(0).put(0).put(0); continue; }
                 var b = effect.balls.get(i);
                 float hr = b.h().phase(elapsed), vt = b.v().phase(elapsed);
-                var p = new Vector4f((float) (at.x + b.cx() + b.h().amp() * Mth.sin(hr)), (float) (at.y + b.cy() + b.v().amp() * Mth.sin(vt)),
-                        (float) (at.z + b.cz() + b.h().amp() * Mth.cos(hr)), 1).mul(toCamera);
-                balls.put(p.x).put(p.y).put(-p.z).put(b.size());
+                var p = new Vector4f((float) (at.x + effect.scale * (b.cx() + b.h().amp() * Mth.sin(hr))), (float) (at.y + effect.scale * (b.cy() + b.v().amp() * Mth.sin(vt))),
+                        (float) (at.z + effect.scale * (b.cz() + b.h().amp() * Mth.cos(hr))), 1).mul(toCamera);
+                balls.put(p.x).put(p.y).put(-p.z).put(effect.scale * b.size());
             }
             balls.flip();
             // 原作: 本体の位置に22の四角を置き、カメラへ向ける。
@@ -183,7 +192,7 @@ public final class ClientPlasmaCannonEffect {
             pose.translate(at.x, at.y, at.z);
             pose.mulPose(Axis.YP.rotationDegrees(-yaw + 180));
             pose.mulPose(Axis.XP.rotationDegrees(-pitch));
-            pose.scale(22, 22, 1);
+            pose.scale(22 * effect.scale, 22 * effect.scale, 1);
             var m = pose.last().pose(); var buffer = Tesselator.getInstance().begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION);
             buffer.addVertex(m, -.5f, -.5f, 0); buffer.addVertex(m, .5f, -.5f, 0);
             buffer.addVertex(m, .5f, .5f, 0); buffer.addVertex(m, -.5f, .5f, 0);

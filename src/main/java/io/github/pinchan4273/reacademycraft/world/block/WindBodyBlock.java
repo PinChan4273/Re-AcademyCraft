@@ -170,7 +170,7 @@ public final class WindBodyBlock extends BaseEntityBlock {
                     boolean capture = level.captureBlockSnapshots, restoring = level.restoringBlockSnapshots;
                     try {
                         level.captureBlockSnapshots = false; level.restoringBlockSnapshots = true;
-                        for (int j = i - 1; j >= 0; j--) snapshots.get(j).restore(net.minecraft.world.level.block.Block.UPDATE_CLIENTS); // Forge版のrestore(true, false)（強制、フラグ2）
+                        for (int j = i - 1; j >= 0; j--) snapshots.get(j).restore(net.minecraft.world.level.block.Block.UPDATE_CLIENTS); // フラグ2。Forge版のrestore(true, false)と違い、既に同じ状態（setBlockがfalse）ならBEのNBTは戻らない
                     } finally {
                         level.captureBlockSnapshots = capture; level.restoringBlockSnapshots = restoring;
                     }

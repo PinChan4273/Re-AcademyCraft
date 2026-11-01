@@ -27,6 +27,13 @@ public final class DevelopmentSession {
     public static final int RESET = 44;
     /** メニューのボタンが要求できる最大のアクション。 */
     public static final int MAX_ACTION = RESET;
+    /**
+     * 外部の技能の学習（1.4.0のS4、司令室11の裁定D11）。旧い行動番号（メニューのボタンの番号と、メニューのデータの48ビット）を
+     * 使わず、技能の名前で始める（{@link #startAddon}、通知{@code DevelopAddonSkill}）。ボタンからは要求できない番号。
+     */
+    public static final int LEARN_ADDON = 100;
+    /** 開発機で学べる外部の技能の数の上限（画面へ送る一覧の大きさ）。 */
+    public static final int MAX_ADDON_SKILLS = 256;
     public static final int IDLE = 0, DEVELOPING = 1, DONE = 2, CANCELLED = 3, NO_ENERGY = 4, INVALID = 5;
     // 実際の1.12.2の++tickThisStim > 25の挙動を保つ: 26tick、1tickあたり30 IF。
     public static final int TICKS_PER_STIMULATION = 26, ENERGY_PER_TICK = 30; // 携帯型との互換のための定数。
@@ -36,6 +43,7 @@ public final class DevelopmentSession {
     private boolean closed;
     private ItemStack factor = ItemStack.EMPTY;
     private int action = -1, state = IDLE, elapsed, total;
+    private @javax.annotation.Nullable net.minecraft.resources.ResourceLocation addonSkill;
     private int startingLevel;
 
     public DevelopmentSession(ServerPlayer owner, InteractionHand hand) {
@@ -82,18 +90,46 @@ public final class DevelopmentSession {
         if (requested == ACQUIRE) return !data.hasAbility() && !findFactor().isEmpty();
         if (requested == LEVEL_UP) return data.canLevelUp();
         if (requested == RESET) return canReset();
+        if (requested == LEARN_ADDON) return eligibleAddon(addonSkill);
         if (requested == LEARN_ARC || requested == LEARN_CHARGING || requested == LEARN_MOVEMENT || requested == LEARN_MANIPULATION || requested == LEARN_INTENSIFY || requested == LEARN_MINE_DETECT || requested == LEARN_THUNDER_BOLT || requested == LEARN_RAILGUN || requested == LEARN_THUNDER_CLAP || requested == LEARN_BRAIN || requested == LEARN_ADVANCED_BRAIN || requested == LEARN_MIND || requested == LEARN_ELECTRON_BOMB || requested == LEARN_SCATTER_BOMB || requested == LEARN_LIGHT_SHIELD || requested == LEARN_MINE_RAY_BASIC || requested == LEARN_RAD_INTENSIFY || requested == LEARN_MINE_RAY_EXPERT || requested == LEARN_MINE_RAY_LUCK || requested == LEARN_JET_ENGINE || requested == LEARN_RAY_BARRAGE || requested == LEARN_ELECTRON_MISSILE || requested == LEARN_MELTDOWNER || requested == LEARN_THREATENING_TELEPORT || requested == LEARN_DIM_FOLDING || requested == LEARN_SPACE_FLUCT || requested == LEARN_PENETRATE_TELEPORT || requested == LEARN_MARK_TELEPORT || requested == LEARN_FLESH_RIPPING || requested == LEARN_LOCATION_TELEPORT || requested == LEARN_SHIFT_TP || requested == LEARN_FLASHING || requested == LEARN_DIR_SHOCK || requested == LEARN_GROUND_SHOCK || requested == LEARN_VEC_ACCEL || requested == LEARN_VEC_DEVIATION || requested == LEARN_DIR_BLAST || requested == LEARN_STORM_WING || requested == LEARN_BLOOD_RETRO || requested == LEARN_VEC_REFLECTION || requested == LEARN_PLASMA_CANNON)
             return device.tier().supportsSkill(SkillCatalog.find(skillFor(requested)).level())
                     && SkillCatalog.find(skillFor(requested)).canLearn(data);
         return false;
     }
+    /**
+     * その外部の技能を、この開発機で今学べるか。本体の技能（名前空間academy）は旧い経路だけで学ぶ。条件は本体の技能と同じ
+     * （開発機の段が技能のレベルに対応する、SkillCatalog.canLearn: 設定で有効・カテゴリ・レベル・前提・空き）。
+     */
+    public boolean eligibleAddon(@javax.annotation.Nullable net.minecraft.resources.ResourceLocation skill) {
+        if (!valid() || skill == null || "academy".equals(skill.getNamespace())) return false;
+        var definition = SkillCatalog.find(skill);
+        // 技能の木に場所を持たない外部の技能は、開発機では学べない（アドオンが自分の条件で与える）。
+        return definition != null && io.github.pinchan4273.reacademycraft.skill.SkillTreeLayout.node(skill) != null
+                && device.tier().supportsSkill(definition.level()) && definition.canLearn(data());
+    }
+    /** 開発機で今学べる外部の技能（登録の順、{@link #MAX_ADDON_SKILLS}まで）。 */
+    public java.util.List<net.minecraft.resources.ResourceLocation> addonAvailability() {
+        var out = new java.util.ArrayList<net.minecraft.resources.ResourceLocation>();
+        if (!valid()) return out;
+        for (var definition : SkillCatalog.IMPLEMENTED)
+            if (out.size() < MAX_ADDON_SKILLS && eligibleAddon(definition.id())) out.add(definition.id());
+        return out;
+    }
+    /** 外部の技能の学習を始める（サーバーが条件を確かめる）。 */
+    public boolean startAddon(@javax.annotation.Nullable net.minecraft.resources.ResourceLocation skill) {
+        if (state == DEVELOPING || !eligibleAddon(skill)) return false;
+        addonSkill = skill;
+        return start(LEARN_ADDON);
+    }
+    /** 学んでいる外部の技能（学んでいなければnull）。 */
+    public @javax.annotation.Nullable net.minecraft.resources.ResourceLocation addonSkill() { return action == LEARN_ADDON ? addonSkill : null; }
     public boolean start(int requested) {
         if (state == DEVELOPING || !eligible(requested)) return false;
         action = requested; elapsed = 0;
         startingLevel = data().getLevel();
         // 原作DevelopActionReset.getStimulations: 1レベルにつき10。
         total = (action == ACQUIRE ? 5 : action == LEVEL_UP ? 5 * (startingLevel + 1) : action == RESET ? 10 * startingLevel
-                : DeveloperTier.skillStimulations(SkillCatalog.find(skillFor(action)).level())) * device.tier().ticksPerStimulation;
+                : DeveloperTier.skillStimulations(SkillCatalog.find(action == LEARN_ADDON ? addonSkill : skillFor(action)).level())) * device.tier().ticksPerStimulation;
         factor = action == ACQUIRE ? findFactor() : action == RESET ? findResetFactor() : ItemStack.EMPTY;
         state = DEVELOPING; return true;
     }
@@ -126,7 +162,7 @@ public final class DevelopmentSession {
                 if (slot >= 0) owner.getInventory().items.set(slot, ItemStack.EMPTY);
             }
         }
-        else data().learn(skillFor(action));
+        else data().learn(action == LEARN_ADDON ? addonSkill : skillFor(action));
         state = DONE; AbilitySyncEvents.sync(owner, true);
     }
     public void cancel() { if (state == DEVELOPING) state = CANCELLED; }

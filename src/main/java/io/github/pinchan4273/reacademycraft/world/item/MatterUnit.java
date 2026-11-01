@@ -106,7 +106,7 @@ public final class MatterUnit extends Item {
             if (!committed) {
                 if (dropped != null) dropped.discard();
                 l.restoringBlockSnapshots = true;
-                try { for (int i = l.capturedBlockSnapshots.size() - 1; i >= 0; i--) l.capturedBlockSnapshots.get(i).restore(net.minecraft.world.level.block.Block.UPDATE_CLIENTS); } // Forge版のrestore(true, false)（強制、フラグ2）
+                try { for (int i = l.capturedBlockSnapshots.size() - 1; i >= 0; i--) l.capturedBlockSnapshots.get(i).restore(net.minecraft.world.level.block.Block.UPDATE_CLIENTS); } // フラグ2。Forge版のrestore(true, false)と違い、既に同じ状態（setBlockがfalse）ならBEのNBTは戻らない
                 finally { l.restoringBlockSnapshots = false; }
             }
             l.capturedBlockSnapshots.clear();

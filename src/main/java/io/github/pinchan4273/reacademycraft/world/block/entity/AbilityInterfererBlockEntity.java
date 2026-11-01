@@ -76,6 +76,8 @@ public final class AbilityInterfererBlockEntity extends BlockEntity {
     }
     public boolean setEnabled(boolean value) {
         if (!mutable()) return false;
+        // NeoForgeのonLoadは次のtickの初めに呼ばれるので、置いた同じtickにオンにしても、すぐ外部の主体の判定に映るようにここでも載せる。
+        LOADED.add(this);
         enabled = value; setChanged(); return true;
     }
     public static final int MAX_NAMES = 64, MAX_NAME = 64;
@@ -103,7 +105,39 @@ public final class AbilityInterfererBlockEntity extends BlockEntity {
                 && area().contains(player.getX(), player.getY(), player.getZ());
     }
 
+    /**
+     * 読み込まれた妨害装置（1.4.0のS5。外部の主体の位置で妨害を判定するため）。弱い参照で、壊れた・読み込みを外れた物は
+     * {@link #covers(Level, net.minecraft.world.phys.Vec3)}の判定（mutable）で除かれる。サーバーのスレッドでだけ触る。
+     */
+    private static final java.util.Set<AbilityInterfererBlockEntity> LOADED = java.util.Collections.newSetFromMap(new java.util.WeakHashMap<>());
+    @Override public void onLoad() {
+        super.onLoad();
+        if (level != null && !level.isClientSide) LOADED.add(this);
+    }
+    /**
+     * 有効なNBTで読み込んだ実体を、チャンクに載った時点から{@link #covers(Level, net.minecraft.world.phys.Vec3)}の判定に入れる。
+     * NeoForge 21.1.259のonLoadは、LevelChunk.addAndRegisterBlockEntity→addFreshBlockEntitiesの後の、次のLevel.tickBlockEntitiesまで遅れる。
+     * setLevelはその前のLevelChunk.setBlockEntityの中で呼ばれる（設置、ディスクからの読み込みのrunPostLoad、保留のNBTの昇格）。
+     * チャンクの読み込みの経路はサーバーのスレッドだが（ChunkStatusTasks.fullはmainThreadMailBox）、ImposterProtoChunkを通す書き込みや他のMODは
+     * 別のスレッドから来うるので、サーバーのスレッドのときだけ足す。それ以外はonLoadかtickが拾う。
+     */
+    @Override public void setLevel(Level level) {
+        super.setLevel(level);
+        if (level instanceof net.minecraft.server.level.ServerLevel server && server.getServer().isSameThread()) LOADED.add(this);
+    }
+    /**
+     * その位置が、動いている妨害装置の範囲の中か（1.4.0のS5、裁定S5-02。外部の主体の判定）。範囲・オン・壊れていないことは
+     * プレイヤーの判定（{@link #covers(Player)}）と同じ。クリエイティブの除外は、主体の側（装備を着けた人）で判定する。
+     */
+    public static boolean covers(Level level, net.minecraft.world.phys.Vec3 position) {
+        if (level == null || position == null) return false;
+        for (var tile : java.util.List.copyOf(LOADED))
+            if (tile.enabled && tile.mutable() && tile.level == level && tile.area().contains(position.x, position.y, position.z)) return true;
+        return false;
+    }
+
     public static void tick(Level level, BlockPos pos, BlockState state, AbilityInterfererBlockEntity tile) {
+        if (!level.isClientSide) LOADED.add(tile);
         // 原作getActualStateはオンのテクスチャのためにenabled()を読む。ここでは状態がそれを持つ。
         if (state.hasProperty(io.github.pinchan4273.reacademycraft.world.block.AbilityInterfererBlock.ON)
                 && state.getValue(io.github.pinchan4273.reacademycraft.world.block.AbilityInterfererBlock.ON) != tile.enabled && !tile.readOnly)

@@ -110,8 +110,8 @@ public final class PresetEditorScreen extends Screen {
                     && inside((mx - left) / s, (my - top) / s, SLOT_X, y, SLOT_W, SLOT_H);
             if (hover) DeveloperScreen.quad(pose, SELECTED, SLOT_X, y, SLOT_W, SLOT_H, 1, 1, 1, alpha);
             var skill = data == null ? null : data.getSlot(page, slot);
-            var node = skill == null ? null : SkillTreeLayout.node(skill);
-            if (node != null) DeveloperScreen.quad(pose, node.icon(), SLOT_X + 2.25f, y + 3.75f, 26.5f, 26.5f, 1, 1, 1, alpha);
+            var icon = SkillTreeLayout.icon(skill);
+            if (icon != null) DeveloperScreen.quad(pose, icon, SLOT_X + 2.25f, y + 3.75f, 26.5f, 26.5f, 1, 1, 1, alpha);
             if (skill != null) text(g, name(skill), SLOT_X + 36.25f, y + 10, 10, 15, alpha, 0xffffff);
         }
         pose.popPose();
@@ -220,8 +220,8 @@ public final class PresetEditorScreen extends Screen {
             text(g, hint, x + 3, y - 12, 9, 0, 1, 0xbbbbbb);
             for (int i = 0; i < choices.size(); i++) {
                 var c = cell(i); var skill = choices.get(i);
-                var node = skill == null ? null : SkillTreeLayout.node(skill);
-                DeveloperScreen.quad(pose, skill == null ? CANCEL : node == null ? CANCEL : node.icon(), c[0], c[1], SIZE, SIZE, 1, 1, 1, 1);
+                var icon = SkillTreeLayout.icon(skill);
+                DeveloperScreen.quad(pose, icon == null ? CANCEL : icon, c[0], c[1], SIZE, SIZE, 1, 1, 1, 1);
                 // Tint: 項目の上に白、マウスの下では0.2。
                 if (i == hovering) DeveloperScreen.rect(pose, c[0], c[1], SIZE, SIZE, 1, 1, 1, .2f);
             }

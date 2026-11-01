@@ -253,7 +253,9 @@ public final class AcademyConfig {
     public static double progressionMultiplier(ResourceLocation category) {
         if (!loaded()) return 1;
         double categoryRate = io.github.pinchan4273.reacademycraft.skill.ArcGen.CATEGORY.equals(category) ? ELECTROMASTER_EXPERIENCE_MULTIPLIER.get()
-                : category == null || !CATEGORY_PROGRESS.containsKey(category.getPath()) ? 1.0 : CATEGORY_PROGRESS.get(category.getPath()).get();
+                // 1.4.0のS2: カテゴリごとの倍率は本体のカテゴリだけ（名前空間を見ずにパスで引くと、ほかのmodの同じパスのカテゴリが本体の倍率を拾った）。
+                : category == null || !"academy".equals(category.getNamespace()) || !CATEGORY_PROGRESS.containsKey(category.getPath()) ? 1.0
+                : CATEGORY_PROGRESS.get(category.getPath()).get();
         return SKILL_EXPERIENCE_MULTIPLIER.get() * categoryRate;
     }
     /**
@@ -324,7 +326,10 @@ public final class AcademyConfig {
     public static float maxCpIncrRate() { return loaded() ? MAXCP_INCR_RATE.get().floatValue() : .0025f; }
     public static float maxOverloadIncrRate() { return loaded() ? MAXO_INCR_RATE.get().floatValue() : .0058f; }
     @javax.annotation.Nullable private static SkillValues skill(ResourceLocation id) {
-        return id == null || !loaded() || !"academy".equals(id.getNamespace()) ? null : SKILLS.get(id.getPath());
+        if (id == null) return null;
+        // 1.4.0のS4（D12）: 外部の技能は、名前空間ごとの設定ファイル（AddonSkillConfig）。
+        if (!"academy".equals(id.getNamespace())) return AddonSkillConfig.values(id);
+        return !loaded() ? null : SKILLS.get(id.getPath());
     }
     public static boolean skillEnabled(ResourceLocation id) { var s = skill(id); return s == null || s.enabled().get(); }
     public static double skillDamageScale(ResourceLocation id) { var s = skill(id); return s == null ? 1 : s.damageScale().get(); }

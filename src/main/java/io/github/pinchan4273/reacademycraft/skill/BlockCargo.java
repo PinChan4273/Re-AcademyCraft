@@ -143,7 +143,7 @@ public final class BlockCargo {
                 level.restoringBlockSnapshots = true;
                 try {
                     for (int i = level.capturedBlockSnapshots.size() - 1; i >= 0; i--)
-                        level.capturedBlockSnapshots.get(i).restore(net.minecraft.world.level.block.Block.UPDATE_CLIENTS); // Forge版のrestore(true, false)（強制、フラグ2）
+                        level.capturedBlockSnapshots.get(i).restore(net.minecraft.world.level.block.Block.UPDATE_CLIENTS); // フラグ2。Forge版のrestore(true, false)と違い、既に同じ状態（setBlockがfalse）ならBEのNBTは戻らない
                 } finally { level.restoringBlockSnapshots = false; }
             }
             level.capturedBlockSnapshots.clear();

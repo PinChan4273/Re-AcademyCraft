@@ -71,7 +71,13 @@ neoForge {
             if (project.hasProperty('mpQaName')) {
                 gameDirectory = project.file('run/mp-' + project.property('mpQaName'))
                 systemProperty 'academy.mpContact', project.property('mpContactRole').toString()
+                // 1.3.0-rc2の複数クライアントの確認（tools/run_mp_rc2.py、Rc2MultiplayerCheck）。このプロパティを付けたときだけ効く。
                 if (project.hasProperty('mpRc2Role')) systemProperty 'academy.mpRc2', project.property('mpRc2Role').toString()
+                // Forge 1.4.0の司令室13の条件C（tools/run_mp_addon.py、AddonMultiplayerCheck）。このプロパティを付けたときだけ効く。
+                if (project.hasProperty('mpAddonRole')) systemProperty 'academy.mpAddon', project.property('mpAddonRole').toString()
+                if (project.hasProperty('mpAddonSession')) systemProperty 'academy.mpAddonSession', project.property('mpAddonSession').toString()
+                // 能力の登録だけを足す試験のアドオン（登録の不一致の切断の確かめ。Minecraftの登録簿には何も足さない）。
+                if (project.hasProperty('mpTestAddon')) systemProperty 'academy.testAddon', 'true'
                 systemProperty 'academy.mpQaServer', project.property('mpQaServer').toString()
                 programArguments.addAll('--username', project.property('mpQaName').toString())
                 jvmArgument '-Xmx1536m'
@@ -107,6 +113,9 @@ neoForge {
             if (project.hasProperty('runtimeSmokeTest')) {
                 gameDirectory = project.file('run/client-smoke')
                 systemProperty 'academy.runtimeSmokeTest', 'true'
+                // Forge 1.4.0のS4: 統合サーバーのclient smokeでも試験だけのアドオンを登録する（クライアントとサーバーが同じ登録簿）。
+                // dedicatedのクライアントには付けない（製品のJARのサーバーと同じ登録簿で、ログインの照合が通ることを確かめる）。
+                systemProperty 'academy.testAddon', 'true'
                 // GCの停止を、描画やサーバーの遅れと切り分けるため（作業場のgc.log。CIの証拠に入る）。
                 jvmArgument '-Xlog:gc:file=gc.log:time,uptime'
                 sourceSet = sourceSets.test
@@ -131,6 +140,8 @@ neoForge {
             systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
             // 1件ごとの結果のJUnit形式のXML（試験のsmoke/GameTestJUnitReport）。
             systemProperty 'academy.gameTestReport', project.file("${gameTestDirectory}/gametest-junit.xml").absolutePath
+            // Forge 1.4.0のS4: 試験だけのアドオン（src/testのTestAddon）を登録する。GameTestのサーバーだけで効き、製品のJARとclient smokeの既定には関係しない。
+            systemProperty 'academy.testAddon', 'true'
             if (project.hasProperty('phaseLakeExtended')) systemProperty 'academy.phaseLakeExtended', 'true'
             if (project.hasProperty('payloadRiskTests')) systemProperty 'academy.payloadRiskTests', 'true'
             if (project.hasProperty('m03UnloadTests')) systemProperty 'academy.m03UnloadTests', 'true'
@@ -185,6 +196,13 @@ var generateModMetadata = tasks.register("generateModMetadata", ProcessResources
 sourceSets.main.resources.srcDir generateModMetadata
 neoForge.ideSyncTask generateModMetadata
 
+// Forge 1.4.0の司令室13の条件C: 複数クライアントの確認で、配布用のサンプルのアドオンのJAR（-PmpWithSample=<JARのあるフォルダ>）を開発のクライアントへ
+// 読み込む（サーバーには同じJARをそのまま入れる）。1.21.1は再難読化が無いので、Forge版のfg.deobfは要らない。このプロパティを付けたときだけ効き、製品のJARには関係しない。
+if (project.hasProperty('mpWithSample')) {
+    repositories { flatDir { dirs project.property('mpWithSample') } }
+    dependencies { runtimeOnly "blank:academy-api-example-neoforge-1.21.1:${project.findProperty('mpSampleVersion') ?: '0.1.0'}" }
+}
+
 tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8'
 }
@@ -213,6 +231,86 @@ tasks.named('sourcesJar', Jar).configure {
     from('NOTICE.md')
     from('licenses') { into 'META-INF/licenses' }
     from('TEMPLATE_LICENSE.txt') { into 'META-INF/licenses' }
+}
+
+// Forge 1.4.0のS6: 公開APIだけのJAR・sources・Javadoc。司令室13の裁定D10で、GitHub ReleasesのSDKとして配る（本体と同じGPLv3。再ライセンスしない）。
+// どのJARにも、LICENSE・NOTICE.md・licenses/（原作のREADMEの追加の文言とGradleのライセンス）を入れる。
+// 公開の範囲は、パッケージapi・api.mc・api.neoforge・api.clientだけ。APIのJARはアドオンのコンパイルのためのもので、実行には本体のJARが要る。
+// 1.21.1は再難読化が無いので、名前の変換の工程は無い。これらのタスクは名前を指定したときだけ動き、通常のbuildの製品のJARは1つのまま。
+def apiPackages = 'io/github/pinchan4273/reacademycraft/api/**'
+tasks.register('apiJar', Jar) {
+    group = 'build'
+    description = 'Builds the experimental public API classes only (SDK; GPLv3, needs the main mod at runtime).'
+    archiveClassifier = 'api'
+    from(sourceSets.main.output) { include apiPackages }
+    from('LICENSE')
+    from('NOTICE.md')
+    from('licenses') { into 'META-INF/licenses' }
+    manifest {
+        attributes 'Implementation-Title': 'Re:AcademyCraft API (experimental)',
+                   'Implementation-Version': project.version,
+                   'Academy-Api-Version': '2'
+    }
+}
+tasks.register('apiSourcesJar', Jar) {
+    group = 'build'
+    archiveClassifier = 'api-sources'
+    from(sourceSets.main.allJava) { include apiPackages }
+    from('LICENSE')
+    from('NOTICE.md')
+    from('licenses') { into 'META-INF/licenses' }
+}
+// APIのJavadocは、OpenJDK（Eclipse AdoptiumのTemurin。GPLv2とClasspath例外）のjavadocで作る。javadocは、JDKのスタイル・スクリプト・画像と
+// jQuery・jQuery UIを出力へ写し、legal/にはJDKの本文を指すだけの1行を置く。Oracle JDKではその本文がNo-Fee Termsで、写した部品の条件が違う。
+// そこで、JDKを決め、指すだけの行の代わりにそのJDKの本文をJARへ入れる（司令室13の裁定D10・条件F）。CIもTemurin。
+// Forge版はTemurin 17。1.21.1のclasspathのclassはJava 21の形式なので、ここはTemurin 21（無ければ自動では入れない。gradle.propertiesのauto-download=false）。
+def apiJavadocTool = javaToolchains.javadocToolFor {
+    languageVersion = JavaLanguageVersion.of(21)
+    vendor = JvmVendorSpec.ADOPTIUM
+}
+def apiJavadocJdkLegal = apiJavadocTool.map { it.metadata.installationPath.dir('legal/java.base') }
+// configuration cacheの下では、タスクの実行の時にprojectを読めない。doFirstで使うパスは、ここで決める。
+def apiJavadocOutput = layout.buildDirectory.dir('docs/api-javadoc').get().asFile
+def apiJavadocThirdParty = file('licenses-sdk/API-JAVADOC-THIRD-PARTY.md')
+tasks.register('apiJavadoc', Javadoc) {
+    group = 'documentation'
+    javadocTool = apiJavadocTool
+    source = sourceSets.main.allJava.matching { include apiPackages }
+    classpath = sourceSets.main.compileClasspath + sourceSets.main.output
+    destinationDir = apiJavadocOutput
+    options.encoding = 'UTF-8'
+    options.docEncoding = 'UTF-8'
+    options.charSet = 'UTF-8'
+    options.addStringOption('Xdoclint:none', '-quiet')
+}
+tasks.register('apiJavadocJar', Jar) {
+    group = 'build'
+    archiveClassifier = 'api-javadoc'
+    from(tasks.named('apiJavadoc')) { exclude 'legal/LICENSE', 'legal/COPYRIGHT', 'legal/ASSEMBLY_EXCEPTION', 'legal/ADDITIONAL_LICENSE_INFO' }
+    from(apiJavadocJdkLegal) { include 'LICENSE', 'ASSEMBLY_EXCEPTION', 'ADDITIONAL_LICENSE_INFO'; into 'legal' }
+    from('licenses-sdk') { include 'API-JAVADOC-THIRD-PARTY.md' }
+    from('LICENSE')
+    from('NOTICE.md')
+    from('licenses') { into 'META-INF/licenses' }
+    doFirst {
+        def jdkLicense = apiJavadocJdkLegal.get().file('LICENSE').asFile
+        if (!jdkLicense.isFile() || !jdkLicense.getText('UTF-8').contains('"CLASSPATH" EXCEPTION TO THE GPL'))
+            throw new GradleException("The javadoc JDK's licence is not GPLv2 with the Classpath Exception: ${jdkLicense}")
+        // 第三者の部品の一覧（licenses-sdk）が、javadocが実際に写したjQuery・jQuery UIのパスと版に合っていること（JDKの版でずれる）。
+        def out = apiJavadocOutput
+        def list = apiJavadocThirdParty.getText('UTF-8')
+        def scripts = new File(out, 'script-dir').listFiles()?.findAll { it.name ==~ /jquery-[0-9.]+\.min\.js/ } ?: []
+        if (scripts.isEmpty()) throw new GradleException('The API Javadoc has no script-dir/jquery-*.min.js')
+        scripts.each { js ->
+            def v = (js.name =~ /jquery-([0-9.]+)\.min\.js/)[0][1]
+            if (!list.contains("script-dir/${js.name}") || !list.contains("jQuery ${v}"))
+                throw new GradleException("licenses-sdk/API-JAVADOC-THIRD-PARTY.md does not list script-dir/${js.name} (jQuery ${v})")
+        }
+        def ui = new File(out, 'script-dir/jquery-ui.min.js')
+        def uiVersion = ui.isFile() ? (ui.getText('UTF-8') =~ /jQuery UI - v([0-9.]+)/).with { it.find() ? it.group(1) : null } : null
+        if (uiVersion == null || !list.contains("jQuery UI ${uiVersion}"))
+            throw new GradleException("licenses-sdk/API-JAVADOC-THIRD-PARTY.md does not list jQuery UI ${uiVersion}")
+    }
 }
 
 tasks.withType(AbstractArchiveTask).configureEach {

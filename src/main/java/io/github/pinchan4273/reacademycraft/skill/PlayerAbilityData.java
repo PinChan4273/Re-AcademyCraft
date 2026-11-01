@@ -715,6 +715,9 @@ public final class PlayerAbilityData {
         CompoundTag presetPart = source.getCompound(PRESET), cooling = source.getCompound(COOLDOWN);
         String category = abilityPart.getString(CATEGORY);
         if (!category.isEmpty()) ability = ResourceLocation.tryParse(category);
+        // 1.4.0のS2（司令室11の裁定D8）: 解析できないカテゴリIDを含む保存データは壊さない。能力が無いと読むと、保存のときに学んだ技能まで
+        // 消えていたので、読み取り専用（休眠）にして、元のNBTをそのまま保つ（より新しい版のデータと同じ扱い）。
+        if (!category.isEmpty() && ability == null) { readOnly = true; return; }
         level = hasAbility() ? Math.max(1, Math.min(5, abilityPart.getInt(LEVEL))) : 0;
         levelExperience = hasAbility() ? readNonnegativeFinite(abilityPart, LEVEL_EXP, 0) : 0;
         // 現在の値より先に最大値を戻し、現在の値をその範囲へ切り詰める。
@@ -831,7 +834,7 @@ public final class PlayerAbilityData {
     }
 
     private void requireWritable() {
-        if (readOnly) throw new IllegalStateException("Unsupported Academy ability data version; preserving original NBT");
+        if (readOnly) throw new IllegalStateException("Unsupported Academy ability data (version or category id); preserving original NBT");
     }
 
     private static float requireNonnegativeFinite(float value) {
