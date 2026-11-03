@@ -47,11 +47,32 @@ public final class AbilityDataSchema {
 
     public static final String COOLDOWN = "CooldownData";
 
+    /** v1.5.0 §15: 未元物質人間か（CPDataの中。通常人間では書かない）。CPDataに置くので、残CPと一緒に保存・同期する。 */
+    public static final String DARK_BODY = "darkBody";
+    /** 未元物質人間の未修復の身体損傷（CP。0なら書かない）。 */
+    public static final String BODY_DAMAGE = "bodyDamage";
+    /** v1.5.0 §15: 死亡後の復活形態が通常人間か（SkillSettings区分の中。既定の未元物質人間なら書かない）。 */
+    public static final String DARK_BODY_RESPAWN = "darkBodyRespawn";
+    /** 白翼飛行の飛び立ちと停止の操作が連打か（真偽。無ければ長押し）。2026-11-03のユーザーの決定。 */
+    public static final String FLIGHT_DOUBLE_TAP = "flightDoubleTap";
+    /** v1.5.0 §9: 甲虫の個体の状態（活動中の写しと収納中のもの）。根に置くリスト。無ければ書かない。 */
+    public static final String BEETLE_RECORDS = "DarkMatterBeetles";
+    /** v1.5.0 §9: 甲虫の設定（SkillSettings区分の中）。既定の値なら書かない。 */
+    public static final String BEETLE_CONTACT_BREAK = "beetleContactBreak", BEETLE_REPAIR = "beetleRepair", BEETLE_STANCE = "beetleStance";
+    /** v1.5.0 §9: 甲虫の追従開始距離（ブロック、int。SkillSettings区分の中）。既定の32なら書かない。 */
+    public static final String BEETLE_FOLLOW = "beetleFollow";
+    /** v1.5.0 §9（ユーザーの決定）: 甲虫が自動で狙う分類（{@link ElectronMissileTargetKind}の名前→真偽）。無い分類は既定。 */
+    public static final String BEETLE_TARGETS = "beetleTargets";
+    /** v1.5.0 §10〜§12: 天界発現の設定（SkillSettings区分の中の区分。{@link HeavenSettings#save}）。全部既定なら書かない。 */
+    public static final String HEAVEN_SETTINGS = "heaven";
+
     /**
      * プレイヤーが選ぶ技能の設定（このmodの付記、工程2で追加）。schemaの版は変えない: これより前の版は知らない区分として残し、
      * 知らない設定のキーや知らない値も、この版は書き換えずに残す（プレイヤーが同じ設定を変えたときだけ、その値を書く）。
      */
     public static final String SETTINGS = "SkillSettings";
+    /** v1.5.0 §14 CPセーフティ（SETTINGSの中。全系統共通で、系統の変更でも残る）。 */
+    public static final String CP_SAFETY = "CpSafety", CP_SAFETY_PERCENT = "CpSafetyPercent";
     /** Light Shieldの盾の向きの選び方（{@link LightShieldMode#id()}、"auto"か"manual"）。無ければ{@link LightShieldMode#DEFAULT}。 */
     public static final String LIGHT_SHIELD_MODE = "lightShieldMode";
     /** Electron Missileの照準のモード（F9-02、{@link ElectronMissileAimMode#id()}、"auto"・"semi"）。無ければ{@link ElectronMissileAimMode#DEFAULT}。 */

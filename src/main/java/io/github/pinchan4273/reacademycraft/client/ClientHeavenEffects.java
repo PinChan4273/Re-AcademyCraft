@@ -1,0 +1,290 @@
+package io.github.pinchan4273.reacademycraft.client;
+
+import com.mojang.blaze3d.platform.GlStateManager;
+import com.mojang.blaze3d.systems.RenderSystem;
+import com.mojang.blaze3d.vertex.BufferBuilder;
+import com.mojang.blaze3d.vertex.BufferUploader;
+import com.mojang.blaze3d.vertex.DefaultVertexFormat;
+import com.mojang.blaze3d.vertex.Tesselator;
+import com.mojang.blaze3d.vertex.VertexFormat;
+import com.mojang.logging.LogUtils;
+import io.github.pinchan4273.reacademycraft.network.HeavenMark;
+import io.github.pinchan4273.reacademycraft.network.HeavenRegionState;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Random;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.GameRenderer;
+import net.minecraft.sounds.SoundEvent;
+import net.minecraft.sounds.SoundEvents;
+import net.minecraft.sounds.SoundSource;
+import net.minecraft.util.Mth;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.Vec3;
+import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.client.event.ClientPlayerNetworkEvent;
+import net.minecraftforge.client.event.RenderLevelStageEvent;
+import net.minecraftforge.event.TickEvent;
+import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.minecraftforge.fml.common.Mod;
+import org.joml.Matrix4f;
+
+/**
+ * 天界発現の描画と音の初稿（v1.5.0 §12）。バニラの粒子を使わない独自の描画で、すべて加算の半透明で地形の深度を見る（壁越しには見えない）。実機で見ていないので、濃さや大きさは初期値。
+ * <ul>
+ * <li>領域: 範囲の箱を、少しずつ内側へ縮めた数枚の面で薄く光らせる。面の端へ向かって透明になるので、境界は滑らかに薄まり、チャンクの格子は描かない。開始で広がり、解除で薄れる。</li>
+ * <li>予兆: 対象の大きさに合わせた3本の水平のリングが、対象に付いて上がりながら縮み、発生の時に明るくなって消える（0.5秒）。</li>
+ * <li>変異: 上下に走査する1本のリング（身体の変化はサーバーが発生の瞬間に行い、走査に合わせた身体の部分的な変化は描いていない）。</li>
+ * <li>発光: 対象の当たり判定の輪郭を光らせる。実際の明るさと光線の威力には関わらない。落雷: 上から落ちる細い白い帯。</li>
+ * </ul>
+ * 表示の設定（強度・リング・境界・環境音）は{@link ClientSettings}で、効果と費用を変えない。起動の引数{@code -Dacademy.heaven.measure=true}で描画時間のp95をログへ出す（D06の比較の入口）。
+ */
+@Mod.EventBusSubscriber(modid = "academy", value = Dist.CLIENT)
+public final class ClientHeavenEffects {
+    private static final float FADE_PER_TICK = .05f, HEIGHT = 16;
+    private static final int LAYERS = 5, GRID = 6, RING_SEGMENTS = 32, EXPIRE = 60, AMBIENT_TICKS = 80;
+    /** 層の間隔・濃さと、面の端で透明へ薄れる割合。濃さは2026-11-03の試遊の指摘「境界をもう少し見えやすく」で.012から上げた（縦の筋は使わない）。 */
+    private static final float LAYER_INSET = 1.6f, LAYER_ALPHA = .03f, EDGE_FADE = .12f;
+    private static final boolean MEASURE = Boolean.getBoolean("academy.heaven.measure");
+    private static final long[] SAMPLES = new long[1200];
+    private static int sampleAt;
+
+    private static final class Region {
+        int chunkX, chunkZ, shape, silent;
+        float centerY, x, z, halfX, halfZ, previousAlpha, alpha;
+        boolean on, placed;
+    }
+    private static final class Mark {
+        final int entityId, kind, life; int age; final long seed;
+        Mark(int entityId, int kind, int life, long seed) { this.entityId = entityId; this.kind = kind; this.life = life; this.seed = seed; }
+    }
+    private static final Map<Integer, Region> REGIONS = new HashMap<>();
+    private static final List<Mark> MARKS = new ArrayList<>();
+    private static final Random RANDOM = new Random();
+    private static int ambient;
+
+    private ClientHeavenEffects() { }
+
+    public static void receive(HeavenRegionState state) {
+        var region = REGIONS.computeIfAbsent(state.ownerId(), id -> new Region());
+        region.chunkX = state.chunkX(); region.chunkZ = state.chunkZ(); region.shape = state.shape(); region.centerY = state.centerY();
+        region.on = state.on(); region.silent = 0;
+        if (!region.placed) { region.placed = true; place(region, 1); }
+    }
+    private static float radiusChunks(Region region) { return region.shape == 1 ? .5f : region.shape == 25 ? 2.5f : 1.5f; }
+    /** 表示の中心と幅を、サーバーの範囲へfractionだけ近づける（チャンクを跨いでも滑らかに動く）。 */
+    private static void place(Region region, float fraction) {
+        float x = (region.chunkX + .5f) * 16, z = (region.chunkZ + .5f) * 16, half = radiusChunks(region) * 16;
+        region.x += (x - region.x) * fraction; region.z += (z - region.z) * fraction;
+        region.halfX += (half - region.halfX) * fraction; region.halfZ = region.halfX;
+    }
+    public static void receive(HeavenMark packet) {
+        if (packet.kind() == HeavenMark.GLOW_END) { MARKS.removeIf(m -> m.entityId == packet.entityId() && m.kind == HeavenMark.GLOW); return; }
+        // 発生と同時に予兆を消す。
+        if (packet.kind() != HeavenMark.TELEGRAPH) MARKS.removeIf(m -> m.entityId == packet.entityId() && m.kind == HeavenMark.TELEGRAPH);
+        if (packet.kind() == HeavenMark.GLOW) {
+            for (var mark : MARKS) if (mark.entityId == packet.entityId() && mark.kind == HeavenMark.GLOW) { mark.age = 0; return; }
+        }
+        int life = packet.kind() == HeavenMark.LIGHTNING ? 6 : packet.kind() == HeavenMark.STATUS ? 8 : packet.ticks();
+        MARKS.add(new Mark(packet.entityId(), packet.kind(), Math.max(1, life), RANDOM.nextLong()));
+        sound(packet);
+    }
+    /** 短い音。発光の送り直しでは鳴らさない（受け取りの最初の1回だけここへ来る）。 */
+    private static void sound(HeavenMark packet) {
+        var minecraft = Minecraft.getInstance();
+        if (minecraft.level == null || !ClientSettings.getOn(ClientSettings.HEAVEN_SOUND)) return;
+        var entity = minecraft.level.getEntity(packet.entityId());
+        if (entity == null) return;
+        SoundEvent event; float volume, pitch;
+        switch (packet.kind()) {
+            case HeavenMark.TELEGRAPH -> { event = SoundEvents.AMETHYST_BLOCK_CHIME; volume = .5f; pitch = 1.4f; }
+            case HeavenMark.GLOW -> { event = SoundEvents.AMETHYST_BLOCK_RESONATE; volume = .4f; pitch = 1.6f; }
+            case HeavenMark.LIGHTNING -> { event = SoundEvents.LIGHTNING_BOLT_IMPACT; volume = .35f; pitch = 1.5f; }
+            case HeavenMark.MUTATE -> { event = SoundEvents.ENCHANTMENT_TABLE_USE; volume = .6f; pitch = .8f; }
+            default -> { event = SoundEvents.AMETHYST_CLUSTER_HIT; volume = .5f; pitch = 1.1f; }
+        }
+        minecraft.level.playLocalSound(entity.getX(), entity.getY(), entity.getZ(), event, SoundSource.PLAYERS, volume, pitch, false);
+    }
+
+    @SubscribeEvent public static void tick(TickEvent.ClientTickEvent event) {
+        var minecraft = Minecraft.getInstance();
+        if (event.phase != TickEvent.Phase.END || minecraft.isPaused()) return;
+        if (minecraft.level == null) { REGIONS.clear(); MARKS.clear(); return; }
+        boolean inside = false;
+        for (var it = REGIONS.values().iterator(); it.hasNext(); ) {
+            var region = it.next();
+            region.previousAlpha = region.alpha;
+            if (++region.silent > EXPIRE) region.on = false; // 送り直しが来ない（離れた、次元を移った）。
+            region.alpha = Mth.clamp(region.alpha + (region.on ? FADE_PER_TICK : -FADE_PER_TICK), 0, 1);
+            place(region, .25f);
+            if (!region.on && region.alpha <= 0) { it.remove(); continue; }
+            var player = minecraft.player;
+            if (player != null && region.on && Math.abs(player.getX() - region.x) <= region.halfX && Math.abs(player.getZ() - region.z) <= region.halfZ
+                    && Math.abs(player.getY() - region.centerY) <= HEIGHT) inside = true;
+        }
+        // 控えめな環境音。
+        if (inside && ClientSettings.getOn(ClientSettings.HEAVEN_SOUND) && ++ambient >= AMBIENT_TICKS && minecraft.player != null) {
+            ambient = 0;
+            var player = minecraft.player;
+            minecraft.level.playLocalSound(player.getX(), player.getY(), player.getZ(), SoundEvents.BEACON_AMBIENT, SoundSource.AMBIENT, .15f, 1.5f, false);
+        }
+        MARKS.removeIf(mark -> ++mark.age > mark.life);
+    }
+    @SubscribeEvent public static void render(RenderLevelStageEvent event) {
+        if (event.getStage() != RenderLevelStageEvent.Stage.AFTER_PARTICLES || (REGIONS.isEmpty() && MARKS.isEmpty())) return;
+        var minecraft = Minecraft.getInstance();
+        if (minecraft.level == null) return;
+        long started = MEASURE ? System.nanoTime() : 0;
+        float partial = event.getPartialTick();
+        var camera = event.getCamera().getPosition();
+        var matrix = event.getPoseStack().last().pose();
+        RenderSystem.setShader(GameRenderer::getPositionColorShader);
+        RenderSystem.enableBlend(); RenderSystem.blendFunc(GlStateManager.SourceFactor.SRC_ALPHA, GlStateManager.DestFactor.ONE);
+        RenderSystem.disableCull(); RenderSystem.depthMask(false);
+        var buffer = Tesselator.getInstance().getBuilder();
+        buffer.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_COLOR);
+        float intensity = ClientSettings.heavenGlowPercent() / 100f;
+        boolean border = ClientSettings.getOn(ClientSettings.HEAVEN_BORDER), rings = ClientSettings.getOn(ClientSettings.HEAVEN_RINGS);
+        if (intensity > 0) for (var region : REGIONS.values()) region(buffer, matrix, camera, region, partial, intensity, border);
+        for (var mark : MARKS) {
+            var entity = minecraft.level.getEntity(mark.entityId);
+            if (entity == null) continue;
+            switch (mark.kind) {
+                case HeavenMark.TELEGRAPH -> { if (rings) telegraph(buffer, matrix, camera, entity, mark, partial); }
+                case HeavenMark.MUTATE -> { if (rings) scan(buffer, matrix, camera, entity, mark, partial); }
+                case HeavenMark.GLOW -> outline(buffer, matrix, camera, entity, partial);
+                case HeavenMark.LIGHTNING -> lightning(buffer, matrix, camera, entity, mark, partial);
+                case HeavenMark.STATUS -> flash(buffer, matrix, camera, entity, mark, partial);
+                default -> { }
+            }
+        }
+        BufferUploader.drawWithShader(buffer.end());
+        RenderSystem.depthMask(true); RenderSystem.enableCull(); RenderSystem.defaultBlendFunc();
+        if (MEASURE) measure(System.nanoTime() - started);
+    }
+    private static void measure(long nanos) {
+        SAMPLES[sampleAt++] = nanos;
+        if (sampleAt < SAMPLES.length) return;
+        sampleAt = 0;
+        long[] copy = SAMPLES.clone();
+        Arrays.sort(copy);
+        LogUtils.getLogger().info("heaven client draw p95={}ms regions={} marks={}", String.format(java.util.Locale.ROOT, "%.3f", copy[(int) (copy.length * .95)] / 1e6), REGIONS.size(), MARKS.size());
+    }
+
+    // ---- 領域 ----
+
+    private static void region(BufferBuilder buffer, Matrix4f matrix, Vec3 camera, Region region, float partial, float intensity, boolean border) {
+        float alpha = Mth.lerp(partial, region.previousAlpha, region.alpha);
+        if (alpha <= 0) return;
+        // 開始で中心から広がる。解除は広がったまま薄れる。
+        float grow = region.on ? alpha : 1;
+        float x = (float) (region.x - camera.x), y = (float) (region.centerY - camera.y), z = (float) (region.z - camera.z);
+        for (int layer = 0; layer < (border ? LAYERS : 2); layer++) {
+            float inset = layer * LAYER_INSET;
+            float hx = Math.max(.5f, region.halfX * grow - inset), hz = Math.max(.5f, region.halfZ * grow - inset), hy = Math.max(.5f, HEIGHT * grow - inset);
+            float a = LAYER_ALPHA * alpha * intensity;
+            // 側面4つと上下。
+            face(buffer, matrix, x - hx, y - hy, z - hz, 2 * hx, 0, 0, 0, 2 * hy, 0, a);
+            face(buffer, matrix, x - hx, y - hy, z + hz, 2 * hx, 0, 0, 0, 2 * hy, 0, a);
+            face(buffer, matrix, x - hx, y - hy, z - hz, 0, 0, 2 * hz, 0, 2 * hy, 0, a);
+            face(buffer, matrix, x + hx, y - hy, z - hz, 0, 0, 2 * hz, 0, 2 * hy, 0, a);
+            face(buffer, matrix, x - hx, y - hy, z - hz, 2 * hx, 0, 0, 0, 0, 2 * hz, a);
+            face(buffer, matrix, x - hx, y + hy, z - hz, 2 * hx, 0, 0, 0, 0, 2 * hz, a);
+        }
+    }
+    /** 面を格子に分け、端で透明になるように色を付ける。 */
+    private static void face(BufferBuilder buffer, Matrix4f matrix, float ox, float oy, float oz, float ux, float uy, float uz, float vx, float vy, float vz, float alpha) {
+        for (int i = 0; i < GRID; i++) for (int j = 0; j < GRID; j++) {
+            float u0 = i / (float) GRID, u1 = (i + 1) / (float) GRID, v0 = j / (float) GRID, v1 = (j + 1) / (float) GRID;
+            corner(buffer, matrix, ox, oy, oz, ux, uy, uz, vx, vy, vz, u0, v0, alpha);
+            corner(buffer, matrix, ox, oy, oz, ux, uy, uz, vx, vy, vz, u1, v0, alpha);
+            corner(buffer, matrix, ox, oy, oz, ux, uy, uz, vx, vy, vz, u1, v1, alpha);
+            corner(buffer, matrix, ox, oy, oz, ux, uy, uz, vx, vy, vz, u0, v1, alpha);
+        }
+    }
+    private static void corner(BufferBuilder buffer, Matrix4f matrix, float ox, float oy, float oz, float ux, float uy, float uz, float vx, float vy, float vz, float u, float v, float alpha) {
+        float edge = Math.min(Math.min(u, 1 - u), Math.min(v, 1 - v)) / EDGE_FADE;
+        float a = alpha * Mth.clamp(edge, 0, 1);
+        buffer.vertex(matrix, ox + ux * u + vx * v, oy + uy * u + vy * v, oz + uz * u + vz * v).color(.93f, .96f, 1, a).endVertex();
+    }
+
+    // ---- 怪現象 ----
+
+    private static void ring(BufferBuilder buffer, Matrix4f matrix, Vec3 center, float radius, float width, float r, float g, float b, float alpha) {
+        for (int i = 0; i < RING_SEGMENTS; i++) {
+            float a0 = i * Mth.TWO_PI / RING_SEGMENTS, a1 = (i + 1) * Mth.TWO_PI / RING_SEGMENTS;
+            float c0 = Mth.cos(a0), s0 = Mth.sin(a0), c1 = Mth.cos(a1), s1 = Mth.sin(a1);
+            float x = (float) center.x, y = (float) center.y, z = (float) center.z, inner = radius - width;
+            buffer.vertex(matrix, x + c0 * inner, y, z + s0 * inner).color(r, g, b, alpha).endVertex();
+            buffer.vertex(matrix, x + c1 * inner, y, z + s1 * inner).color(r, g, b, alpha).endVertex();
+            buffer.vertex(matrix, x + c1 * radius, y, z + s1 * radius).color(r, g, b, alpha).endVertex();
+            buffer.vertex(matrix, x + c0 * radius, y, z + s0 * radius).color(r, g, b, alpha).endVertex();
+        }
+    }
+    private static float size(Entity entity) { return Math.max(.6f, entity.getBbWidth() * .9f); }
+    /** 上がりながら縮む3本のリング。終わりに近いほど明るい。 */
+    private static void telegraph(BufferBuilder buffer, Matrix4f matrix, Vec3 camera, Entity entity, Mark mark, float partial) {
+        float t = Mth.clamp((mark.age + partial) / mark.life, 0, 1);
+        var at = entity.getPosition(partial).subtract(camera);
+        float height = entity.getBbHeight(), radius = size(entity);
+        for (int i = 0; i < 3; i++) {
+            float phase = (t + i / 3f) % 1;
+            float scale = 1.5f - phase * .7f;
+            ring(buffer, matrix, at.add(0, phase * height, 0), radius * scale, .08f, .95f, .97f, 1, (.25f + t * .75f) * (1 - phase * .4f));
+        }
+    }
+    /** 変異の走査: 1本のリングが下から上へ、上から下へ。 */
+    private static void scan(BufferBuilder buffer, Matrix4f matrix, Vec3 camera, Entity entity, Mark mark, float partial) {
+        float t = Mth.clamp((mark.age + partial) / mark.life, 0, 1);
+        float travel = t < .5f ? t * 2 : 2 - t * 2;
+        var at = entity.getPosition(partial).subtract(camera).add(0, travel * entity.getBbHeight(), 0);
+        ring(buffer, matrix, at, size(entity) * 1.3f, .12f, 1, 1, 1, 1 - t * .5f);
+    }
+    /** 状態異常の発生の短い光（広がって消えるリング）。 */
+    private static void flash(BufferBuilder buffer, Matrix4f matrix, Vec3 camera, Entity entity, Mark mark, float partial) {
+        float t = Mth.clamp((mark.age + partial) / mark.life, 0, 1);
+        var at = entity.getPosition(partial).subtract(camera).add(0, entity.getBbHeight() * .5f, 0);
+        ring(buffer, matrix, at, size(entity) * (1 + t), .1f, 1, 1, 1, 1 - t);
+    }
+    /** 発光の輪郭: 当たり判定の12本の辺。 */
+    private static void outline(BufferBuilder buffer, Matrix4f matrix, Vec3 camera, Entity entity, float partial) {
+        var offset = entity.getPosition(partial).subtract(entity.position());
+        AABB box = entity.getBoundingBox().move(offset).move(-camera.x, -camera.y, -camera.z).inflate(.05);
+        double[] xs = {box.minX, box.maxX}, ys = {box.minY, box.maxY}, zs = {box.minZ, box.maxZ};
+        for (double y : ys) for (double z : zs) edge(buffer, matrix, new Vec3(box.minX, y, z), new Vec3(box.maxX, y, z));
+        for (double x : xs) for (double z : zs) edge(buffer, matrix, new Vec3(x, box.minY, z), new Vec3(x, box.maxY, z));
+        for (double x : xs) for (double y : ys) edge(buffer, matrix, new Vec3(x, y, box.minZ), new Vec3(x, y, box.maxZ));
+    }
+    /** カメラ（原点）を向いた細い帯。 */
+    private static void edge(BufferBuilder buffer, Matrix4f matrix, Vec3 a, Vec3 b) { band(buffer, matrix, a, b, .035f, .95f, .97f, 1, .8f); }
+    private static void band(BufferBuilder buffer, Matrix4f matrix, Vec3 a, Vec3 b, float width, float r, float g, float bl, float alpha) {
+        var side = b.subtract(a).cross(a.add(b).scale(.5));
+        if (side.lengthSqr() < 1e-8) return;
+        side = side.normalize().scale(width);
+        buffer.vertex(matrix, (float) (a.x + side.x), (float) (a.y + side.y), (float) (a.z + side.z)).color(r, g, bl, alpha).endVertex();
+        buffer.vertex(matrix, (float) (b.x + side.x), (float) (b.y + side.y), (float) (b.z + side.z)).color(r, g, bl, alpha).endVertex();
+        buffer.vertex(matrix, (float) (b.x - side.x), (float) (b.y - side.y), (float) (b.z - side.z)).color(r, g, bl, alpha).endVertex();
+        buffer.vertex(matrix, (float) (a.x - side.x), (float) (a.y - side.y), (float) (a.z - side.z)).color(r, g, bl, alpha).endVertex();
+    }
+    /** 落雷: 空から対象へ折れ曲がって落ちる白い帯。 */
+    private static void lightning(BufferBuilder buffer, Matrix4f matrix, Vec3 camera, Entity entity, Mark mark, float partial) {
+        float t = Mth.clamp((mark.age + partial) / mark.life, 0, 1);
+        var random = new Random(mark.seed);
+        Vec3 end = entity.getPosition(partial).subtract(camera).add(0, entity.getBbHeight() * .5f, 0);
+        Vec3 from = end.add(random.nextDouble() * 4 - 2, 24, random.nextDouble() * 4 - 2);
+        int steps = 10;
+        Vec3 last = from;
+        for (int i = 1; i <= steps; i++) {
+            float f = i / (float) steps;
+            Vec3 next = from.lerp(end, f);
+            if (i < steps) next = next.add(random.nextDouble() - .5, 0, random.nextDouble() - .5);
+            band(buffer, matrix, last, next, .12f * (1 - t * .6f), 1, 1, 1, 1 - t);
+            last = next;
+        }
+    }
+    @SubscribeEvent public static void loggedOut(ClientPlayerNetworkEvent.LoggingOut event) { REGIONS.clear(); MARKS.clear(); }
+}

@@ -35,10 +35,11 @@ import io.github.pinchan4273.reacademycraft.skill.ThunderClap;
 import io.github.pinchan4273.reacademycraft.skill.VecAccel;
 import io.github.pinchan4273.reacademycraft.skill.VecDeviation;
 import io.github.pinchan4273.reacademycraft.skill.VecReflection;
+import io.github.pinchan4273.reacademycraft.skill.WhiteWingStab;
 import java.util.List;
 
 /**
- * 本体の41技能の振り分けの表（1.4.0のS3）。1.3.0の{@code AbilityAction.handle}と{@code SkillSessions.stopAll}が呼んでいたものを、
+ * 本体の技能の振り分けの表（1.4.0のS3。v1.5.0で白翼刺突を末尾に追加）。1.3.0の{@code AbilityAction.handle}と{@code SkillSessions.stopAll}が呼んでいたものを、
  * 同じ名前・同じ順で並べる。この表は、1.3.0（03f1f238）のソースから取り出した呼び出しの表から作った（scratchのgen_builtin_dispatch.py）。
  * 中断（CANCEL）で離し（release）を呼ぶ技能（Thunder Clap、Railgun、Current Charging、Magnetic Movement）や、切り替え型の中断が
  * stopになることも、1.3.0のまま。
@@ -157,9 +158,22 @@ final class BuiltinSkillDispatch {
                 null,
                 null,
                 named("VecReflection.stop", p -> VecReflection.stop(p)), null);
-        SkillDispatch.builtInOrder(List.of(thunderClap, railgun, currentCharging, magneticMovement, magneticManipulation, bodyIntensify, jetEngine, meltdowner, threateningTeleport, penetrateTeleport, markTeleport, fleshRipping, shiftTeleport, directedShock, groundshock, vecAccel, directedBlastwave, bloodRetrograde, plasmaCannon, scatterBomb, mineRay, lightShield, electronMissile),
-                List.of(currentCharging, magneticMovement, magneticManipulation, thunderClap, railgun, scatterBomb, mineRay, meltdowner, threateningTeleport, penetrateTeleport, markTeleport, fleshRipping, shiftTeleport, directedShock, groundshock, vecAccel, directedBlastwave, bloodRetrograde, plasmaCannon),
-                List.of(currentCharging, magneticMovement, magneticManipulation, bodyIntensify, thunderClap, railgun, scatterBomb, lightShield, mineRay, jetEngine, electronMissile, meltdowner, threateningTeleport, penetrateTeleport, markTeleport, fleshRipping, shiftTeleport, flashing, directedShock, groundshock, vecAccel, vecDeviation, directedBlastwave, stormWing, bloodRetrograde, vecReflection, plasmaCannon));
+        // v1.5.0 白翼刺突: 1.3.0の持ち主の後ろ（どの並びでも最後）。アドオンはさらにその後ろ。
+        var darkRay = new Owner("DarkMatterRay", null, null, null,
+                named("DarkMatterRay.stop", p -> io.github.pinchan4273.reacademycraft.skill.DarkMatterRay.stop(p)),
+                named("DarkMatterRay.ageOn", (p, s) -> io.github.pinchan4273.reacademycraft.skill.DarkMatterRay.ageOn(p, s)));
+        var darkCannon = new Owner("DarkMatterAirCannon", null, null, null,
+                named("DarkMatterAirCannon.stop", p -> io.github.pinchan4273.reacademycraft.skill.DarkMatterAirCannon.stop(p)), null);
+        var darkGuard = new Owner("WhiteWingGuard", null, null, null,
+                named("WhiteWingGuard.stop", p -> io.github.pinchan4273.reacademycraft.skill.DarkDefense.stop(p, io.github.pinchan4273.reacademycraft.skill.DarkMatter.GUARD)),
+                named("WhiteWingGuard.ageOn", (p, s) -> io.github.pinchan4273.reacademycraft.skill.DarkDefense.ageOn(p, io.github.pinchan4273.reacademycraft.skill.DarkMatter.GUARD)));
+        var whiteWingStab = new Owner("WhiteWingStab", named("WhiteWingStab.release", (p, s) -> WhiteWingStab.release(p, s)),
+                named("WhiteWingStab.cancel", (p, s) -> WhiteWingStab.cancel(p, s)),
+                named("WhiteWingStab.renew", (p, s) -> WhiteWingStab.renew(p, s)),
+                named("WhiteWingStab.stop", p -> WhiteWingStab.stop(p)), null);
+        SkillDispatch.builtInOrder(List.of(thunderClap, railgun, currentCharging, magneticMovement, magneticManipulation, bodyIntensify, jetEngine, meltdowner, threateningTeleport, penetrateTeleport, markTeleport, fleshRipping, shiftTeleport, directedShock, groundshock, vecAccel, directedBlastwave, bloodRetrograde, plasmaCannon, scatterBomb, mineRay, lightShield, electronMissile, whiteWingStab),
+                List.of(currentCharging, magneticMovement, magneticManipulation, thunderClap, railgun, scatterBomb, mineRay, meltdowner, threateningTeleport, penetrateTeleport, markTeleport, fleshRipping, shiftTeleport, directedShock, groundshock, vecAccel, directedBlastwave, bloodRetrograde, plasmaCannon, whiteWingStab),
+                List.of(currentCharging, magneticMovement, magneticManipulation, bodyIntensify, thunderClap, railgun, scatterBomb, lightShield, mineRay, jetEngine, electronMissile, meltdowner, threateningTeleport, penetrateTeleport, markTeleport, fleshRipping, shiftTeleport, flashing, directedShock, groundshock, vecAccel, vecDeviation, directedBlastwave, stormWing, bloodRetrograde, vecReflection, plasmaCannon, whiteWingStab));
         SkillDispatch.builtInCast(ArcGen.ID, new Cast(named("ArcGen.cast", (p, d, s) -> ArcGen.cast(p, d)), null));
         SkillDispatch.builtInCast(CurrentCharging.ID, new Cast(named("CurrentCharging.start", CurrentCharging::start), currentCharging));
         SkillDispatch.builtInCast(MagneticMovement.ID, new Cast(named("MagneticMovement.start", MagneticMovement::start), magneticMovement));
@@ -194,5 +208,21 @@ final class BuiltinSkillDispatch {
         SkillDispatch.builtInCast(BloodRetrograde.ID, new Cast(named("BloodRetrograde.start", BloodRetrograde::start), bloodRetrograde));
         SkillDispatch.builtInCast(VecReflection.ID, new Cast(named("VecReflection.toggle", VecReflection::toggle), vecReflection));
         SkillDispatch.builtInCast(PlasmaCannon.ID, new Cast(named("PlasmaCannon.start", PlasmaCannon::start), plasmaCannon));
+        SkillDispatch.builtInCast(WhiteWingStab.ID, new Cast(named("WhiteWingStab.start", WhiteWingStab::start), whiteWingStab));
+        SkillDispatch.builtInCast(io.github.pinchan4273.reacademycraft.skill.DarkMatter.RAY, new Cast(named("DarkMatterRay.toggle", (p, d, s) -> io.github.pinchan4273.reacademycraft.skill.DarkMatterAirCannon.active(p)
+                ? io.github.pinchan4273.reacademycraft.skill.DarkMatterAirCannon.queueNext(p, d, io.github.pinchan4273.reacademycraft.skill.DarkMatter.RAY, s, io.github.pinchan4273.reacademycraft.skill.DarkMatterRay.START_CP)
+                : io.github.pinchan4273.reacademycraft.skill.DarkMatterRay.toggle(p, d, s)), darkRay));
+        SkillDispatch.builtInCast(io.github.pinchan4273.reacademycraft.skill.DarkMatter.AIR_CANNON, new Cast(named("DarkMatterAirCannon.start", io.github.pinchan4273.reacademycraft.skill.DarkMatterAirCannon::start), darkCannon));
+        SkillDispatch.builtInCast(io.github.pinchan4273.reacademycraft.skill.DarkMatter.GUARD, new Cast(named("WhiteWingGuard.toggle", (p, d, s) -> io.github.pinchan4273.reacademycraft.skill.DarkDefense.toggle(p, d, s, io.github.pinchan4273.reacademycraft.skill.DarkMatter.GUARD)), darkGuard));
+        // 未元装甲は受動になった（2026-11-03のユーザーの決定）ので、キーからは始まらない。能力使用モードの間だけ、DarkDefenseが損傷のたびに掛ける。
+        // §9: 甲虫は押して生成するだけ。個体は能力OFF・プリセット変更・セーフティでも残るので、止める持ち主は置かない。
+        SkillDispatch.builtInCast(io.github.pinchan4273.reacademycraft.skill.DarkMatter.BEETLE, new Cast(named("DarkMatterBeetle.cast", io.github.pinchan4273.reacademycraft.skill.DarkMatterBeetles::cast), null));
+        // 白翼飛行は受動になった（2026-11-03のユーザーの決定）ので、キーからは始まらない（設定に応じたジャンプ操作でWhiteWingFlight.takeoff）。
+        // 終わるのは着地・能力OFF・過負荷・干渉などで、WhiteWingFlightが毎tick判定する。
+        // §10: 天界発現はプリセットの変更で続く（§13）ので停止の並びには置かず、自分のキーと毎tickの条件で止まる。
+        var heaven = new Owner("HeavenManifest", null, null, null,
+                named("HeavenManifest.stop", p -> io.github.pinchan4273.reacademycraft.skill.HeavenManifest.stop(p)),
+                named("HeavenManifest.ageOn", (p, s) -> io.github.pinchan4273.reacademycraft.skill.HeavenManifest.ageOn(p, s)));
+        SkillDispatch.builtInCast(io.github.pinchan4273.reacademycraft.skill.DarkMatter.HEAVEN, new Cast(named("HeavenManifest.toggle", io.github.pinchan4273.reacademycraft.skill.HeavenManifest::toggle), heaven));
     }
 }

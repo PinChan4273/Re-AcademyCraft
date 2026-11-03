@@ -1,6 +1,6 @@
 # Re:AcademyCraft API Example（サンプルのアドオン）
 
-Re:AcademyCraft 1.4.1の公開API（**実験的**。版の間で変わりうる）だけを使う、小さなサンプルです。
+Re:AcademyCraft 1.4.1以降の公開API（APIの版2。**実験的**で、版の間で変わりうる）だけを使う、小さなサンプルです。1.5.0の本体でも使えます。
 公開の型は`io.github.pinchan4273.reacademycraft.api`（Minecraftの型を使わない定義）、`api.mc`（実行の契約と安全のサービス）、
 `api.forge`（Forgeの登録の窓）、`api.client`（クライアント専用の見た目だけの演出。このサンプルは使わない）だけです。ほかのパッケージは内部の物で、予告なく変わります。
 
@@ -23,7 +23,7 @@ bash gradlew jar
 bash gradlew -p samples/academy-api-example build
 ```
 
-できたJAR（`samples/academy-api-example/build/libs/academy-api-example-forge-1.20.1-0.1.0.jar`）を、本体のJARと一緒にmodsへ置きます。
+できたJAR（`samples/academy-api-example/build/libs/academy-api-example-forge-1.20.1-0.1.1.jar`）を、本体のJARと一緒にmodsへ置きます。
 
 ## 注意
 

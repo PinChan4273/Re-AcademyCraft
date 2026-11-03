@@ -28,6 +28,25 @@ public final class SkillDamageSource extends DamageSource {
      * 防具・Resistance・エンチャントはそのまま効く。共通の{@link #TYPE}には何も足さない（他の技能と通常の武器は従来どおり）。
      */
     public static final ResourceKey<DamageType> CONTACT=ResourceKey.create(Registries.DAMAGE_TYPE,ResourceLocation.fromNamespaceAndPath("academy","skill_contact"));
+    /**
+     * v1.5.0の白翼刺突（採用仕様・版41の§4）の、熟練度50%未満の打撃。中身は{@link #TYPE}と同じ（防具は効く）で、
+     * minecraft:bypasses_cooldownにだけ属する: 0.4〜0.6秒（8〜12tick）の連撃が標準の被ダメージ後の待ちで削られないようにする。
+     */
+    public static final ResourceKey<DamageType> STAB=ResourceKey.create(Registries.DAMAGE_TYPE,ResourceLocation.fromNamespaceAndPath("academy","skill_stab"));
+    /**
+     * 白翼刺突の熟練度50%以上の打撃（§4・R08）。盾・防具・防具強度・防護エンチャント・耐性（バニラと技能の直接効果）を通らない
+     * （minecraft:bypasses_armor・bypasses_shield・bypasses_effects・bypasses_enchantments・bypasses_resistance・bypasses_cooldown）。
+     * 吸収とこのmodの防御（Light Shield、ベクトル操作の反射・偏向、Jetの前面防御）も{@link #ignoresDefenses}で通す。
+     * bypasses_invulnerabilityには入れない: クリエイティブなどの本当の無敵、攻撃の可否（PvP・チームの保護）は先に効く。
+     */
+    public static final ResourceKey<DamageType> PIERCE=ResourceKey.create(Registries.DAMAGE_TYPE,ResourceLocation.fromNamespaceAndPath("academy","skill_pierce"));
+    /** 防御・軽減を通さない打撃か（{@link #PIERCE}）。 */
+    public static boolean ignoresDefenses(@javax.annotation.Nullable DamageSource source) { return source != null && source.is(PIERCE); }
+    /** ベクトルの防御膜が反応しない打撃か: 上の防御無視と未元光線（§6）。未元空気砲は技能が段ごとに幕を精算するので、損傷の時には通す（§7）。 */
+    public static boolean passesVectorMembrane(@javax.annotation.Nullable DamageSource source) {
+        if (ignoresDefenses(source)) return true;
+        return source instanceof SkillDamageSource s && (s.skill.equals(DarkMatter.RAY) || s.skill.equals(DarkMatter.AIR_CANNON));
+    }
     private final ResourceLocation skill;
     public SkillDamageSource(ServerPlayer caster,ResourceLocation skill) { this(caster,skill,TYPE); }
     public SkillDamageSource(ServerPlayer caster,ResourceLocation skill,ResourceKey<DamageType> type) {

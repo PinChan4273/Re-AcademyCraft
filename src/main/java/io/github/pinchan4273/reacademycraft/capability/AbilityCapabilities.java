@@ -55,7 +55,7 @@ public final class AbilityCapabilities {
                         next.copyFrom(previous);
                         next.forgetCooldowns();
                         // エンドからの帰還でも何度実行してよいように、代入だけを行う。状態を加えたり重複させたりしない。
-                        if (event.isWasDeath()) next.recoverAfterDeath();
+                        if (event.isWasDeath()) { next.recoverAfterDeath(); next.applyRespawnForm(); }
                     }));
         } finally {
             original.invalidateCaps();

@@ -32,6 +32,7 @@ public final class AcademyCraft {
         AcademyContent.register(modBus);
         io.github.pinchan4273.reacademycraft.world.AcademySounds.register(modBus);
         io.github.pinchan4273.reacademycraft.world.AcademyParticles.register(modBus);
+        io.github.pinchan4273.reacademycraft.world.AcademyEffects.register(modBus);
         io.github.pinchan4273.reacademycraft.world.PhaseContent.register(modBus);
         io.github.pinchan4273.reacademycraft.world.PhaseLakeFeature.register(modBus);
         io.github.pinchan4273.reacademycraft.world.MaterialContent.register(modBus);
@@ -41,6 +42,8 @@ public final class AcademyCraft {
         AcademyNetwork.register();
         modBus.addListener(AbilityCapabilities::register);
         modBus.addListener(this::commonSetup);
+        // §15: 死亡の最終判断は、全MODのリスナーの後（最低優先度の最後）に置く。
+        modBus.addListener((net.minecraftforge.fml.event.lifecycle.FMLLoadCompleteEvent e) -> e.enqueueWork(io.github.pinchan4273.reacademycraft.skill.DeathOrder::register));
         MinecraftForge.EVENT_BUS.addGenericListener(Entity.class, AbilityCapabilities::attach);
         MinecraftForge.EVENT_BUS.addListener(AbilityCapabilities::clonePlayer);
         MinecraftForge.EVENT_BUS.addListener(AbilityCapabilities::wakeUp);

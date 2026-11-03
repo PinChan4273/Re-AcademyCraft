@@ -10,8 +10,6 @@ import io.github.pinchan4273.reacademycraft.network.AcademyNetwork;
 import io.github.pinchan4273.reacademycraft.network.ThunderBoltEffect;
 import io.github.pinchan4273.reacademycraft.world.AcademySounds;
 import net.minecraft.sounds.SoundSource;
-import net.minecraft.world.effect.MobEffectInstance;
-import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.ClipContext;
@@ -70,6 +68,7 @@ public final class ThunderBolt {
     private static void attack(ServerPlayer caster,Entity target,float damage,float proficiency,int slowTicks){
         EMDamageHelper.attack(caster, target, ID, damage);
         if(target instanceof LivingEntity living&&living.isAlive()&&proficiency>.2f&&caster.getRandom().nextFloat()<.8f)
-            living.addEffect(new MobEffectInstance(MobEffects.MOVEMENT_SLOWDOWN,slowTicks,3));
+            // v1.5.0: 対象ごとの移動速度の低下を、技能由来の直接効果で（鈍足IV相当、主対象40tick・範囲20tick。境界・確率は従来どおり）。
+            DirectEffects.add(living,DirectEffects.Kind.SLOWNESS,3,slowTicks,ID,caster);
     }
 }

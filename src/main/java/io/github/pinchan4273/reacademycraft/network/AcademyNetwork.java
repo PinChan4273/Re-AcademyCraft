@@ -21,9 +21,11 @@ public final class AcademyNetwork {
      * 64: 能力設定の画面（1.4.0のS1）の通知を足した（SkillSettingEdit 51番、SkillSettingsSnapshot 52番）。63のクライアントは
      * 設定の値を受け取れないので繋がせない。1.4.0のS4で、開発機の外部の技能の学習（DevelopAddonSkill 53番、
      * DevelopAddonAvailability 54番）と、ログインの時の登録簿の照合（AbilityRegistryCheck 55番、AbilityRegistryVerdict 56番）も足した（1.4.0の公開の前なので、版は64のまま。設計の文書13.4の4）。
+     * 65: v1.5.0。未元物質の技能の学習で開発機の可用性のビットが48を超え、メニューのデータを4スロットにした。技能由来の直接効果の
+     * 同期（DirectEffectSync）を足した。64のクライアントは新しい技能・効果を受け取れないので繋がせない。
      * 版が違う相手とは、ログインの時点で接続を断る（古い通知を誤って読むところまで進ませない）。
      */
-    public static final String VERSION = "64";
+    public static final String VERSION = "65";
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             ResourceLocation.fromNamespaceAndPath("academy", "main"), () -> VERSION, AcademyNetwork::accepts, AcademyNetwork::accepts);
 
@@ -261,6 +263,46 @@ public final class AcademyNetwork {
                     var sender = context.get().getSender();
                     if (sender != null) io.github.pinchan4273.reacademycraft.ability.RegistryCheck.answer(sender, packet);
                 }).add();
+        // v1.5.0（版65）: 技能由来の直接効果のうち、対象のプレイヤー自身のクライアントが使う物（跳躍・盲目・吐き気）。
+        CHANNEL.messageBuilder(DirectEffectSync.class, 57, NetworkDirection.PLAY_TO_CLIENT)
+                .encoder(DirectEffectSync::encode).decoder(DirectEffectSync::decode)
+                .consumerMainThread((packet, context) -> DistExecutor.unsafeRunWhenOn(Dist.CLIENT,
+                        () -> () -> io.github.pinchan4273.reacademycraft.client.ClientDirectEffects.receive(packet))).add();
+        CHANNEL.messageBuilder(DarkWingState.class, 58, NetworkDirection.PLAY_TO_CLIENT)
+                .encoder(DarkWingState::encode).decoder(DarkWingState::decode)
+                .consumerMainThread((packet, context) -> DistExecutor.unsafeRunWhenOn(Dist.CLIENT,
+                        () -> () -> io.github.pinchan4273.reacademycraft.client.ClientDarkWings.receive(packet))).add();
+        CHANNEL.messageBuilder(DarkWingAction.class, 61, NetworkDirection.PLAY_TO_CLIENT)
+                .encoder(DarkWingAction::encode).decoder(DarkWingAction::decode)
+                .consumerMainThread((packet, context) -> DistExecutor.unsafeRunWhenOn(Dist.CLIENT,
+                        () -> () -> io.github.pinchan4273.reacademycraft.client.ClientDarkWings.receive(packet))).add();
+        // v1.5.0 天界発現: 他の未元物質の通知と番号が重ならないよう70番台を使う。
+        CHANNEL.messageBuilder(HeavenSettingEdit.class, 70, NetworkDirection.PLAY_TO_SERVER)
+                .encoder(HeavenSettingEdit::encode).decoder(HeavenSettingEdit::decode)
+                .consumerMainThread((packet, context) -> { packet.handle(context.get().getSender()); }).add();
+        CHANNEL.messageBuilder(HeavenSettingsSnapshot.class, 71, NetworkDirection.PLAY_TO_CLIENT)
+                .encoder(HeavenSettingsSnapshot::encode).decoder(HeavenSettingsSnapshot::decode)
+                .consumerMainThread((packet, context) -> DistExecutor.unsafeRunWhenOn(Dist.CLIENT,
+                        () -> () -> io.github.pinchan4273.reacademycraft.client.ClientHeavenSettings.receive(packet))).add();
+        CHANNEL.messageBuilder(HeavenRegionState.class, 72, NetworkDirection.PLAY_TO_CLIENT)
+                .encoder(HeavenRegionState::encode).decoder(HeavenRegionState::decode)
+                .consumerMainThread((packet, context) -> DistExecutor.unsafeRunWhenOn(Dist.CLIENT,
+                        () -> () -> io.github.pinchan4273.reacademycraft.client.ClientHeavenEffects.receive(packet))).add();
+        CHANNEL.messageBuilder(HeavenMark.class, 73, NetworkDirection.PLAY_TO_CLIENT)
+                .encoder(HeavenMark::encode).decoder(HeavenMark::decode)
+                .consumerMainThread((packet, context) -> DistExecutor.unsafeRunWhenOn(Dist.CLIENT,
+                        () -> () -> io.github.pinchan4273.reacademycraft.client.ClientHeavenEffects.receive(packet))).add();
+        CHANNEL.messageBuilder(DarkBeetleShot.class, 62, NetworkDirection.PLAY_TO_CLIENT)
+                .encoder(DarkBeetleShot::encode).decoder(DarkBeetleShot::decode)
+                .consumerMainThread((packet, context) -> DistExecutor.unsafeRunWhenOn(Dist.CLIENT,
+                        () -> () -> io.github.pinchan4273.reacademycraft.client.ClientDarkBeetles.receive(packet))).add();
+        CHANNEL.messageBuilder(WhiteWingFlightState.class, 59, NetworkDirection.PLAY_TO_CLIENT)
+                .encoder(WhiteWingFlightState::encode).decoder(WhiteWingFlightState::decode)
+                .consumerMainThread((packet, context) -> DistExecutor.unsafeRunWhenOn(Dist.CLIENT,
+                        () -> () -> io.github.pinchan4273.reacademycraft.client.ClientWhiteWingFlight.receive(packet))).add();
+        CHANNEL.messageBuilder(WhiteWingFlightInput.class, 60, NetworkDirection.PLAY_TO_SERVER)
+                .encoder(WhiteWingFlightInput::encode).decoder(WhiteWingFlightInput::decode)
+                .consumerMainThread((packet, context) -> packet.handle(context.get().getSender())).add();
     }
 
     public static void lightning(net.minecraft.server.level.ServerLevel level, net.minecraft.world.phys.Vec3 position) {

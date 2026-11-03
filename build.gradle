@@ -6,7 +6,7 @@ plugins {
 }
 
 group = 'io.github.pinchan4273.reacademycraft'
-version = '1.4.1'
+version = '1.5.0'
 base { archivesName = 're-academycraft-forge-1.20.1' }
 
 java {
@@ -30,6 +30,7 @@ minecraft {
             if (project.hasProperty('dedicatedSmokeTest')) {
                 workingDirectory project.file('run/dedicated-client')
                 property 'academy.dedicatedSmokeTest', 'true'
+                property 'academy.test.cpSafetyDefaultOff', 'true'
                 args '--username', 'AcademySmoke'
                 jvmArgs '-Xmx1536m'
                 mods { academy { source sourceSets.test } }
@@ -37,9 +38,20 @@ minecraft {
             if (project.hasProperty('runtimeSmokeTest')) {
                 workingDirectory project.file('run/client-smoke')
                 property 'academy.runtimeSmokeTest', 'true'
+                property 'academy.test.cpSafetyDefaultOff', 'true'
                 // 1.4.0のS4: 統合サーバーのclient smokeでも試験だけのアドオンを登録する（クライアントとサーバーが同じ登録簿）。
                 // dedicatedのクライアントには付けない（製品のJARのサーバーと同じ登録簿で、ログインの照合が通ることを確かめる）。
                 property 'academy.testAddon', 'true'
+                mods { academy { source sourceSets.test } }
+            }
+            // 六翼と甲虫の見た目の撮影（DarkMatterPreviewCheck）。このプロパティを付けたときだけ効き、製品のJARには関係しない。
+            if (project.hasProperty('dmPreview')) {
+                workingDirectory project.file('run/dm-preview')
+                property 'academy.dmPreview', project.property('dmPreview')
+                // D06の負荷の比較（-PdmPreview=measure...）では、天界の描画時間のp95をログへ出す。
+                if (project.property('dmPreview').toString().startsWith('measure')) property 'academy.heaven.measure', 'true'
+                args '--username', 'PreviewPlayer', '--width', '1600', '--height', '900'
+                jvmArgs '-Xmx2048m'
                 mods { academy { source sourceSets.test } }
             }
             // 実クライアント2人の接触の試験（tools/run_mp_contact.py、MultiplayerContactCheck）。名前ごとに作業フォルダを分ける。
@@ -64,6 +76,8 @@ minecraft {
         gameTestServer {
             workingDirectory project.file('run/gametest')
             property 'forge.enabledGameTestNamespaces', 'academy'
+            // v1.4.1以前の試験はCPをちょうど使い切る形で書かれている。セーフティの試験（CpSafetyGameTests）は値を明示する。
+            property 'academy.test.cpSafetyDefaultOff', 'true'
             // 1.4.0のS4: 試験だけのアドオン（src/testのTestAddon）を登録する。GameTestのサーバーだけで効き、製品のJARとclient smokeには関係しない。
             property 'academy.testAddon', 'true'
             mods { academy { source sourceSets.test } }
@@ -79,7 +93,7 @@ dependencies {
 // 開発のクライアントへ読み込む（サーバーには同じJARをそのまま入れる）。このプロパティを付けたときだけ効き、製品のJARには関係しない。
 if (project.hasProperty('mpWithSample')) {
     repositories { flatDir { dirs project.property('mpWithSample') } }
-    dependencies { runtimeOnly fg.deobf("blank:academy-api-example-forge-1.20.1:${project.findProperty('mpSampleVersion') ?: '0.1.0'}") }
+    dependencies { runtimeOnly fg.deobf("blank:academy-api-example-forge-1.20.1:${project.findProperty('mpSampleVersion') ?: '0.1.1'}") }
 }
 
 tasks.withType(JavaCompile).configureEach {
@@ -128,7 +142,8 @@ tasks.register('apiJar', Jar) {
     manifest {
         attributes 'Implementation-Title': 'Re:AcademyCraft API (experimental)',
                    'Implementation-Version': project.version,
-                   'Academy-Api-Version': '1'
+                   // AcademyApi.VERSION と同じ値にする（1.4.1の配布物は1のままだった）。
+                   'Academy-Api-Version': '2'
     }
 }
 tasks.register('apiSourcesJar', Jar) {

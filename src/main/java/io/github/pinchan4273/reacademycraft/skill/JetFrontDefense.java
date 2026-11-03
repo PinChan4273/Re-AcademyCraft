@@ -88,6 +88,8 @@ public final class JetFrontDefense {
 
     @SubscribeEvent(priority = EventPriority.LOW) public static void frontHurt(LivingHurtEvent event) {
         if (!(event.getEntity() instanceof ServerPlayer player) || event.isCanceled()) return;
+        // v1.5.0: 50%以上の白翼刺突は防御を無視する（§4・R08）。
+        if (SkillDamageSource.ignoresDefenses(event.getSource())) return;
         float left = mitigate(player, event.getSource(), event.getAmount());
         if (left != event.getAmount()) event.setAmount(left);
     }

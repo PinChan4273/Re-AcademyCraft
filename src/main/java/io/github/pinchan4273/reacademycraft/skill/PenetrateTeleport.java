@@ -118,7 +118,7 @@ public final class PenetrateTeleport {
         var target = TPSkillHelper.permit(player, dest.position());
         if (target == null) return;
         double distance = player.position().distanceTo(target);
-        data.consumeWithForce(ID, (float) (distance * consumption(exp)), ArcGen.lerp(80, 50, exp), player.getAbilities().instabuild);
+        if (!data.consumeWithForce(ID, (float) (distance * consumption(exp)), ArcGen.lerp(80, 50, exp), player.getAbilities().instabuild)) return;
         data.addProficiency(ID, (float) (.00014 * distance));
         data.setCooldown(ID, (int) ArcGen.lerp(50, 30, exp));
         TPSkillHelper.incrTPCount(player);

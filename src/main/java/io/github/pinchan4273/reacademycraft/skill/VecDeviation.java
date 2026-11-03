@@ -130,7 +130,7 @@ public final class VecDeviation {
             if (!session.visited.add(entity.getUUID()) || EntityAffection.marked(entity)) continue;
             float difficulty = EntityAffection.difficulty(entity);
             if (difficulty < 0) continue;
-            data.consumeWithForce(ID, stopConsumption(exp), 0, creative);
+            if (!data.consumeWithForce(ID, stopConsumption(exp), 0, creative)) continue;
             // 対象を止めたtickは待機ではない。
             data.upkeepActed(session.upkeep);
             if (entity instanceof LargeFireball fireball) {
@@ -159,6 +159,8 @@ public final class VecDeviation {
     /** 原作onLivingHurtとreduceDamage。術者だけに対して。 */
     @SubscribeEvent public static void hurt(LivingHurtEvent event) {
         if (!(event.getEntity() instanceof ServerPlayer player) || !ACTIVE.containsKey(player.getUUID()) || event.getAmount() > 9999) return;
+        // v1.5.0: 50%以上の白翼刺突は防御を無視する（§4・R08）。費用も熟練度も動かさない。
+        if (SkillDamageSource.passesVectorMembrane(event.getSource())) return;
         var data = data(player);
         // 技能が外された（次のtickでモードが終わる前の被弾）なら何もしない。熟練度の加算は未習得を拒否する（M-110-02）。
         if (data == null || data.isReadOnly() || !data.hasLearned(ID)) return;

@@ -44,6 +44,11 @@ import net.minecraftforge.fml.common.Mod;
  *
  * 原作のフォントは使わず、ゲームのフォントを原作の大きさで描く。原作と同じく、キーは0.3秒以内に離したときに能力を
  * 切り替え（AbilityControls）、押している間は数値を表示する。
+ *
+ * v1.5.0 §14: セーフティが作動している間は、CPのゲージ（数値のみの形式なら数値）を低残量の赤で約1秒周期に明滅させる。
+ * CP表示の形式（{@link ClientSettings#cpDisplay()}）と、非使用時の大きさ（{@link ClientSettings#cpIdleScale()}）を持つ。
+ * 大きさは右上の角を動かさずに変える。VキーOFFでゲージがフェードアウトして消える原作の動きはそのままで、大きさはフェードと同じ
+ * 進み具合で動く。
  */
 @Mod.EventBusSubscriber(modid = "academy", value = Dist.CLIENT)
 public final class CpBarHud {
@@ -62,6 +67,13 @@ public final class CpBarHud {
     private static int lastPreset = -1;
     private static boolean lastFrameActive, showingNumbers;
     private static float mAlpha, bufferedCp, bufferedOverload;
+    /** 今の大きさの倍率（既存の{@link #SCALE}に掛ける）。{@link #area}が前のフレームの値を読む。 */
+    private static float sizeScale = 1, idleFade;
+    private static long lastFrameTime;
+    /** このフレームのセーフティの明滅の濃さ。明滅していなければ負。 */
+    private static float blink = -1;
+    /** 文字の大きさ（1文字の画素がGUIの1画素に載る）と、数値を右揃えにする位置。ゲージと数値のときは、プリセットの四角（下端193）の下に置く。 */
+    private static final float NUMBER_SIZE = 5, NUMBER_RIGHT = WIDTH - 20, NUMBER_ONLY_Y = 55, NUMBER_BELOW_Y = 194;
     private static long frames;
     // 原作の干渉のkeyframe: 80〜400msおきの60個のずれと、それを通るalphaの曲線。
     private static final long[] FRAME_TIME = new long[60];
@@ -97,6 +109,8 @@ public final class CpBarHud {
     /** バーを表示して描いたフレーム数（テスト用）。実際の見え方は画像で判定する。 */
     public static long frames() { return frames; }
     public static float alpha() { return mAlpha; }
+    /** テスト用: 今の大きさの倍率。 */
+    public static float sizeScale() { return sizeScale; }
 
     @Mod.EventBusSubscriber(modid = "academy", value = Dist.CLIENT, bus = Mod.EventBusSubscriber.Bus.MOD)
     public static final class Shaders {
@@ -132,14 +146,24 @@ public final class CpBarHud {
         }
         boolean active = data.isActive();
         if (!lastFrameActive && active) showTime = time;
-        long deltaTime = Math.min(100L, time - lastDrawTime);
+        long deltaTime = Math.min(100L, time - lastFrameTime);
+        lastFrameTime = time;
         mAlpha = time - showTime < 200 ? (time - showTime) / 200f : active ? 1 : Math.max(0, 1 - (time - lastDrawTime) / 200f);
+        // §14: 使用中の判定はVモードだけ。技能を撃っても変わらない。
+        sizeScale = CpHudStyle.sizeAt(ClientSettings.cpIdleScale(), mAlpha);
+        // 非使用時の表示の設定。大きさはVのON/OFFだけで決め、技能を使うたびに変えない（§14）。
+        // §14: 未元物質人間はCPが生命力なので、能力OFFでも必ず出す。
+        boolean idleShown = !active && (data.isDarkBody() || ClientSettings.cpIdleShow().visible(data.getCp(), data.getMaxCp()));
+        idleFade = balance(idleFade, idleShown ? 1 : 0, deltaTime * 1e-3f * CpHudStyle.IDLE_FADE_PER_SECOND);
+        mAlpha = Math.max(mAlpha, idleFade);
+        var display = ClientSettings.cpDisplay();
+        blink = data.safetyBlinking() ? CpHudStyle.blinkPulse(time) : -1;
         var g = event.getGuiGraphics(); var pose = g.pose();
         pose.pushPose();
         // 原作ACHudの"cpbar": 右揃え、CustomizeUIで動かさなければ(-12, 12)。
-        pose.translate(HudLayout.left(HudLayout.Node.CPBAR, event.getWindow().getGuiScaledWidth()),
+        pose.translate(HudLayout.left(HudLayout.Node.CPBAR, event.getWindow().getGuiScaledWidth()) + WIDTH * SCALE * (1 - sizeScale),
                 HudLayout.top(HudLayout.Node.CPBAR, event.getWindow().getGuiScaledHeight()), 0);
-        pose.scale(SCALE, SCALE, 1);
+        pose.scale(SCALE * sizeScale, SCALE * sizeScale, 1);
         boolean interfering = data.isInterfering();
         if (interfering) {
             long input = time % MAX_TIME;
@@ -147,7 +171,9 @@ public final class CpBarHud {
             while (frame < 59 && FRAME_TIME[frame] <= input) frame++;
             pose.translate(FRAME_OFFSET[frame][0], FRAME_OFFSET[frame][1], 0);
             // 精度を下げることで、ちらつきがぎざぎざに見える。
-            mAlpha *= (float) ALPHA_CURVE.valueAt(input / 10 * 10);
+            float wave = (float) ALPHA_CURVE.valueAt(input / 10 * 10);
+            // §14: 未元物質人間は干渉中もCPを読めるように、暗くしすぎない。
+            mAlpha *= data.isDarkBody() ? Math.max(.7f, wave) : wave;
         }
         float pOverload = mAlpha > 0 ? data.getOverload() / Math.max(1e-6f, data.getMaxOverload()) : 0;
         bufferedOverload = balance(bufferedOverload, pOverload, deltaTime * 1e-3f * O_BALANCE_SPEED);
@@ -156,12 +182,14 @@ public final class CpBarHud {
         if (mAlpha > 0) {
             var category = data.getAbility();
             // 原作CPBar: 過負荷の絵は、isOverloaded（回復の待ち時間）の間だけ。
-            if (!data.isOverloaded()) drawNormal(pose, bufferedOverload); else drawOverload(pose, time);
+            if (display.gauge()) { if (!data.isOverloaded()) drawNormal(pose, bufferedOverload); else drawOverload(pose, time); }
             // 原作は、干渉されている間と過負荷の回復中にバーを暗くする。
             boolean low = interfering || data.isOverloadLocked();
             var icon = category == null ? null : overlay(category);
             float estimate = consumptionHint(data);
-            if (estimate != 0) {
+            if (!display.gauge()) {
+                // 数値のみ: 板・過負荷・CPのゲージを描かない（下で数値を描く）。
+            } else if (estimate != 0) {
                 // 原作: 今のCPを点滅させ、技能が消費した後のCPの下に描く。
                 float saved = mAlpha;
                 mAlpha *= (float) (.2f + .1f * (1 + Math.sin(time / 80.0)));
@@ -171,6 +199,7 @@ public final class CpBarHud {
             } else {
                 drawCpBar(pose, bufferedCp, low, icon);
             }
+            if (display.number()) drawCpNumber(g, client, data, display, pCp, low);
             if (time - presetChangeTime < 2000L) drawPresetHint(g, client, data, (time - presetChangeTime) / 2000.0, time - lastPresetTime);
             drawNumbers(g, client, data, time);
             drawActivateKeyHint(g, client);
@@ -197,6 +226,10 @@ public final class CpBarHud {
             }
         }
         return new float[]{1, 1, 1, mAlpha};
+    }
+    /** 既存の低残量の赤（{@link #CP_COLORS}の最初の色）。 */
+    private static float[] lowColor(float alpha) {
+        return new float[]{(float) CP_COLORS[0][1] / 255, (float) CP_COLORS[0][2] / 255, (float) CP_COLORS[0][3] / 255, alpha};
     }
     private static void drawNormal(PoseStack pose, float overload) {
         DeveloperScreen.quad(pose, BACK_NORMAL, 0, 0, WIDTH, HEIGHT, 1, 1, 1, .8f * mAlpha);
@@ -242,8 +275,9 @@ public final class CpBarHud {
     }
     private static void drawCpBar(PoseStack pose, float progress, boolean cantUse, @Nullable ResourceLocation icon) {
         float saved = mAlpha;
-        if (cantUse) mAlpha *= .3f;
-        var c = lerp(CP_COLORS, progress);
+        if (cantUse && blink < 0) mAlpha *= .3f;
+        // セーフティの明滅は、暗くする代わりに赤の濃さを動かす（過負荷・干渉の.3を重ねると読めなくなる）。
+        var c = blink < 0 ? lerp(CP_COLORS, progress) : lowColor(mAlpha * blink);
         progress = .16f + progress * .8f;
         double off = 103 * SIN41;
         float x0 = 47, y0 = 30, w = 883, h = 84;
@@ -323,6 +357,27 @@ public final class CpBarHud {
         g.drawString(font, text, 0, 0, Math.max(4, Math.min(255, alpha)) << 24 | 0xffffff, false);
         g.pose().popPose();
     }
+    /**
+     * §14: 常に出す数値（現在CP/最大CP）。数値のみなら、ゲージの残量色とセーフティの明滅を数値へ移す。ゲージと数値なら、色と明滅はゲージが持つ。
+     * 過負荷・干渉の間も読めるように、ゲージの.3より明るい.6までしか暗くしない。
+     */
+    private static void drawCpNumber(GuiGraphics g, Minecraft client, PlayerAbilityData data, CpHudStyle.Display display, float progress, boolean low) {
+        var font = client.font;
+        String text = CpHudStyle.number(data.getCp(), data.getMaxCp());
+        float alpha = mAlpha * (low && blink < 0 ? .6f : 1);
+        int rgb = 0xffffff;
+        if (!display.gauge()) {
+            float[] c = blink < 0 ? lerp(CP_COLORS, progress) : lowColor(1);
+            rgb = (int) (c[0] * 255) << 16 | (int) (c[1] * 255) << 8 | (int) (c[2] * 255);
+            if (blink >= 0) alpha *= blink;
+        }
+        g.pose().pushPose();
+        g.pose().translate(NUMBER_RIGHT - font.width(text) * NUMBER_SIZE, display.gauge() ? NUMBER_BELOW_Y : NUMBER_ONLY_Y, 0);
+        g.pose().scale(NUMBER_SIZE, NUMBER_SIZE, 1);
+        // 板のない形式では背景が世界そのものなので、影を付ける。
+        g.drawString(font, text, 0, 0, Math.max(4, Math.min(255, (int) (alpha * 255))) << 24 | rgb, true);
+        g.pose().popPose();
+    }
     /** 原作drawActivateKeyHint: "[キー]: 今キーがすること"を、(500, 140)に右揃えで描く。 */
     private static void drawActivateKeyHint(GuiGraphics g, Minecraft client) {
         String hint = AbilityControls.activateHint(client);
@@ -346,6 +401,7 @@ public final class CpBarHud {
         float left = 0, top = 0, right = WIDTH, bottom = HEIGHT, glow = 5;
         right = Math.max(right, 580 + 4 * (52 + 10) - 10 + glow);
         bottom = Math.max(bottom, 136 + 52 + glow);
+        if (ClientSettings.cpDisplay() == CpHudStyle.Display.BOTH) bottom = Math.max(bottom, NUMBER_BELOW_Y + 9 * NUMBER_SIZE);
         String hint = AbilityControls.activateHint(client);
         if (hint != null) {
             String text = "[" + AbilityControls.TOGGLE.getTranslatedKeyMessage().getString() + "]: "
@@ -360,8 +416,10 @@ public final class CpBarHud {
             float shakeX = 9 * WIDTH / HEIGHT, shakeY = 9;
             left -= shakeX; right += shakeX; top -= shakeY; bottom += shakeY;
         }
-        float x = HudLayout.left(HudLayout.Node.CPBAR, guiWidth), y = HudLayout.top(HudLayout.Node.CPBAR, guiHeight);
-        return new DebugConsoleLayout.Area(x + left * SCALE, y + top * SCALE, x + right * SCALE, y + bottom * SCALE);
+        // 大きさの倍率は右上の角を動かさない（drawと同じ）。
+        float s = SCALE * sizeScale;
+        float x = HudLayout.left(HudLayout.Node.CPBAR, guiWidth) + WIDTH * SCALE * (1 - sizeScale), y = HudLayout.top(HudLayout.Node.CPBAR, guiHeight);
+        return new DebugConsoleLayout.Area(x + left * s, y + top * s, x + right * s, y + bottom * s);
     }
     /** テスト用の入口: バーが追い付こうとしている値。 */
     public static float bufferedCp() { return bufferedCp; }

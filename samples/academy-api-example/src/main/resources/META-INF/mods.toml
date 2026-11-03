@@ -16,7 +16,7 @@ added to the built-in Electromaster. It is for testing and learning, not balance
 [[dependencies.academyexample]]
 modId="academy"
 mandatory=true
-versionRange="[1.4.0,1.5)"
+versionRange="[1.4.0,1.6)"
 ordering="AFTER"
 side="BOTH"
 

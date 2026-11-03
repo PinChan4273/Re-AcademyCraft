@@ -412,6 +412,7 @@ public final class AbilityControls {
             var skill = data.getSlot(data.getCurrentPreset(), i);
             if ((io.github.pinchan4273.reacademycraft.skill.Flashing.ID.equals(skill) && ClientFlashing.active())
                     || (io.github.pinchan4273.reacademycraft.skill.StormWing.ID.equals(skill) && ClientStormWing.state() >= 0)
+                    || (io.github.pinchan4273.reacademycraft.skill.WhiteWingFlight.ID.equals(skill) && ClientWhiteWingFlight.active())
                     || ClientSkillModes.active(skill)) return i;
         }
         return -1;

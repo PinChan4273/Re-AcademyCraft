@@ -97,7 +97,7 @@ public final class MarkTeleport {
         var target = TPSkillHelper.permit(player, dest);
         if (target == null) return;
         distance = target.distanceTo(player.position());
-        data.consumeWithForce(ID, (float) (distance * consumption(exp)), ArcGen.lerp(40, 20, exp), player.getAbilities().instabuild);
+        if (!data.consumeWithForce(ID, (float) (distance * consumption(exp)), ArcGen.lerp(40, 20, exp), player.getAbilities().instabuild)) return;
         TPSkillHelper.teleport(player, target);
         player.level().playSound(null, player, io.github.pinchan4273.reacademycraft.world.AcademySounds.TP_TP.get(), net.minecraft.sounds.SoundSource.AMBIENT, .5f, 1f);
         data.addProficiency(ID, (float) (.00018 * distance));

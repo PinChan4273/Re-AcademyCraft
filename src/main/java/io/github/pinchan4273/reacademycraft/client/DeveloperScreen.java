@@ -618,7 +618,7 @@ public final class DeveloperScreen extends AbstractContainerScreen<DeveloperMenu
                     : definition.level() <= DeveloperTier.NORMAL.maximumSkillLevel ? DeveloperTier.NORMAL : DeveloperTier.ADVANCED;
             icons.add(new Object[] {developerIcon(needed), menu.tier().ordinal() >= needed.ordinal(),
                     I18n.get("academy.developer.ui.type_" + needed.name().toLowerCase(java.util.Locale.ROOT))});
-            if (definition.passive()) icons.add(new Object[] {tex("abilities/condition/any" + definition.level()),
+            if (definition.passive() && !io.github.pinchan4273.reacademycraft.skill.DarkMatter.unconditionalPassive(definition.id())) icons.add(new Object[] {tex("abilities/condition/any" + definition.level()),
                     SkillCatalog.IMPLEMENTED.stream().anyMatch(s -> s.level() == definition.level() && s.offeredTo(data.getAbility()) && data.hasLearned(s.id())),
                     I18n.get("academy.developer.ui.anyskill", definition.level())});
             for (var requirement : definition.prerequisites()) {

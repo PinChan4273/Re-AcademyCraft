@@ -53,7 +53,14 @@ public record AbilityCategory(ResourceLocation id, Supplier<Item> factor, List<I
     public static final AbilityCategory VECMANIP = new AbilityCategory(
             ResourceLocation.fromNamespaceAndPath("academy", "vecmanip"),
             AcademyContent.FACTOR_VECMANIP, List.of(2, 2, 2, 2, 1));
-    private static final List<AbilityCategory> BUILT_IN = List.of(ELECTROMASTER, MELTDOWNER, TELEPORTER, VECMANIP);
+    /**
+     * v1.5.0の未元物質（採用仕様・版41の§1・§2）: 白翼刺突/白翼飛行、未元光線/白翼自動防御、未元空気砲/未元装甲、甲虫生成、天界発現。
+     * 人体生成は受動なので数えない。既存の4つの後ろに置く。
+     * 白翼飛行・未元装甲は2026-11-03に受動へ変えたが、使って熟練度と経験値を得続けるので、レベル1・3は2のまま数える（レベルアップを安くしない）。
+     */
+    public static final AbilityCategory DARK_MATTER = new AbilityCategory(DarkMatter.CATEGORY,
+            AcademyContent.FACTOR_DARK_MATTER, List.of(2, 2, 2, 1, 1));
+    private static final List<AbilityCategory> BUILT_IN = List.of(ELECTROMASTER, MELTDOWNER, TELEPORTER, VECMANIP, DARK_MATTER);
     /**
      * 登録されたカテゴリ（1.4.0のS2から、登録簿の読み取りの窓）。本体の4つは上の定数そのもの（ほかのコードが定数と比べる）で、並びは1.3.0のまま。
      * 外部のアドオンのカテゴリは、その定義から作った物が、登録の順に本体の後ろに並ぶ（因子のアイテムが無い・見つからなければ空気）。

@@ -25,6 +25,11 @@
           "type": "minecraft:item",
           "name": "academy:factor_vecmanip",
           "weight": 1
+        },
+        {
+          "type": "minecraft:item",
+          "name": "academy:factor_dark_matter",
+          "weight": 1
         }
       ]
     }

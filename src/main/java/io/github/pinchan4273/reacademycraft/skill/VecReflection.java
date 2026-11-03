@@ -187,6 +187,8 @@ public final class VecReflection {
     /** 原作onLivingAttack: 割合が1以上の攻撃はまったく当たらない。 */
     @SubscribeEvent public static void attacked(LivingAttackEvent event) {
         if (!(event.getEntity() instanceof ServerPlayer player) || !ACTIVE.containsKey(player.getUUID())) return;
+        // v1.5.0: 50%以上の白翼刺突は防御を無視する（§4・R08）。反撃もしない。
+        if (SkillDamageSource.passesVectorMembrane(event.getSource())) return;
         var data = data(player);
         // 技能が外された（次のtickでモードが終わる前の被弾）なら何もしない。熟練度の加算は未習得を拒否する（M-110-02）。
         if (data != null && !data.isReadOnly() && data.hasLearned(ID) && share(data.getProficiency(ID)) * event.getAmount() >= 1) {
@@ -198,6 +200,7 @@ public final class VecReflection {
     /** 原作onLivingHurt: 通ったものを割合だけ削る。 */
     @SubscribeEvent public static void hurt(LivingHurtEvent event) {
         if (!(event.getEntity() instanceof ServerPlayer player) || !ACTIVE.containsKey(player.getUUID()) || event.getAmount() > 9999) return;
+        if (SkillDamageSource.passesVectorMembrane(event.getSource())) return;
         var data = data(player);
         if (data == null || data.isReadOnly() || !data.hasLearned(ID)) return;
         float amount = event.getAmount();
