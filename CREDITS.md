@@ -1,6 +1,6 @@
 # クレジット — Re:AcademyCraft
 
-Re:AcademyCraftは、Lambda Innovationの原作AcademyCraftに基づいて作った、**非公式**の独立した移植の実装です（Minecraft 1.20.1 / ForgeとMinecraft 1.21.1 / NeoForge）。MohistMC/AcademyCraftは現代版の比較・参考実装として利用しました。公開版Re:AcademyCraftの直接のコード・データ形式・モデルの出所にはしていません。
+Re:AcademyCraftは、Lambda Innovationの原作AcademyCraftに基づいて作った、**非公式**の独立した移植の実装です（Minecraft 1.20.1 / Forge、Minecraft 1.21.1 / NeoForge、Minecraft 26.2 / NeoForge）。MohistMC/AcademyCraftは現代版の比較・参考実装として利用しました。公開版Re:AcademyCraftの直接のコード・データ形式・モデルの出所にはしていません。
 
 このブランチ（`main`）は案内だけを置いています。下のファイルのパスは、各製品ブランチの中のものです。
 
@@ -13,8 +13,8 @@ Re:AcademyCraftは、Lambda Innovationの原作AcademyCraftに基づいて作っ
 | Minecraft | Mojang Studios | Minecraft EULAと利用ガイドライン。 |
 | Gradle wrapper | Gradle | Apache License 2.0（`licenses/Gradle-Apache-2.0.txt`）。 |
 | Minecraft Forge | Forge 1.20.1版の依存物で、同梱していません。 | LGPL 2.1。 |
-| NeoForge | NeoForge 1.21.1版の依存物で、同梱していません。 | LGPL 2.1。 |
-| NeoForge MDK | NeoForge 1.21.1版の`build.gradle`・`settings.gradle`・`gradle.properties`・`neoforge.mods.toml`のテンプレート（NeoForgeMDKs/MDK-1.21.1-ModDevGradle） | MIT License（`TEMPLATE_LICENSE.txt`）。 |
+| NeoForge | NeoForge 1.21.1版・NeoForge 26.2版の依存物で、同梱していません。 | LGPL 2.1。 |
+| NeoForge MDK | NeoForge 1.21.1版・NeoForge 26.2版の`build.gradle`・`settings.gradle`・`gradle.properties`・`neoforge.mods.toml`のテンプレート（NeoForgeMDKs/MDK-1.21.1-ModDevGradle。26.2版は、版をNeoForgeMDKs/MDK-26.2-ModDevGradleに合わせた） | MIT License（`TEMPLATE_LICENSE.txt`）。 |
 
 比較・参考: [MohistMC/AcademyCraft](https://github.com/MohistMC/AcademyCraft)とその貢献者。現代版の比較・参考実装として利用しました（原典ではなく、この版のコード・データ形式・モデルの出所ではありません）。
 
@@ -37,6 +37,18 @@ Forge 1.20.1版を移植したものです。
 | `assets/academy/shaders/core/position_tex_color_keep.fsh`、`particle_keep.fsh` | Minecraft 1.20.1（Mojang）の`position_tex_color.fsh`・`particle.fsh`の写しで、断片を捨てる条件を変えたもの。 |
 | 英語・日本語・簡体字中国語の言語ファイルと教程 | 上流の翻訳を元に、この版のために編集し直した派生の翻訳です。協力者の名前は、本人の希望に従って追記します。 |
 | 移植 | PinChan4273とRe:AcademyCraftの貢献者（Forge 1.20.1版と、そのNeoForge 1.21.1への移植）。 |
+
+## Minecraft 26.2 / NeoForge版（ブランチ`26.2-neoforge`）
+
+NeoForge 1.21.1版を移植したものです。
+
+| 対象 | クレジット |
+| --- | --- |
+| `assets/academy/shaders/core/mono.fsh` | LambdaLib2の`legacy_shader/mono.frag`から移植。 |
+| `assets/academy/shaders/core/particle_keep.fsh` | Minecraft 1.20.1（Mojang）の`particle.fsh`の写しで断片を捨てる条件を変えたものを、26.2の形へ書き直したもの。 |
+| `assets/academy/shaders/core/position_tex_color_cut.fsh`、`eyes_additive.fsh` | Minecraft 26.2（Mojang）の`position_tex_color.fsh`・`entity.fsh`を元に書いたもの。 |
+| 英語・日本語・簡体字中国語の言語ファイルと教程 | 上流の翻訳を元に、この版のために編集し直した派生の翻訳です。協力者の名前は、本人の希望に従って追記します。 |
+| 移植 | PinChan4273とRe:AcademyCraftの貢献者（Forge 1.20.1版と、そのNeoForge 1.21.1・Minecraft 26.2への移植）。 |
 
 ## 素材と権利
 
