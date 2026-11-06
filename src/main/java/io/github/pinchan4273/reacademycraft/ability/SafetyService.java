@@ -55,13 +55,19 @@ public final class SafetyService {
         return io.github.pinchan4273.reacademycraft.skill.VecReflection.active(player) ? io.github.pinchan4273.reacademycraft.api.ReflectionState.REFLECTING
                 : io.github.pinchan4273.reacademycraft.api.ReflectionState.NOT_REFLECTING;
     }
-    /** 公開APIのダメージの技能のID。 */
+    /**
+     * 公開APIのダメージの技能のID。技能の損傷の源（{@link io.github.pinchan4273.reacademycraft.skill.SkillDamageSource}。未元物質の刺突・光線・空気砲・甲虫・
+     * 天界の接触もこれ）と、天界発現の領域の状態異常（燃焼・毒・衰弱。バニラの損傷の種類で与えるので、源の型で見分ける。1.5.1から）。
+     */
     public static @javax.annotation.Nullable AbilityId skillOf(@javax.annotation.Nullable net.minecraft.world.damagesource.DamageSource source) {
-        return source instanceof io.github.pinchan4273.reacademycraft.skill.SkillDamageSource skill
-                ? AbilityId.tryParse(skill.skill().toString()) : null;
+        if (source instanceof io.github.pinchan4273.reacademycraft.skill.SkillDamageSource skill) return AbilityId.tryParse(skill.skill().toString());
+        if (source instanceof io.github.pinchan4273.reacademycraft.skill.HeavenPhenomena.StatusSource status) return AbilityId.tryParse(status.skill().toString());
+        return null;
     }
+    /** 光線として当てる組み込みの技能。1.5.1で未元光線（{@code academy:dark_matter_ray}）を足した。 */
     private static final java.util.Set<AbilityId> BEAM_SKILLS = java.util.Set.of(AbilityId.academy("railgun"), AbilityId.academy("meltdowner"),
-            AbilityId.academy("ray_barrage"), AbilityId.academy("electron_bomb"), AbilityId.academy("scatter_bomb"), AbilityId.academy("electron_missile"));
+            AbilityId.academy("ray_barrage"), AbilityId.academy("electron_bomb"), AbilityId.academy("scatter_bomb"), AbilityId.academy("electron_missile"),
+            AbilityId.academy("dark_matter_ray"));
     /** 公開APIの、光線として当てる組み込みの技能のダメージか。 */
     public static boolean isBeam(@javax.annotation.Nullable net.minecraft.world.damagesource.DamageSource source) {
         var skill = skillOf(source);

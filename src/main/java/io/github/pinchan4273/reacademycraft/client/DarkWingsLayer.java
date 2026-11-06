@@ -89,10 +89,12 @@ public final class DarkWingsLayer extends RenderLayer<AbstractClientPlayer, Play
     /**
      * 発光の強さ（各自の表示設定。2026-11-03のユーザーの決定: シェーダーでは自分で光る描き方に強いブルームが掛かる）と、その絵の周りの明るさ。
      * 100%は今までどおり（周りに関係なく白く光る）。下げるほど白く光らせる層を弱め、面の明るさを周りの明るさへ寄せる。0%は周りの明るさで照らす。
+     * 値は描く時の発光（{@link ClientSettings#drawnWingGlow()}）で、シェーダーパックの使用中は100%を90%として描く（2026-11-05のユーザーの決定）。
+     * 面・発光の層・刺突・羽の球は、どれもこのglowLevelを読む。
      */
     private float glowLevel = 1;
     private int worldLight = LightTexture.FULL_BRIGHT;
-    private void prepareGlow(int light) { glowLevel = ClientSettings.wingGlow() / 100f; worldLight = light; }
+    private void prepareGlow(int light) { glowLevel = ClientSettings.drawnWingGlow() / 100f; worldLight = light; }
     /** 面の明るさ: 周りの明るさから、発光の強さの分だけ最大の明るさへ寄せる。 */
     private int faceLight() {
         if (glowLevel >= 1) return LightTexture.FULL_BRIGHT;
@@ -106,33 +108,48 @@ public final class DarkWingsLayer extends RenderLayer<AbstractClientPlayer, Play
 
     @Override public void render(PoseStack pose, MultiBufferSource buffers, int light, AbstractClientPlayer player, float limbSwing, float limbAmount,
                                  float partial, float age, float headYaw, float headPitch) {
-        var state = ClientDarkWings.state(player.getId());
+        // 自然能力の翼が無ければ、外部の演出（演出API版3）の翼を同じ描き方で描く。
+        var state = ClientDarkWings.drawnState(player.getId());
         if (state == null || player.isInvisible()) return;
         prepareGlow(light);
         pose.pushPose();
         getParentModel().body.translateAndRotate(pose);
         drawingId = player.getId();
-        draw(state, pose, buffers, partial, age, headYaw, headPitch, false);
+        draw(state, player, pose, buffers, partial, age, headYaw, headPitch, false);
         drawingId = -1;
         pose.popPose();
     }
-    private void draw(ClientDarkWings.State state, PoseStack pose, MultiBufferSource buffers, float partial, float age, float headYaw, float headPitch, boolean firstPerson) {
+    private void draw(ClientDarkWings.State state, net.minecraft.world.entity.LivingEntity entity, PoseStack pose, MultiBufferSource buffers, float partial, float age,
+                      float headYaw, float headPitch, boolean firstPerson) {
         float open = state.open(partial);
         if (open <= .001f) return;
         firstPersonNow = firstPerson;
         pose(state, open, partial, age);
         // 空気砲の風の柱も同じ根元から生やす（2026-11-03）。
         if (!firstPerson && drawingId >= 0 && (state.rayOn() || ClientDarkEffects.gusting(drawingId))) recordBeamRoots(pose);
-        Wing stabbing = aimStab(state, partial, headYaw, headPitch);
-        // 1人称では、刺している翼だけを見せる（他の翼は視界の外なので、頭の中で切れた面を見せない）。
-        if (firstPerson) for (var wing : parts) wing.root.visible = wing == stabbing;
+        float reach = state.stabReach();
+        var aimed = state.stabTarget();
+        if (aimed != null) {
+            // 外部の刺突（演出API版3）: 頭の向きの代わりに、目から届く点への向きと距離を、体の向きからの角度にして同じ計算へ渡す。
+            var d = aimed.subtract(entity.getEyePosition(partial));
+            double length = d.length();
+            if (length > 1e-4) {
+                float bodyYaw = Mth.rotLerp(partial, entity.yBodyRotO, entity.yBodyRot);
+                headYaw = Mth.wrapDegrees((float) Math.toDegrees(Math.atan2(-d.x, d.z)) - bodyYaw);
+                headPitch = (float) -Math.toDegrees(Math.asin(Mth.clamp(d.y / length, -1, 1)));
+                reach = (float) length;
+            }
+        }
+        Wing stabbing = aimStab(state, partial, headYaw, headPitch, reach);
+        // 1人称では、刺している翼（drawStabが描く）だけを見せる（他の翼は視界の外なので、頭の中で切れた面を見せない）。
+        if (firstPerson) for (var wing : parts) wing.root.visible = false;
         float alpha = Math.min(1, open * 1.4f), glow = GLOW * alpha * glowLevel;
         wings.render(pose, buffers.getBuffer(faceType(glowLevel)), faceLight(), OverlayTexture.NO_OVERLAY, 1, 1, 1, alpha);
         // 面の向きで灰色に沈まないよう、同じ絵を無陰影で足して白く発光させる（発光の強さに比例。0%では足さない）。
         if (glow > 0) wings.render(pose, buffers.getBuffer(RenderType.eyes(TEXTURE)), LightTexture.FULL_BRIGHT, OverlayTexture.NO_OVERLAY, glow, glow, glow, 1);
-        if (stabbing != null) extendStab(stabbing, pose, buffers, alpha, glow);
+        if (stabbing != null) drawStab(stabbing, pose, buffers, alpha, glow);
         ball(state, pose, buffers, partial, age, firstPerson);
-        for (var wing : parts) wing.root.visible = true;
+        for (var wing : parts) { wing.root.visible = true; wing.mid.visible = true; }
         drawn++;
     }
     /** 描いている体の実体のid（体の描画の外では-1）。 */
@@ -177,7 +194,7 @@ public final class DarkWingsLayer extends RenderLayer<AbstractClientPlayer, Play
         var client = net.minecraft.client.Minecraft.getInstance();
         var player = client.player;
         if (player == null || client.getCameraEntity() != player || !client.options.getCameraType().isFirstPerson() || player.isInvisible()) return;
-        var state = ClientDarkWings.state(player.getId());
+        var state = ClientDarkWings.drawnState(player.getId());
         float partial = event.getPartialTick();
         if (state == null || (state.stab(partial) <= 0 && state.guard(partial) <= 0)) return;
         float bodyYaw = Mth.rotLerp(partial, player.yBodyRotO, player.yBodyRot);
@@ -191,96 +208,203 @@ public final class DarkWingsLayer extends RenderLayer<AbstractClientPlayer, Play
         pose.translate(0, -1.501f, 0);
         var buffers = client.renderBuffers().bufferSource();
         anyLayer.prepareGlow(client.getEntityRenderDispatcher().getPackedLightCoords(player, partial));
-        anyLayer.draw(state, pose, buffers, partial, player.tickCount + partial, Mth.wrapDegrees(Mth.rotLerp(partial, player.yHeadRotO, player.yHeadRot) - bodyYaw), player.getViewXRot(partial), true);
+        anyLayer.draw(state, player, pose, buffers, partial, player.tickCount + partial, Mth.wrapDegrees(Mth.rotLerp(partial, player.yHeadRotO, player.yHeadRot) - bodyYaw), player.getViewXRot(partial), true);
         buffers.endBatch();
         pose.popPose();
     }
 
-    /** 段ごとの翼の長さの倍率と、取付の高さ（生成スクリプトの表と同じ）。 */
-    private static final float[] TIER_SCALE = {.9f, 1, .76f}, TIER_Y = {-2, 1, 4};
-    /** 翼の長さ（倍率1で、根元15＋中節15＋先の羽42）と、そこから引き伸ばしてよい倍率。これを超える前に羽を足し始める。 */
-    private static final float WING_LENGTH = 72, TIP_START = 30, MAX_STRETCH = 1.2f;
+    /** 段ごとの翼の長さの倍率（生成スクリプトの表と同じ）。 */
+    private static final float[] TIER_SCALE = {.9f, 1, .76f};
+    /** 先の節の羽の長さ（倍率1）と、刺す翼を引き伸ばしてよい倍率。これを超える前に羽を足し始める。 */
+    private static final float TIP_LENGTH = 42, MAX_STRETCH = 1.2f;
     /** 足す羽の間隔。翼の先の節の羽の長さより十分短くして、重ねて太さを保つ。 */
     private static final float EXTEND_STEP = 16;
-    /** 刺す翼と足す羽の幅の倍率。 */
-    private static final float STAB_WIDTH = 2.2f;
+    /**
+     * 刺す翼の幅の倍率（3人称と1人称）。1人称では刺す翼が目のすぐ横を通って視界を大きく塞ぐので、広げ方を抑える。
+     * 根元の節は元の幅のまま（体のすぐ後ろにあるので、広げると扇が体へ入る）。
+     */
+    private static final float STAB_WIDTH = 1.6f, FIRST_PERSON_STAB_WIDTH = 1.3f, ROOT_WIDTH = 1;
     /** 足す羽（先の節の、角度の小さい5枚の番号）。広がる2枚は先端の本来の翼にだけ残す。 */
     private static final int[] EXTEND_FEATHERS = {0, 1, 2, 3, 4};
-    /** 今の刺突で見せる長さと引き伸ばし。aimStabが決めてextendStabが使う。 */
-    private float stabShown, stabStretch;
+    /** 体に当たらないかを測る中節の羽の数（根元の節の羽は全部測る）。 */
+    private static final int PROBE_MID = 3;
+    /** 曲がる側と曲がりの角が1秒に変わってよい角度（度）。刺している間に頭の向きが大きく変わっても、瞬間に跳ばずに回って移る。 */
+    private static final float SIDE_TURN_RATE = 900, THETA_RATE = 900;
+    /** 前の絵の曲がる側（取付の空間）と曲がりの角、翼の番号、時刻（ミリ秒）。 */
+    private record Previous(org.joml.Vector3f side, float theta, int wing, long time) { }
+    /** 前の絵の曲がり。3人称と1人称で分ける。刺突が終わると消す。 */
+    private static final java.util.Map<ClientDarkWings.State, Previous> PREVIOUS = new java.util.WeakHashMap<>(), PREVIOUS_FIRST_PERSON = new java.util.WeakHashMap<>();
+    /** 今の刺突のしなる線。aimStabが決めてdrawStabが使う。 */
+    private final WingBend bend = new WingBend();
+    /** 翼ごとの、体に当たらないかを測る羽（基本の姿勢から作る）。 */
+    private final java.util.Map<Wing, List<WingBend.Probe>> probes = new java.util.IdentityHashMap<>();
+    /** 今の刺突で見せる長さ・引き伸ばし・幅・曲がりへ移る割合（0は今の翼の姿勢、1はしなった姿勢）と、先の節の付け根・伸ばさない翼の長さ。 */
+    private float stabShown, stabStretch, stabWidth, stabTurn, stabTipStart, stabNatural;
+    /** 背中の向き（取付の空間）。 */
+    private final org.joml.Vector3f stabBack = new org.joml.Vector3f();
 
     /**
-     * 刺突: 刺す翼そのものを、届いた点へ向けて伸ばす。節をまっすぐにして、長さは{@link #MAX_STRETCH}倍まで翼を引き伸ばす。
-     * サーバーが送るのは目から届いた点までの距離で、方向は頭の向きと視線の上下から描画側で求める。
+     * 刺突（2026-11-05のユーザーの要望「元の直線的な翼のままの刺突を緩やかにしならせる。動く前の翼の形状と配置を維持しながら、足りない分枚数を増やして伸ばす」と、
+     * 同じ日に決めた「しなりを相手までの距離で変える」）: 元の刺突（翼をまっすぐ届いた点へ向けて伸ばす）の翼を、根元から届いた点までのしなる線
+     * （{@link WingBend}）に沿わせる。線の形は距離で連続に変わる（{@link WingBend#design}）: 近いほど真横へ出て真円に近い弧で体の横を包むように回り、
+     * 遠いほど外かつ前へ出て根元の近くでゆるく曲がり、長くまっすぐ伸びる。いつも翼と同じ側から回り、頭の上は越えない。
+     * 根元・中節・先の節の羽は、まっすぐな翼での付け根の位置まで線に沿って進めた所へ、元の扇の角のまま置く（{@link #drawStab}）。届かない長さは、
+     * 元と同じく先の節の羽を足して伸ばし、余る長さは相手を突き抜ける。サーバーが送るのは目から届いた点までの距離で、方向は頭の向きと視線の上下から
+     * 描画側で求める。
      */
-    private @javax.annotation.Nullable Wing aimStab(ClientDarkWings.State state, float partial, float headYaw, float headPitch) {
+    private @javax.annotation.Nullable Wing aimStab(ClientDarkWings.State state, float partial, float headYaw, float headPitch, float stabReach) {
+        var previous = firstPersonNow ? PREVIOUS_FIRST_PERSON : PREVIOUS;
         float extend = state.stab(partial);
-        if (extend <= 0) return null;
+        if (extend <= 0) { previous.remove(state); return null; }
         int number = state.stabWing();
         Wing wing = null;
         for (var candidate : parts) if (candidate.tier * 2 + (candidate.right ? 1 : 0) == number) wing = candidate;
         if (wing == null) return null;
-        float yaw = headYaw * Mth.DEG_TO_RAD, pitch = headPitch * Mth.DEG_TO_RAD, reach = state.stabReach() * 16;
-        // 体の部品から見た届いた点（モデルは前が-z、下が+y。目は体の上端より4上）と、翼の根元からのベクトル。
+        float yaw = headYaw * Mth.DEG_TO_RAD, pitch = headPitch * Mth.DEG_TO_RAD, reach = stabReach * 16;
+        if (firstPersonNow) { wing.root.x += FIRST_PERSON_SIDE; wing.root.y += FIRST_PERSON_DOWN; }
+        // 体の部品から見た届いた点（モデルは前が-z、下が+y。目は体の上端より4上）と、取付の空間の届いた点。
         float cp = Mth.cos(pitch);
-        float shiftSide = firstPersonNow ? FIRST_PERSON_SIDE : 0, shiftDown = firstPersonNow ? FIRST_PERSON_DOWN : 0;
-        wing.root.x += shiftSide; wing.root.y += shiftDown;
-        float dx = -cp * Mth.sin(yaw) * reach - (wing.right ? -1 : 1) * (1.5f + shiftSide), dy = -4 + Mth.sin(pitch) * reach - 3 - TIER_Y[wing.tier] - shiftDown, dz = -cp * Mth.cos(yaw) * reach - 3;
-        float length = Mth.sqrt(dx * dx + dy * dy + dz * dz);
-        if (length < 1e-3f) return null;
-        // 右の翼は親がY軸で180度回っている。
-        if (wing.right) { dx = -dx; dz = -dz; }
-        float turn = Math.min(1, extend * 2.5f);
-        // 展開中の翼の向きから、翼の軸（+x）だけを届いた点へ最短で回す。角度へ分解して直接決めると、真正面を狙うときにわずかなずれで大きくねじれる。
-        var rest = new org.joml.Quaternionf().rotationZYX(wing.root.zRot, wing.root.yRot, wing.root.xRot);
-        var axis = rest.transform(new org.joml.Vector3f(1, 0, 0));
-        var aimed = new org.joml.Quaternionf().rotationTo(axis.x, axis.y, axis.z, dx / length, dy / length, dz / length).mul(rest);
-        var angles = rest.slerp(aimed, turn, new org.joml.Quaternionf()).getEulerAnglesZYX(new org.joml.Vector3f());
-        wing.root.setRotation(angles.x, angles.y, angles.z);
-        wing.mid.yRot *= 1 - turn; wing.mid.zRot *= 1 - turn;
-        wing.tip.yRot *= 1 - turn; wing.tip.zRot *= 1 - turn;
-        stabShown = length * extend;
-        stabStretch = Mth.clamp(stabShown / (WING_LENGTH * TIER_SCALE[wing.tier]), 1, MAX_STRETCH);
-        wing.root.xScale = stabStretch;
-        // 長さに対して細くならないよう、伸びるほど翼の幅を広げる（面は横を向くので、真横から羽が読める）。
-        wing.root.yScale = Mth.lerp(turn, 1, STAB_WIDTH);
+        var target = toMount(wing, new org.joml.Vector3f(-cp * Mth.sin(yaw) * reach, -4 + Mth.sin(pitch) * reach, -cp * Mth.cos(yaw) * reach));
+        var root = new org.joml.Vector3f(wing.root.x, wing.root.y, wing.root.z);
+        // 背中の向き（体の+z）を取付の空間で。右は親がY軸で180度回っている。
+        stabBack.set(0, 0, wing.right ? -1 : 1);
+        stabTipStart = wing.mid.x + wing.tip.x;
+        stabNatural = stabTipStart + TIP_LENGTH * TIER_SCALE[wing.tier];
+        stabWidth = firstPersonNow ? FIRST_PERSON_STAB_WIDTH : STAB_WIDTH;
+        var last = previous.get(state);
+        var before = last != null && last.wing == number ? last : null;
+        var choice = new WingBend.Shape();
+        if (!WingBend.design(root, target, wing.right, probes.computeIfAbsent(wing, this::probesOf), stabNatural, MAX_STRETCH, stabWidth, ROOT_WIDTH,
+                choice)) return null;
+        var u = new org.joml.Vector3f(target).sub(root);
+        float distance = u.length();
+        u.div(distance);
+        // 前の絵の曲がりから、時間に応じた角度までしか変えない。
+        long now = net.minecraft.Util.getMillis();
+        var side = new org.joml.Vector3f(choice.side);
+        float theta = choice.theta;
+        if (before != null) {
+            float seconds = Mth.clamp((now - before.time) / 1000f, .005f, .2f);
+            var from = new org.joml.Vector3f(u).mul(-before.side.dot(u)).add(before.side);
+            if (from.lengthSquared() > 1e-6f) {
+                from.normalize();
+                float limit = SIDE_TURN_RATE * seconds, between = WingBend.angle(from, side);
+                if (between > limit) {
+                    // 届いた点の向きのまわりに回す（曲がる側はいつもその向きに直角）。
+                    float sign = new org.joml.Vector3f(from).cross(side).dot(u) < 0 ? -1 : 1;
+                    side.set(from).rotateAxis(sign * limit * Mth.DEG_TO_RAD, u.x, u.y, u.z);
+                }
+            }
+            theta = before.theta + Mth.clamp(theta - before.theta, -THETA_RATE * seconds, THETA_RATE * seconds);
+        }
+        if (!bend.set(root, u, side, theta, distance, choice.radius, choice.curl)) {
+            side.set(choice.side); theta = choice.theta;
+            if (!bend.set(root, u, side, theta, distance, choice.radius, choice.curl)) return null;
+        }
+        previous.put(state, new Previous(side, theta, number, now));
+        // 伸びの最初の4割で今の翼の姿勢からしなった姿勢へ移り、戻りの最後の4割で今の翼の姿勢へ戻る（元の刺突と同じ）。
+        stabTurn = Math.min(1, extend * 2.5f);
+        stabShown = bend.length * extend;
+        stabStretch = Mth.clamp(stabShown / stabNatural, 1, MAX_STRETCH);
+        // 刺す翼はdrawStabが羽1枚ずつ描く。
+        wing.root.visible = false;
         return wing;
     }
-    /** 引き伸ばしの上限を超える分は、伸びている途中から先の節の羽を重ねて足す。羽は引き伸ばさないので太さが保たれる。 */
-    private void extendStab(Wing wing, PoseStack pose, MultiBufferSource buffers, float alpha, float glow) {
-        float scale = TIER_SCALE[wing.tier];
-        float beyond = stabShown / stabStretch - WING_LENGTH * scale;
+    /** 翼の、体に当たらないかを測る羽（根元の節の全部と中節の最初の{@link #PROBE_MID}枚）。基本の姿勢の付け根の位置と回転を使う。 */
+    private List<WingBend.Probe> probesOf(Wing wing) {
+        var list = new ArrayList<WingBend.Probe>();
+        int mid = 0;
+        for (var feather : feathers) {
+            if (feather.chain[2] != wing.root || feather.segment > 1 || (feather.segment == 1 && mid++ >= PROBE_MID)) continue;
+            var pose = feather.part.getInitialPose();
+            float base = (feather.segment == 1 ? wing.mid.getInitialPose().x : 0) + pose.x;
+            var turn = new org.joml.Matrix3f().rotationZYX(pose.zRot, pose.yRot, pose.xRot);
+            list.add(new WingBend.Probe(base, turn, feather.length, feather.width, feather.segment == 0));
+        }
+        return list;
+    }
+    /** 体の部品の空間の位置を、取付の空間へ。vを書き換えて返す。 */
+    private static org.joml.Vector3f toMount(Wing wing, org.joml.Vector3f v) {
+        return wing.right ? v.set(-1.5f - v.x, v.y - 3, 3 - v.z) : v.set(v.x - 1.5f, v.y - 3, v.z - 3);
+    }
+    /**
+     * 刺す翼を描く: 根元・中節・先の節の羽を、まっすぐな翼での付け根の位置（引き伸ばし込み）までしなる線に沿って進めた所へ1枚ずつ、元の扇の角のまま置く。
+     * 届かない分は、先の節の羽（{@link #EXTEND_FEATHERS}）を先の節の付け根から線に沿って重ねて足す。伸び始めと戻り終わりは、今の翼の姿勢と混ぜる。
+     */
+    private void drawStab(Wing wing, PoseStack pose, MultiBufferSource buffers, float alpha, float glow) {
+        var mount = wing.right ? mountRight : mountLeft;
+        if (!mount.visible) return;
+        pose.pushPose();
+        wings.translateAndRotate(pose);
+        mount.translateAndRotate(pose);
+        // 今の翼の姿勢での、各節の付け根の位置と回転（取付の空間）。伸び始めと戻り終わりに混ぜる。
+        var segments = new org.joml.Matrix4f[3];
+        segments[0] = new org.joml.Matrix4f().translation(wing.root.x, wing.root.y, wing.root.z).rotateZYX(wing.root.zRot, wing.root.yRot, wing.root.xRot);
+        segments[1] = new org.joml.Matrix4f(segments[0]).translate(wing.mid.x, wing.mid.y, wing.mid.z).rotateZYX(wing.mid.zRot, wing.mid.yRot, wing.mid.xRot);
+        segments[2] = new org.joml.Matrix4f(segments[1]).translate(wing.tip.x, wing.tip.y, wing.tip.z).rotateZYX(wing.tip.zRot, wing.tip.yRot, wing.tip.xRot);
+        stabLayer(wing, segments, pose, buffers.getBuffer(faceType(glowLevel)), 1, alpha, faceLight());
+        if (glow > 0) stabLayer(wing, segments, pose, buffers.getBuffer(RenderType.eyes(TEXTURE)), glow, 1, LightTexture.FULL_BRIGHT);
+        pose.popPose();
+    }
+    private void stabLayer(Wing wing, org.joml.Matrix4f[] segments, PoseStack pose, com.mojang.blaze3d.vertex.VertexConsumer buffer, float shade, float alpha, int light) {
+        for (var feather : feathers) {
+            if (feather.chain[2] != wing.root) continue;
+            float base = (feather.segment == 0 ? 0 : feather.segment == 1 ? wing.mid.x : stabTipStart) + feather.part.x;
+            stabFeather(feather.part, base, feather.length, feather.segment == 0, segments[feather.segment], pose, buffer, shade, alpha, light);
+        }
+        // 届かない分: 先の節の羽を、先の節の付け根から線に沿って重ねて足す。
+        float beyond = stabShown / stabStretch - stabNatural;
         if (beyond <= 0) return;
         int count = Mth.ceil(beyond / EXTEND_STEP);
         float step = beyond / count;
-        pose.pushPose();
-        wings.translateAndRotate(pose);
-        (wing.right ? mountRight : mountLeft).translateAndRotate(pose);
-        wing.root.translateAndRotate(pose);
-        var soft = buffers.getBuffer(faceType(glowLevel));
-        int face = faceLight();
-        for (int i = 1; i <= count; i++) extra(wing, pose, soft, TIP_START * scale + i * step, 1, 1, 1, alpha, face);
-        if (glow > 0) {
-            var bright = buffers.getBuffer(RenderType.eyes(TEXTURE));
-            for (int i = 1; i <= count; i++) extra(wing, pose, bright, TIP_START * scale + i * step, glow, glow, glow, 1, LightTexture.FULL_BRIGHT);
+        for (int i = 1; i <= count; i++) {
+            for (int n : EXTEND_FEATHERS) {
+                var part = wing.tip.getChild(wing.name + n);
+                var cube = part.getRandomCube(net.minecraft.util.RandomSource.create(0));
+                stabFeather(part, stabTipStart + i * step + part.x, cube.maxX - cube.minX, false, null, pose, buffer, shade, alpha, light);
+            }
         }
-        pose.popPose();
     }
-    private static void extra(Wing wing, PoseStack pose, com.mojang.blaze3d.vertex.VertexConsumer buffer, float at, float r, float g, float b, float a, int light) {
+    /**
+     * 羽1枚を、付け根baseまでしなる線に沿って進めた所へ置き、羽の長さの先の線の点（弦）へ向けて描く。羽の節の中の位置は外し、羽自身の角（扇）は残す。
+     * 引き伸ばしと幅の倍率は線の向きの空間で掛ける（元の刺突と同じく、扇の広がりも幅と一緒に広がる）。
+     * segmentがあれば、伸び始めと戻り終わりに今の翼の姿勢（その節の付け根の位置と回転）と混ぜる。
+     */
+    private void stabFeather(ModelPart part, float base, float length, boolean root, @javax.annotation.Nullable org.joml.Matrix4f segment, PoseStack pose,
+                             com.mojang.blaze3d.vertex.VertexConsumer buffer, float shade, float alpha, int light) {
+        var at = new org.joml.Vector3f();
+        var turn = bend.feather(base * stabStretch, length * stabStretch, stabBack, at, new org.joml.Matrix3f()).getNormalizedRotation(new org.joml.Quaternionf());
+        float sx = stabStretch, sy = root ? ROOT_WIDTH : stabWidth;
+        if (segment != null && stabTurn < 1) {
+            var restAt = segment.transformPosition(part.x, 0, 0, new org.joml.Vector3f());
+            var restTurn = segment.getUnnormalizedRotation(new org.joml.Quaternionf()).normalize();
+            at.set(restAt.lerp(at, stabTurn));
+            turn = restTurn.slerp(turn, stabTurn);
+            sx = Mth.lerp(stabTurn, 1, sx); sy = Mth.lerp(stabTurn, 1, sy);
+        }
         pose.pushPose();
-        pose.translate(at / 16, 0, 0);
-        for (int n : EXTEND_FEATHERS) wing.tip.getChild(wing.name + n).render(pose, buffer, light, OverlayTexture.NO_OVERLAY, r, g, b, a);
+        pose.translate(at.x / 16, at.y / 16, at.z / 16);
+        pose.mulPose(turn);
+        pose.scale(sx, sy, 1);
+        float x = part.x;
+        part.x = 0;
+        part.render(pose, buffer, light, OverlayTexture.NO_OVERLAY, shade, shade, shade, alpha);
+        part.x = x;
         pose.popPose();
     }
 
-    /** 防御の球の半径（モデルの単位）と中心の高さ、球の上の羽の長さと幅。羽を短くして球面に接する向きで重ね、とげを出さない。 */
-    private static final float BALL_RADIUS = 22, BALL_Y = 8, BALL_FEATHER_LENGTH = 15, BALL_FEATHER_WIDTH = 10;
+    /**
+     * 防御の球の半径（モデルの単位）と中心の高さ、外側の羽の長さと幅、内側の層の羽の長さと幅。
+     * 平らな羽は球の外形を折れ線にする（長さ15では半径22で約40度の弦）。外側の羽を短くして折れ目を細かくし、内側の層は大きくして隙間を埋める。
+     */
+    private static final float BALL_RADIUS = 22, BALL_Y = 8, BALL_FEATHER_LENGTH = 11, BALL_FEATHER_WIDTH = 9, BALL_INNER_LENGTH = 14, BALL_INNER_WIDTH = 12;
     /** 内側の層: 席を回す角度（度）と、外側より内へ下げる量。 */
-    private static final float[][] BALL_LAYERS = {{61, .8f}, {127, 1.6f}};
+    private static final float[][] BALL_LAYERS = {{61, .8f}, {127, 1.6f}, {193, 2.4f}};
 
     /**
      * 防御: 翼を構成する羽そのものを球面へ動かして体を包む。左の翼の羽が左半球、右の翼の羽が右半球を受け持つので、片側の防御は半球になる。
-     * 羽は球面に接する向きで、中央を席に合わせて置くので、先が外へ突き出さない。羽は今の翼の姿勢から席へ補間するので、翼が巻き込んで球になる。
+     * 羽は球面に接する向きで、両端がちょうど球面に乗るよう中心を内へ下げて置くので、先が外へ突き出さない（2026-11-04のユーザーの要望「羽でなるべく球体に、刃先が飛び出さない」）。
+     * 羽は今の翼の姿勢から、球の中心のまわりの弧に沿って席へ回り込むので、翼が前へ巻き込んで球になる。
      * 球の面は向きによって灰色に沈むので、光の影響を受けない半透明の描画を使う。
      */
     private void ball(ClientDarkWings.State state, PoseStack pose, MultiBufferSource buffers, float partial, float age, boolean firstPerson) {
@@ -292,26 +416,28 @@ public final class DarkWingsLayer extends RenderLayer<AbstractClientPlayer, Play
         int face = faceLight();
         var rest = new org.joml.Vector3f(); var from = new org.joml.Quaternionf();
         // 内側の層: 同じ羽の絵を、席をx軸まわりに回した位置へ足して隙間を埋める。翼から巻き込む羽より後から現れる。
-        float inner = firstPerson ? 0 : Mth.clamp(guard * 2 - 1, 0, 1);
+        float inner = firstPerson ? 0 : Mth.clamp(guard * 2.5f - 1.2f, 0, 1);
         float own = firstPerson ? FIRST_PERSON_BALL_ALPHA : 1;
         if (inner > 0) {
             for (var layer : BALL_LAYERS) {
                 var spin = new org.joml.Quaternionf().rotationX(layer[0] * Mth.DEG_TO_RAD);
                 var at = new org.joml.Vector3f();
+                float radius = seatRadius(BALL_RADIUS - layer[1], BALL_INNER_LENGTH) / 16;
                 for (var feather : feathers) {
                     if (!(dir == 0 || (dir == 1) == feather.right)) continue;
                     spin.transform(feather.ballAt, at);
-                    float radius = (BALL_RADIUS - layer[1]) / 16;
                     pose.pushPose();
                     pose.translate(at.x * radius, BALL_Y / 16 + at.y * radius, at.z * radius);
                     pose.mulPose(new org.joml.Quaternionf(spin).mul(feather.ballTurn));
-                    pose.scale(BALL_FEATHER_LENGTH * 1.25f / feather.length, BALL_FEATHER_WIDTH * 1.25f / feather.width, 1);
+                    pose.scale(BALL_INNER_LENGTH / feather.length, BALL_INNER_WIDTH / feather.width, 1);
                     pose.translate(-feather.length / 2 / 16, 0, 0);
                     bare(feather, pose, buffer, inner, face);
                     pose.popPose();
                 }
             }
         }
+        var center = new org.joml.Vector3f(0, BALL_Y / 16, 0);
+        var at = new org.joml.Vector3f(); var turn = new org.joml.Quaternionf();
         for (var feather : feathers) {
             if (!(dir == 0 || (dir == 1) == feather.right)) continue;
             // 今の翼の姿勢での、この羽の位置と向き。
@@ -321,19 +447,43 @@ public final class DarkWingsLayer extends RenderLayer<AbstractClientPlayer, Play
             var matrix = local.last().pose();
             matrix.getTranslation(rest);
             matrix.getUnnormalizedRotation(from).normalize();
-            // 根元の節から順に巻き込む。
-            float k = Mth.clamp(guard * 1.35f - feather.segment * .15f, 0, 1);
-            k = k * k * (3 - 2 * k);
+            // 根元の節から順に巻き込む。構えの途中（約6割）で全部の羽が球に揃い、球の形の見える時間を長くする。
+            float raw = Mth.clamp(guard * 1.7f - feather.segment * .2f, 0, 1);
+            float k = smooth(raw);
+            // 羽の形（長さ・幅・向き）は位置より先に球の羽へ揃える。長い羽が向きの途中で外へ突き出さないように。
+            float shape = smooth(Mth.clamp(raw * 1.8f, 0, 1));
             // 球面の上でわずかに呼吸する（羽が細かく動く）。
-            float radius = (BALL_RADIUS + Mth.sin(age * .23f + feather.phase) * .25f) / 16;
+            float radius = seatRadius(BALL_RADIUS + Mth.sin(age * .23f + feather.phase) * .25f, BALL_FEATHER_LENGTH) / 16;
+            turn.set(feather.ballTurn);
+            var outward = new org.joml.Vector3f(rest).sub(center);
+            float distance = outward.length();
+            if (distance > 1e-3f) {
+                // 球の中心のまわりの弧に沿って回り込む（翼が前へ巻き込む）。中心からの距離は弧より先に球の半径へ寄せる。
+                outward.div(distance);
+                new org.joml.Quaternionf().slerp(new org.joml.Quaternionf().rotationTo(outward, feather.ballAt), k).transform(outward, at);
+                // 今の方向での、球面に接する向き（席での向きを、今の方向まで回した物）。
+                new org.joml.Quaternionf().rotationTo(feather.ballAt, at).mul(feather.ballTurn, turn);
+                at.mul(Mth.lerp(smooth(Mth.clamp(raw * 1.5f, 0, 1)), distance, radius)).add(center);
+            } else {
+                at.set(feather.ballAt).mul(Mth.lerp(k, 0, radius)).add(center);
+            }
             pose.pushPose();
-            pose.translate(Mth.lerp(k, rest.x, feather.ballAt.x * radius), Mth.lerp(k, rest.y, BALL_Y / 16 + feather.ballAt.y * radius), Mth.lerp(k, rest.z, feather.ballAt.z * radius));
-            pose.mulPose(from.slerp(feather.ballTurn, k, new org.joml.Quaternionf()));
-            pose.scale(Mth.lerp(k, 1, BALL_FEATHER_LENGTH / feather.length), Mth.lerp(k, 1, BALL_FEATHER_WIDTH / feather.width), 1);
-            pose.translate(-feather.length / 2 * k / 16, 0, 0);
+            pose.translate(at.x, at.y, at.z);
+            pose.mulPose(from.slerp(turn, shape, new org.joml.Quaternionf()));
+            pose.scale(Mth.lerp(shape, 1, BALL_FEATHER_LENGTH / feather.length), Mth.lerp(shape, 1, BALL_FEATHER_WIDTH / feather.width), 1);
+            pose.translate(-feather.length / 2 * shape / 16, 0, 0);
             bare(feather, pose, buffer, own, face);
             pose.popPose();
         }
+    }
+    private static float smooth(float k) { return k * k * (3 - 2 * k); }
+    /**
+     * 平らな羽の中心を置く半径。羽は球面に接する平面なので、中心を球面に置くと両端が球の外へ出る。
+     * 両端（中心から長さの半分）がちょうど球面に乗るよう、中心を内へ下げる。
+     */
+    private static float seatRadius(float radius, float length) {
+        float half = length / 2;
+        return Mth.sqrt(Math.max(radius * radius - half * half, 1));
     }
     /** 羽の取付の位置と回転を外して、今の変換のまま描く。 */
     private static void bare(Feather feather, PoseStack pose, com.mojang.blaze3d.vertex.VertexConsumer buffer, float alpha, int light) {

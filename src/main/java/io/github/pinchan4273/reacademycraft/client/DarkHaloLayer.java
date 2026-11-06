@@ -36,14 +36,16 @@ public final class DarkHaloLayer extends RenderLayer<AbstractClientPlayer, Playe
 
     @Override public void render(PoseStack pose, MultiBufferSource buffers, int light, AbstractClientPlayer player, float limbSwing, float limbAmount,
                                  float partial, float age, float headYaw, float headPitch) {
-        var mark = ClientDarkBody.mark(player.getId());
+        // 自然能力の未元物質人間でなければ、外部の演出（演出API版3）の輪を同じ描き方で描く。
+        var mark = ClientDarkBody.haloMark(player.getId());
         if (mark == null || !mark.body() || player.isInvisible()) return;
         float move = mark.move(partial), phase = mark.phase(partial);
         float outerBob = Mth.lerp(move, OUTER_IDLE, OUTER_MOVE) * Mth.sin(phase), innerBob = Mth.lerp(move, INNER_IDLE, INNER_MOVE) * Mth.sin(phase + INNER_PHASE);
         var head = getParentModel().head;
         // 描画の空間は下が+y（1単位＝1ブロック、モデルの1画素＝1/16）。頭の付け根から8画素上がてっぺん。
         float x = head.x / 16, top = head.y / 16 - .5f - HEIGHT, z = head.z / 16;
-        float glowLevel = ClientSettings.wingGlow() / 100f;
+        // 描く時の発光（シェーダーパックの使用中は100%を90%として描く。翼と同じ値）。
+        float glowLevel = ClientSettings.drawnWingGlow() / 100f;
         int face = glowLevel >= 1 ? LightTexture.FULL_BRIGHT
                 : LightTexture.pack(Math.round(Mth.lerp(glowLevel, LightTexture.block(light), 15)), Math.round(Mth.lerp(glowLevel, LightTexture.sky(light), 15)));
         // 100%は陰影を付けない半透明（防御の球と同じ。体の描画の陰影では水平な面が灰色に沈んだ）。下げたときは周りの明るさを受ける。

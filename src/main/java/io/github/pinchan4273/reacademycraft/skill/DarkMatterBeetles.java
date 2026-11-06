@@ -50,6 +50,10 @@ import net.minecraftforge.network.PacketDistributor;
  * 生成: 費用lerp(800,400)CP＋lerp(30,20)過負荷、クールダウンlerp(5,3)秒。回復待ちを作らず延ばさない（{@link PlayerAbilityData#consumeQuiet}）。
  * 判定全体が収まる位置を先に探し、無ければ何も払わず何も消さずに中止する。「再召喚優先」で3体いるときは、支払いが成立してからHP割合の最低の個体を置き換える。
  * <p>
+ * キー（v1.5.1の試作）: 押し続け型。押した時は何もせず、{@link #RECALL_HOLD}tickより前に離すと生成し、届いたら生成せずに全個体を回収する
+ * （{@link #press}・{@link #release}）。長押しの回収で生成の費用が無駄にならないよう、生成は離した時に行う。生成された個体は
+ * {@link DarkMatterBeetle#EMERGE_TICKS}tickの出現の演出の後に戦いへ加わる。
+ * <p>
  * 修復（自動修復のときだけ）: 実際に戻した1HPにつき2CP。所有者が能力を使える間だけ。CPセーフティが通さなければ止まり、通るようになれば再開する。
  * 維持費・自律攻撃の追加費用は無く、所有者のCP回復を止めない。
  * <p>
@@ -232,7 +236,7 @@ public final class DarkMatterBeetles {
             float ratio = tag.getFloat("health") / max;
             if (ratio < lowest) { lowest = ratio; lowestStored = tag; lowestLive = null; }
         }
-        if (lowestLive != null) { party.live.remove(lowestLive); lowestLive.discard(); }
+        if (lowestLive != null) { party.live.remove(lowestLive); lowestLive.announceRecall(); lowestLive.discard(); }
         else if (lowestStored != null) party.stored.remove(lowestStored);
     }
     private static DarkMatterBeetle spawn(Party party, Vec3 at, @Nullable CompoundTag state, float p) {
@@ -243,8 +247,11 @@ public final class DarkMatterBeetles {
         beetle.applyMaxHealth(p);
         beetle.setHealth(beetle.getMaxHealth());
         if (state != null) beetle.readState(state);
+        // 生成も復帰（ログイン・次元の移動・空間ができた時）も、同じ出現の演出から始まる（現れ終わるまで戦いに参加しない）。
+        beetle.startEmerging();
         level.addFreshEntity(beetle);
         party.live.add(beetle);
+        level.playSound(null, at.x, at.y, at.z, net.minecraft.sounds.SoundEvents.AMETHYST_BLOCK_RESONATE, beetle.getSoundSource(), 1f, 1.2f);
         return beetle;
     }
     /**
@@ -321,7 +328,8 @@ public final class DarkMatterBeetles {
         adopt(party, data);
     }
     /**
-     * 全個体の回収（能力設定、§15の系統喪失、真の死亡）。活動中も収納中も消える。CPは返さない。誰かいたらtrue。
+     * 全個体の回収（能力設定、技能のキーの長押し、§15の系統喪失、真の死亡）。活動中も収納中も消える。CPは返さない。誰かいたらtrue。
+     * 活動中の個体は、消す直前に回収の演出を周りへ知らせる（実体はすぐ消すので、保存や数の扱いは今までと同じ）。
      */
     public static boolean recallAll(ServerPlayer player) {
         var party = PARTIES.remove(player.getUUID());
@@ -329,10 +337,102 @@ public final class DarkMatterBeetles {
         boolean any = data != null && !data.getBeetleRecords().isEmpty();
         if (party != null) {
             any |= !party.live.isEmpty() || !party.stored.isEmpty();
-            for (var beetle : party.live) beetle.discard();
+            for (var beetle : party.live) { if (!beetle.isRemoved()) beetle.announceRecall(); beetle.discard(); }
         }
         if (data != null) data.setBeetleRecords(new ListTag());
         return any;
+    }
+
+    // ---- 技能のキー: 短く押して離すと生成、長押しで全個体の回収（v1.5.1の試作） ----
+
+    /** 長押しで全個体を回収するまでの時間（tick、2秒）。これより前に離すと生成する。 */
+    public static final int RECALL_HOLD = 40;
+    /** 押し続けの心拍（クライアントは5tickごと）がこれより長く来なければ、押下を捨てる（生成も回収もしない）。 */
+    public static final int HOLD_LEASE = 15;
+    /** 1人の押下。時間はサーバーのゲーム時刻で数える（クライアントの申告の長さは使わない）。 */
+    private static final class Press {
+        final ServerPlayer player; final int slot; final long since; long beat; boolean recalled;
+        Press(ServerPlayer player, int slot, long now) { this.player = player; this.slot = slot; since = beat = now; }
+    }
+    private static final Map<UUID, Press> PRESSES = new HashMap<>();
+
+    /**
+     * キーを押した（CAST）。ここでは何も払わず何も生成せず、押下を覚えるだけ。クールダウン中も覚える（長押しの回収はクールダウンに関わらず使える。
+     * 離した時の生成は{@link #cast}が今までどおりクールダウンを確かめる）。
+     */
+    public static String press(ServerPlayer player, PlayerAbilityData data, int slot) {
+        if (slot < 0 || slot >= 4 || !ID.equals(data.getSlot(data.getCurrentPreset(), slot)) || !player.isAlive() || !usable(data)) return "academy.cast.unlearned";
+        if (!data.isActive()) return "academy.cast.inactive";
+        PRESSES.put(player.getUUID(), new Press(player, slot, player.serverLevel().getGameTime()));
+        return "";
+    }
+    /** 押し続けの心拍。 */
+    public static void renew(ServerPlayer player, int slot) {
+        var press = PRESSES.get(player.getUUID());
+        if (press != null && press.slot == slot) press.beat = player.serverLevel().getGameTime();
+    }
+    /** キーを離した: 長押しの回収がまだなら、今までの生成（{@link #cast}。費用・クールダウン・上限・場所・失敗の扱いは同じ）を行う。 */
+    public static void release(ServerPlayer player, int slot) { release(player, slot, player.serverLevel().getGameTime()); }
+    /**
+     * 離しの本体。時刻は{@link #tickPresses}と同じくサーバーのゲーム時刻。
+     * <p>
+     * 離しの packet は、同じ tick の終わりの{@link #tickPresses}より先に処理されることがある。そのため、押してから{@link #RECALL_HOLD}tick に
+     * 届いた押下は、tick の終わりの回収がまだでも、ここで同じ回収をして生成しない（離しと tick の終わりの順に関わらず、40tick に届いた押下は回収にする）。
+     * 回収は1回の押下で1回だけ（{@link Press#recalled}）。心拍（{@link #HOLD_LEASE}）の確かめは、今までどおり tick の終わりだけで行う。
+     */
+    private static void release(ServerPlayer player, int slot, long now) {
+        var press = PRESSES.get(player.getUUID());
+        if (press == null || press.slot != slot) return;
+        PRESSES.remove(player.getUUID());
+        if (press.recalled) return;
+        if (now - press.since >= RECALL_HOLD) { recall(press, player); return; }
+        var data = data(player);
+        if (data == null) return;
+        cast(player, data, slot);
+        AbilitySyncEvents.sync(player, true);
+    }
+    /** 長押しの回収（1回の押下で1回だけ）。甲虫がいなければ何も起きない。能力を使えない状態なら、回収済みの印だけを付ける。 */
+    private static void recall(Press press, ServerPlayer player) {
+        press.recalled = true;
+        var data = data(player);
+        if (data == null || !usable(data)) return;
+        recallAll(player);
+    }
+    /** キーの中断（フォーカスの喪失・能力キーでの中断など）: 生成しない。 */
+    public static void cancel(ServerPlayer player, int slot) {
+        var press = PRESSES.get(player.getUUID());
+        if (press != null && press.slot == slot) PRESSES.remove(player.getUUID());
+    }
+    /** 能力OFF・プリセットの変更・系統の変更: 押下を捨てる（生成しない）。 */
+    public static void stopPress(ServerPlayer player) { PRESSES.remove(player.getUUID()); }
+    /** 押下が続いているか（試験用）。 */
+    public static boolean pressing(ServerPlayer player) { return PRESSES.containsKey(player.getUUID()); }
+    /** 毎tick: 心拍の途切れた押下を捨て、閾値に届いた押下で全個体を回収する（1回の押下で1回だけ。甲虫がいなければ何も起きない）。 */
+    private static void tickPresses() {
+        for (Iterator<Press> it = PRESSES.values().iterator(); it.hasNext(); ) {
+            var press = it.next();
+            if (tickPress(press, press.player.serverLevel().getGameTime())) it.remove();
+        }
+    }
+    /** 1つの押下の tick の終わりの処理。押下を捨てるならtrue。 */
+    private static boolean tickPress(Press press, long now) {
+        var player = press.player;
+        if (!player.isAlive() || player.isRemoved() || now - press.beat > HOLD_LEASE) return true;
+        if (press.recalled || now - press.since < RECALL_HOLD) return false;
+        recall(press, player);
+        return false;
+    }
+    /** 試験用の入口: 時刻を与えて離す（tick の終わりの処理との順を、ゲームの時刻を進めずに作る）。製品の離しと同じ処理。 */
+    public static void releaseForTest(ServerPlayer player, int slot, long now) { release(player, slot, now); }
+    /** 試験用の入口: 時刻を与えて心拍を送る。 */
+    public static void renewForTest(ServerPlayer player, int slot, long now) {
+        var press = PRESSES.get(player.getUUID());
+        if (press != null && press.slot == slot) press.beat = now;
+    }
+    /** 試験用の入口: この所有者の押下だけに、時刻を与えて tick の終わりの処理（{@link #tickPresses}と同じ）を行う。 */
+    public static void tickPressForTest(ServerPlayer player, long now) {
+        var press = PRESSES.get(player.getUUID());
+        if (press != null && tickPress(press, now)) PRESSES.remove(player.getUUID());
     }
 
     // ---- 毎tickの処理 ----
@@ -497,7 +597,7 @@ public final class DarkMatterBeetles {
 
     /** この甲虫が攻撃してよい相手か（所有者・同じ所有者の個体は除く。PvPなどの可否は{@link SkillCombat#mayAttack}）。 */
     public static boolean validTarget(Party party, LivingEntity target) {
-        if (target == party.player || target instanceof DarkMatterBeetle b && b.isOwnedBy(party.player)) return false;
+        if (target == party.player || target instanceof DarkMatterBeetle b && (b.isOwnedBy(party.player) || b.inert())) return false;
         return target.level() == party.player.level() && ProjectileHitSeam.hittable(target) && SkillCombat.mayAttack(party.player, target, ID);
     }
     /** 突進や空気弾を止める「敵」か: 優先順位の表にいる相手か、敵対する生き物。通りがかりの動物や他のプレイヤーは巻き込まない。 */
@@ -633,6 +733,7 @@ public final class DarkMatterBeetles {
 
     @SubscribeEvent public static void serverTick(TickEvent.ServerTickEvent e) {
         if (e.phase != TickEvent.Phase.END) return;
+        tickPresses();
         for (var party : List.copyOf(PARTIES.values())) tick(party);
     }
     /** 試験用の入口: この所有者の処理を今すぐ1回行う。 */
@@ -678,11 +779,11 @@ public final class DarkMatterBeetles {
         if (data != null && !usable(data)) recallAll(player);
     }
     @SubscribeEvent public static void login(PlayerEvent.PlayerLoggedInEvent e) { if (e.getEntity() instanceof ServerPlayer p) restore(p); }
-    @SubscribeEvent public static void logout(PlayerEvent.PlayerLoggedOutEvent e) { if (e.getEntity() instanceof ServerPlayer p) stash(p); }
+    @SubscribeEvent public static void logout(PlayerEvent.PlayerLoggedOutEvent e) { if (e.getEntity() instanceof ServerPlayer p) { stopPress(p); stash(p); } }
     /** エンドからの帰還などで所有者の実体が新しくなったら付け替える（死亡の場合は既に回収済み）。 */
     @SubscribeEvent public static void clone(PlayerEvent.Clone e) {
         var party = PARTIES.get(e.getEntity().getUUID());
         if (party != null && e.getEntity() instanceof ServerPlayer player) party.player = player;
     }
-    @SubscribeEvent public static void stopped(ServerStoppedEvent e) { PARTIES.clear(); }
+    @SubscribeEvent public static void stopped(ServerStoppedEvent e) { PARTIES.clear(); PRESSES.clear(); }
 }

@@ -58,7 +58,7 @@ public final class ExternalSessions {
         // 2. 資格（3の権限より先に、登録・種類を確かめる）。
         var definition = AbilityRegistry.INSTANCE.skill(skill);
         if (definition == null || definition.kind() == ActivationKind.PASSIVE) return ActivationOutcome.REFUSED_INVALID;
-        // 3. 権限: 本体の41技能は、外部の主体からは発動できない（司令室11の裁定D3）。
+        // 3. 権限: 本体の50技能（4カテゴリの41と、未元物質の9）は、外部の主体からは発動できない（司令室11の裁定D3）。
         if (skill.isAcademy()) return ActivationOutcome.REFUSED_PERMISSION;
         SkillBehavior behavior = SkillBehaviorRegistry.INSTANCE.behavior(skill);
         if (behavior == null) return ActivationOutcome.REFUSED_INVALID;

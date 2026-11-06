@@ -130,7 +130,8 @@ final class BuiltinAbilities {
         dmSkill(r, dm, "dark_matter_air_cannon", 3, List.of(new SkillRequirement(AbilityId.parse("academy:dark_matter_ray"), 0.25f)), ActivationKind.INSTANT);
         // 未元装甲は能力使用モードの間だけ働く受動技能（2026-11-03のユーザーの決定。以前はトグル）。
         dmSkill(r, dm, "dark_matter_armor", 3, List.of(new SkillRequirement(AbilityId.parse("academy:white_wing_guard"), 0.5f)), ActivationKind.PASSIVE);
-        dmSkill(r, dm, "dark_matter_beetle", 4, List.of(new SkillRequirement(AbilityId.parse("academy:dark_matter_air_cannon"), 0.25f)), ActivationKind.INSTANT);
+        // v1.5.1の試作: 押し続け型（短く押して離すと生成、長押しで全個体の回収。DarkMatterBeetles）。
+        dmSkill(r, dm, "dark_matter_beetle", 4, List.of(new SkillRequirement(AbilityId.parse("academy:dark_matter_air_cannon"), 0.25f)), ActivationKind.HELD);
         dmSkill(r, dm, "heaven_manifest", 5, List.of(new SkillRequirement(AbilityId.parse("academy:dark_matter_beetle"), 0.25f)), ActivationKind.TOGGLE);
         dmSkill(r, dm, "dark_matter_body", 5, List.of(new SkillRequirement(AbilityId.parse("academy:dark_matter_beetle"), 0.5f)), ActivationKind.PASSIVE);
     }

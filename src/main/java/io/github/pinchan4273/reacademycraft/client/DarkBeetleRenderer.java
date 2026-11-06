@@ -21,7 +21,7 @@ public final class DarkBeetleRenderer extends MobRenderer<DarkMatterBeetle, Dark
     private static final float GLOW = .3f;
 
     public DarkBeetleRenderer(EntityRendererProvider.Context context) {
-        super(context, new Model(DarkBeetleMesh.create().bakeRoot()), 1.3f);
+        super(context, new Model(DarkBeetleMesh.create().bakeRoot()), SHADOW);
         addLayer(new net.minecraft.client.renderer.entity.layers.RenderLayer<>(this) {
             @Override public void render(com.mojang.blaze3d.vertex.PoseStack pose, net.minecraft.client.renderer.MultiBufferSource buffers, int light, DarkMatterBeetle beetle,
                                          float limbSwing, float limbAmount, float partial, float age, float headYaw, float headPitch) {
@@ -31,6 +31,18 @@ public final class DarkBeetleRenderer extends MobRenderer<DarkMatterBeetle, Dark
         });
     }
     @Override public ResourceLocation getTextureLocation(DarkMatterBeetle beetle) { return TEXTURE; }
+    private static final float SHADOW = 1.3f;
+    /** 現れる途中は体も影も描かない（輪はClientDarkBeetleSummonが描く）。現れた直後と回収の写しは、倍率に合わせて影も縮める。 */
+    @Override public void render(DarkMatterBeetle beetle, float yaw, float partial, com.mojang.blaze3d.vertex.PoseStack pose,
+                                 net.minecraft.client.renderer.MultiBufferSource buffers, int light) {
+        if (beetle.emerging()) { shadowRadius = 0; return; }
+        shadowRadius = SHADOW * beetle.renderScale(partial);
+        super.render(beetle, yaw, partial, pose, buffers, light);
+    }
+    @Override protected void scale(DarkMatterBeetle beetle, com.mojang.blaze3d.vertex.PoseStack pose, float partial) {
+        float scale = beetle.renderScale(partial);
+        if (scale != 1) pose.scale(scale, scale, scale);
+    }
 
     /** 3対の脚は三脚歩行（左前・右中・左後ろが同じ組）で、節ごとに持ち上げる。飛行翅はB2まで畳んで隠す。 */
     public static final class Model extends HierarchicalModel<DarkMatterBeetle> {

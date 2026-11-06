@@ -57,8 +57,10 @@ public final class ClientDarkEffects {
 
     private static final class Gust {
         final int entityId, tier; final boolean right; final Vec3 spawnRoot, end; final double height; final LegacyTornado tornado; int age;
-        Gust(int entityId, int tier, boolean right, Vec3 spawnRoot, Vec3 end, Random random) {
-            this.entityId = entityId; this.tier = tier; this.right = right; this.spawnRoot = spawnRoot; this.end = end;
+        /** 外部の演出（公開APIのDARK_AIR_CANNON、演出API版3）の札。自然能力の柱はnull。 */
+        @javax.annotation.Nullable final Object token;
+        Gust(int entityId, int tier, boolean right, Vec3 spawnRoot, Vec3 end, Random random, @javax.annotation.Nullable Object token) {
+            this.entityId = entityId; this.tier = tier; this.right = right; this.spawnRoot = spawnRoot; this.end = end; this.token = token;
             height = Math.max(1, spawnRoot.distanceTo(end));
             tornado = new LegacyTornado(height, COLUMN_RING, 1, COLUMN_SWAY, random);
         }
@@ -75,24 +77,51 @@ public final class ClientDarkEffects {
      * 行き先は放出の時点の視線で決めて動かさない（サーバーも放出の時点で照準を固定する）。根元は翼に付いて動く。
      */
     static void gust(LivingEntity entity, float range) {
-        var level = entity.level();
-        var eye = entity.getEyePosition();
-        float yaw = (float) -Math.toRadians(entity.getYRot()), pitch = (float) -Math.toRadians(entity.getXRot());
+        columns(entity.level(), entity.getId(), entity.getEyePosition(), entity.getYRot(), entity.getXRot(), range, entity,
+                (tier, right) -> wingPoint(entity, tier, right, 1), null);
+    }
+    /** 翼の根元（段と左右から）。 */
+    private interface Roots { Vec3 at(int tier, boolean right); }
+    /** 六翼それぞれの柱を、目から視線（yaw・pitchは度）の周りの射程の先（壁があれば壁）へ向けて足す。 */
+    private static void columns(net.minecraft.world.level.Level level, int entityId, Vec3 eye, float yawDegrees, float pitchDegrees, float range,
+                                @javax.annotation.Nullable net.minecraft.world.entity.Entity except, Roots roots, @javax.annotation.Nullable Object token) {
+        float yaw = (float) -Math.toRadians(yawDegrees), pitch = (float) -Math.toRadians(pitchDegrees);
         for (int tier = 0; tier < 3; tier++) {
             for (boolean right : new boolean[]{false, true}) {
                 // 視線の空間（前が+z、左が+x、上が+y）での向き。
                 var dir = new Vec3((right ? -1 : 1) * Math.sin(Math.toRadians(COLUMN_SIDE)), (1 - tier) * Math.sin(Math.toRadians(COLUMN_UP)), 1)
                         .normalize().xRot(pitch).yRot(yaw);
                 var end = eye.add(dir.scale(range));
-                var hit = level.clip(new ClipContext(eye, end, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, entity));
+                var hit = level.clip(new ClipContext(eye, end, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, except));
                 if (hit.getType() != HitResult.Type.MISS) end = hit.getLocation();
-                GUST_LIST.add(new Gust(entity.getId(), tier, right, wingPoint(entity, tier, right, 1), end, RANDOM));
+                GUST_LIST.add(new Gust(entityId, tier, right, roots.at(tier, right), end, RANDOM, token));
             }
         }
     }
+    /** 立ったプレイヤーの目の高さ（ブロック）。外部の空気砲は、{@code position}をこの高さの目とみなして翼の根元を決める。 */
+    private static final double EYE_HEIGHT = 1.62;
+    /**
+     * 外部の演出（公開APIのDARK_AIR_CANNON、演出API版3）の空気砲: {@code eye}を撃つ者の目とみなし、{@code target}への向きの周りへ、
+     * 自然能力と同じ6本の柱を出す。根元は、その目の位置に立つ体（向きは{@code target}の水平の向き）の六翼の根元。実体には付かない。
+     */
+    static void gustExternal(net.minecraft.world.level.Level level, Vec3 eye, Vec3 target, Object token) {
+        var d = target.subtract(eye);
+        double length = d.length();
+        if (length < 1e-4) return;
+        float yaw = (float) Math.toDegrees(Math.atan2(-d.x, d.z)), pitch = (float) -Math.toDegrees(Math.asin(Mth.clamp(d.y / length, -1, 1)));
+        var feet = eye.subtract(0, EYE_HEIGHT, 0);
+        columns(level, -1, eye, yaw, pitch, (float) length, null, (tier, right) -> wingPoint(feet, yaw, tier, right), token);
+    }
+    /** その札の柱が残っているか。 */
+    static boolean gusting(Object token) {
+        for (var gust : GUST_LIST) if (gust.token == token) return true;
+        return false;
+    }
+    /** その札の柱をすぐ消す。 */
+    static void endGusts(Object token) { GUST_LIST.removeIf(gust -> gust.token == token); }
     /** その実体の風の柱が出ているか（翼の描画が根元を記録するかの判断）。 */
     static boolean gusting(int entityId) {
-        for (var gust : GUST_LIST) if (gust.entityId == entityId) return true;
+        for (var gust : GUST_LIST) if (gust.entityId == entityId && entityId >= 0) return true;
         return false;
     }
     @SubscribeEvent public static void tick(TickEvent.ClientTickEvent event) {
@@ -126,15 +155,19 @@ public final class ClientDarkEffects {
 
     /** 翼の出る位置（世界の座標）。翼の姿勢は光線の構えの固定の向きで計算する。高速飛行の傾きは数えない。 */
     private static Vec3 wingPoint(LivingEntity living, int tier, boolean right, float partial) {
+        return wingPoint(living.getPosition(partial), Mth.rotLerp(partial, living.yBodyRotO, living.yBodyRot), tier, right);
+    }
+    /** 足元{@code feet}に立ち、胴の向きが{@code bodyYawDegrees}の体の翼の出る位置（外部の空気砲も同じ計算を使う）。 */
+    private static Vec3 wingPoint(Vec3 feet, float bodyYawDegrees, int tier, boolean right) {
         float k = TIER_SCALE[tier], length = BEAM_ROOT * k, z = TIER_ANGLE[tier] * Mth.DEG_TO_RAD, y = BEAM_YAW * Mth.DEG_TO_RAD;
         float side = right ? -1 : 1;
         // 体の部品の空間（前が-z、下が+y）。
         float mx = side * (1.5f + length * Mth.cos(y) * Mth.cos(z)), my = 3 + TIER_Y[tier] + length * Mth.cos(y) * Mth.sin(z), mz = 3 - length * Mth.sin(y);
         // 描画の変換と同じ: 上下左右を返して、胴の向きへ回す。
-        double bodyYaw = Math.toRadians(180 - Mth.rotLerp(partial, living.yBodyRotO, living.yBodyRot));
+        double bodyYaw = Math.toRadians(180 - bodyYawDegrees);
         double px = -mx * .9375 / 16, py = (24 - my) * .9375 / 16, pz = mz * .9375 / 16;
         double cos = Math.cos(bodyYaw), sin = Math.sin(bodyYaw);
-        return living.getPosition(partial).add(px * cos + pz * sin, py, pz * cos - px * sin);
+        return feet.add(px * cos + pz * sin, py, pz * cos - px * sin);
     }
     /** 根元がカメラの前にあれば、狙いへ向かう線に沿ってカメラの面の少し後ろまで下げる（線の向きは変えない）。 */
     private static Vec3 behindCamera(Vec3 from, Vec3 target, Vec3 camera, Vec3 look) {
@@ -196,12 +229,7 @@ public final class ClientDarkEffects {
                         // チャージ: 羽の位置に光が集まる。狙いへ向かって短く伸びるだけで、まだ撃たない。
                         var tip = from.add(target.subtract(from).normalize().scale(.5 * charge));
                         beam(buffer, matrix, camera, from, tip, .22f * charge, 0, 1, 1, 1, .9f * charge);
-                    } else {
-                        // 自分の視点では翼がカメラのすぐ横にあり、同じ太さだと視界を塞ぐので細くする。
-                        float core = own ? .025f : .09f, halo = own ? .07f : .24f;
-                        beam(buffer, matrix, camera, from, target, core, .05f, 1, 1, 1, own ? .8f : .95f);
-                        beam(buffer, matrix, camera, from, target, halo, .12f, .8f, .9f, 1, own ? .25f : .35f);
-                    }
+                    } else ray(buffer, matrix, camera, from, target, own);
                     any = true;
                 }
             }
@@ -230,7 +258,7 @@ public final class ClientDarkEffects {
                 // 根元: 体を描いた絵では実際の翼の位置、描いていなければ（1人称・画面の外）計算した翼の位置、実体が居なければ出た時の位置。
                 boolean own = false;
                 Vec3 root = gust.spawnRoot;
-                if (level.getEntity(gust.entityId) instanceof LivingEntity living) {
+                if (gust.entityId >= 0 && level.getEntity(gust.entityId) instanceof LivingEntity living) {
                     own = living == client.getCameraEntity() && client.options.getCameraType().isFirstPerson();
                     var drawnRoots = own ? null : DarkWingsLayer.beamRoots(gust.entityId);
                     var drawnRoot = drawnRoots == null ? null : drawnRoots[gust.tier * 2 + (gust.right ? 1 : 0)];
@@ -269,6 +297,37 @@ public final class ClientDarkEffects {
                 pose.popPose();
             }
         } finally { RenderSystem.depthMask(true); RenderSystem.enableCull(); }
+    }
+    /** 撃っている光線1本（白い芯と淡い光の帯の2枚）。自分の視点では翼がカメラのすぐ横にあり、同じ太さだと視界を塞ぐので細くする。 */
+    private static void ray(BufferBuilder buffer, Matrix4f matrix, Vec3 camera, Vec3 from, Vec3 target, boolean own) {
+        float core = own ? .025f : .09f, halo = own ? .07f : .24f;
+        beam(buffer, matrix, camera, from, target, core, .05f, 1, 1, 1, own ? .8f : .95f);
+        beam(buffer, matrix, camera, from, target, halo, .12f, .8f, .9f, 1, own ? .25f : .35f);
+    }
+    /**
+     * 外部の演出の光線（公開APIの{@code BeamStyle.DARK_MATTER_RAY}、演出API版3）を描く: 自然能力の撃っている光線（{@link #ray}、3人称の太さ）と同じ芯と光の帯を、
+     * 同じ描き方（加算・深度テストあり・深度を書かない）で1本ずつ。入ってきたときの深度の状態へ戻す。描いた四角形の数を返す。
+     */
+    static int drawExternalRays(com.mojang.blaze3d.vertex.PoseStack pose, Vec3 camera, List<Vec3[]> rays) {
+        if (rays.isEmpty()) return 0;
+        var matrix = pose.last().pose();
+        boolean depth = org.lwjgl.opengl.GL11.glIsEnabled(org.lwjgl.opengl.GL11.GL_DEPTH_TEST);
+        int function = org.lwjgl.opengl.GL11.glGetInteger(org.lwjgl.opengl.GL11.GL_DEPTH_FUNC);
+        RenderSystem.enableDepthTest(); RenderSystem.depthFunc(org.lwjgl.opengl.GL11.GL_LEQUAL);
+        RenderSystem.setShader(GameRenderer::getPositionColorShader);
+        RenderSystem.enableBlend(); RenderSystem.blendFunc(GlStateManager.SourceFactor.SRC_ALPHA, GlStateManager.DestFactor.ONE);
+        RenderSystem.disableCull(); RenderSystem.depthMask(false);
+        try {
+            var buffer = Tesselator.getInstance().getBuilder();
+            buffer.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_COLOR);
+            for (var ray : rays) ray(buffer, matrix, camera, ray[0], ray[1], false);
+            BufferUploader.drawWithShader(buffer.end());
+            return rays.size() * 2;
+        } finally {
+            RenderSystem.depthMask(true); RenderSystem.enableCull(); RenderSystem.defaultBlendFunc();
+            RenderSystem.depthFunc(function);
+            if (depth) RenderSystem.enableDepthTest(); else RenderSystem.disableDepthTest();
+        }
     }
     /** カメラを向く細い帯。太さは根元と先で変えられる。 */
     private static void beam(BufferBuilder b, Matrix4f m, Vec3 camera, Vec3 from, Vec3 to, float w0, float w1, float r, float g, float bl, float a) {

@@ -43,6 +43,11 @@ public final class ClientSettings {
     public static final int WING_GLOW_STEP = 10;
     public static int wingGlow() { return Math.round(getInt(WING_GLOW, 100, 0, 100) / (float) WING_GLOW_STEP) * WING_GLOW_STEP; }
     public static void setWingGlow(int percent) { write(WING_GLOW, Integer.toString(Math.round(Math.max(0, Math.min(100, percent)) / (float) WING_GLOW_STEP) * WING_GLOW_STEP)); }
+    /**
+     * 描く時の翼の発光（%）。翼の面・発光の層・刺突・羽の球・頭上の輪は、設定の値ではなくこれを読む。
+     * シェーダーパックの使用中は100%を90%として描く（{@link WingGlowRule}、2026-11-05のユーザーの決定）。保存した値は変えない。
+     */
+    public static int drawnWingGlow() { return WingGlowRule.drawn(wingGlow(), WingGlowRule.shaderPack()); }
     public static CpHudStyle.Display cpDisplay() { return CpHudStyle.Display.parse(load().getProperty(CP_DISPLAY)); }
     public static void setCpDisplay(CpHudStyle.Display display) { write(CP_DISPLAY, display.id()); }
     public static CpHudStyle.IdleShow cpIdleShow() { return CpHudStyle.IdleShow.parse(load().getProperty(CP_IDLE_SHOW)); }

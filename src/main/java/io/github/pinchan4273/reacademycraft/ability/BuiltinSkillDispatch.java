@@ -171,9 +171,14 @@ final class BuiltinSkillDispatch {
                 named("WhiteWingStab.cancel", (p, s) -> WhiteWingStab.cancel(p, s)),
                 named("WhiteWingStab.renew", (p, s) -> WhiteWingStab.renew(p, s)),
                 named("WhiteWingStab.stop", p -> WhiteWingStab.stop(p)), null);
-        SkillDispatch.builtInOrder(List.of(thunderClap, railgun, currentCharging, magneticMovement, magneticManipulation, bodyIntensify, jetEngine, meltdowner, threateningTeleport, penetrateTeleport, markTeleport, fleshRipping, shiftTeleport, directedShock, groundshock, vecAccel, directedBlastwave, bloodRetrograde, plasmaCannon, scatterBomb, mineRay, lightShield, electronMissile, whiteWingStab),
-                List.of(currentCharging, magneticMovement, magneticManipulation, thunderClap, railgun, scatterBomb, mineRay, meltdowner, threateningTeleport, penetrateTeleport, markTeleport, fleshRipping, shiftTeleport, directedShock, groundshock, vecAccel, directedBlastwave, bloodRetrograde, plasmaCannon, whiteWingStab),
-                List.of(currentCharging, magneticMovement, magneticManipulation, bodyIntensify, thunderClap, railgun, scatterBomb, lightShield, mineRay, jetEngine, electronMissile, meltdowner, threateningTeleport, penetrateTeleport, markTeleport, fleshRipping, shiftTeleport, flashing, directedShock, groundshock, vecAccel, vecDeviation, directedBlastwave, stormWing, bloodRetrograde, vecReflection, plasmaCannon, whiteWingStab));
+        // v1.5.1の試作 甲虫生成: 押し続け型になった（短く押して離すと生成、長押しで全個体の回収）。白翼刺突の後ろ（どの並びでも最後）。
+        var darkBeetle = new Owner("DarkMatterBeetle", named("DarkMatterBeetle.release", (p, s) -> io.github.pinchan4273.reacademycraft.skill.DarkMatterBeetles.release(p, s)),
+                named("DarkMatterBeetle.cancel", (p, s) -> io.github.pinchan4273.reacademycraft.skill.DarkMatterBeetles.cancel(p, s)),
+                named("DarkMatterBeetle.renew", (p, s) -> io.github.pinchan4273.reacademycraft.skill.DarkMatterBeetles.renew(p, s)),
+                named("DarkMatterBeetle.stop", p -> io.github.pinchan4273.reacademycraft.skill.DarkMatterBeetles.stopPress(p)), null);
+        SkillDispatch.builtInOrder(List.of(thunderClap, railgun, currentCharging, magneticMovement, magneticManipulation, bodyIntensify, jetEngine, meltdowner, threateningTeleport, penetrateTeleport, markTeleport, fleshRipping, shiftTeleport, directedShock, groundshock, vecAccel, directedBlastwave, bloodRetrograde, plasmaCannon, scatterBomb, mineRay, lightShield, electronMissile, whiteWingStab, darkBeetle),
+                List.of(currentCharging, magneticMovement, magneticManipulation, thunderClap, railgun, scatterBomb, mineRay, meltdowner, threateningTeleport, penetrateTeleport, markTeleport, fleshRipping, shiftTeleport, directedShock, groundshock, vecAccel, directedBlastwave, bloodRetrograde, plasmaCannon, whiteWingStab, darkBeetle),
+                List.of(currentCharging, magneticMovement, magneticManipulation, bodyIntensify, thunderClap, railgun, scatterBomb, lightShield, mineRay, jetEngine, electronMissile, meltdowner, threateningTeleport, penetrateTeleport, markTeleport, fleshRipping, shiftTeleport, flashing, directedShock, groundshock, vecAccel, vecDeviation, directedBlastwave, stormWing, bloodRetrograde, vecReflection, plasmaCannon, whiteWingStab, darkBeetle));
         SkillDispatch.builtInCast(ArcGen.ID, new Cast(named("ArcGen.cast", (p, d, s) -> ArcGen.cast(p, d)), null));
         SkillDispatch.builtInCast(CurrentCharging.ID, new Cast(named("CurrentCharging.start", CurrentCharging::start), currentCharging));
         SkillDispatch.builtInCast(MagneticMovement.ID, new Cast(named("MagneticMovement.start", MagneticMovement::start), magneticMovement));
@@ -215,8 +220,8 @@ final class BuiltinSkillDispatch {
         SkillDispatch.builtInCast(io.github.pinchan4273.reacademycraft.skill.DarkMatter.AIR_CANNON, new Cast(named("DarkMatterAirCannon.start", io.github.pinchan4273.reacademycraft.skill.DarkMatterAirCannon::start), darkCannon));
         SkillDispatch.builtInCast(io.github.pinchan4273.reacademycraft.skill.DarkMatter.GUARD, new Cast(named("WhiteWingGuard.toggle", (p, d, s) -> io.github.pinchan4273.reacademycraft.skill.DarkDefense.toggle(p, d, s, io.github.pinchan4273.reacademycraft.skill.DarkMatter.GUARD)), darkGuard));
         // 未元装甲は受動になった（2026-11-03のユーザーの決定）ので、キーからは始まらない。能力使用モードの間だけ、DarkDefenseが損傷のたびに掛ける。
-        // §9: 甲虫は押して生成するだけ。個体は能力OFF・プリセット変更・セーフティでも残るので、止める持ち主は置かない。
-        SkillDispatch.builtInCast(io.github.pinchan4273.reacademycraft.skill.DarkMatter.BEETLE, new Cast(named("DarkMatterBeetle.cast", io.github.pinchan4273.reacademycraft.skill.DarkMatterBeetles::cast), null));
+        // §9: 個体は能力OFF・プリセット変更・セーフティでも残る。持ち主が止めるのはキーの押下だけ（v1.5.1の試作: 押下を覚え、離した時に生成、長押しで回収）。
+        SkillDispatch.builtInCast(io.github.pinchan4273.reacademycraft.skill.DarkMatter.BEETLE, new Cast(named("DarkMatterBeetle.press", io.github.pinchan4273.reacademycraft.skill.DarkMatterBeetles::press), darkBeetle));
         // 白翼飛行は受動になった（2026-11-03のユーザーの決定）ので、キーからは始まらない（設定に応じたジャンプ操作でWhiteWingFlight.takeoff）。
         // 終わるのは着地・能力OFF・過負荷・干渉などで、WhiteWingFlightが毎tick判定する。
         // §10: 天界発現はプリセットの変更で続く（§13）ので停止の並びには置かず、自分のキーと毎tickの条件で止まる。

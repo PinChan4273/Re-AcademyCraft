@@ -36,6 +36,8 @@ public final class AbilitySettingsVisibility {
     public static final String BEETLE_FOLLOW_NOTE = "academy.ability_settings.beetle.follow.note";
     /** 甲虫の攻撃対象の行の前の説明の翻訳キー。 */
     public static final String BEETLE_TARGETS_NOTE = "academy.ability_settings.beetle.targets";
+    /** 翼の発光の、シェーダーパックの使用中の描き方の注の翻訳キー。 */
+    public static final String WING_GLOW_SHADER_NOTE = "academy.ability_settings.wing_glow.shader_note";
 
     /** 見出しと、その下の行の組。 */
     private record Section(Row head, List<Row> items) { }
@@ -61,9 +63,12 @@ public final class AbilitySettingsVisibility {
                 common(Kind.CP_IDLE, null, "academy.ability_settings.cp_idle"),
                 common(Kind.CP_IDLE_CUSTOM, null, "academy.ability_settings.cp_idle_custom"))));
         // 未元物質の翼の発光の強さ（各自の表示設定。2026-11-03のユーザーの決定: シェーダーで光りすぎるときに下げる）。系統の行なので、未元物質の人に出す。
+        // 2026-11-05のユーザーの決定: シェーダーパックの使用中は100%を90%として描く。その注は、シェーダーパックの有無にかかわらず常に出す
+        // （シェーダーを入れる前に値を決める人にも前もって分かり、切り替えで行の並びが動かない。行の並びはクライアントの状態を見ない純粋な関数のまま保つ）。
         out.add(new Section(new Row(Kind.HEAD, null, DarkMatter.CATEGORY, null, "academy.ability.dark_matter"), List.of(
                 new Row(Kind.WING_GLOW, null, DarkMatter.CATEGORY, null, "academy.ability_settings.wing_glow"),
-                new Row(Kind.NOTE, null, DarkMatter.CATEGORY, null, "academy.ability_settings.wing_glow.note"))));
+                new Row(Kind.NOTE, null, DarkMatter.CATEGORY, null, "academy.ability_settings.wing_glow.note"),
+                new Row(Kind.NOTE, null, DarkMatter.CATEGORY, null, WING_GLOW_SHADER_NOTE))));
         // 白翼飛行の飛び立ちと停止の操作（2026-11-03のユーザーの決定）。
         out.add(new Section(skill(Kind.HEAD, null, DarkMatter.FLIGHT, "academy.skill.white_wing_flight"), List.of(
                 skill(Kind.BEETLE_CHOICE, AbilitySettings.FLIGHT_TAKEOFF, DarkMatter.FLIGHT, "academy.ability_settings.flight.takeoff"),

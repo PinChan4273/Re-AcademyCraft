@@ -27,6 +27,13 @@ public record AbilityAction(int action, int slot) {
         return skill != null && HELD_SKILLS.contains(skill);
     }
     /**
+     * クールダウン中もキーの押し続けを送る押し続け型の技能（v1.5.1の試作: 甲虫生成の長押しの回収は、生成のクールダウンに関わらず使える）。
+     * 離した時の生成は、サーバーが今までどおりクールダウンで断る。
+     */
+    public static boolean holdsDuringCooldown(@javax.annotation.Nullable net.minecraft.resources.ResourceLocation skill) {
+        return io.github.pinchan4273.reacademycraft.skill.DarkMatter.BEETLE.equals(skill);
+    }
+    /**
      * 1回押すとオンになり、次に押すとオフになる技能（Electron Missile、Jet Engine、Body Intensify、Light Shield。原作ではいずれも
      * 押し続け型だが、切り替え型へ変更している。Flashingは元から切り替え型）。クライアントはこれらのCASTを新しい押下でだけ送り、キーリピートでは
      * 送らない。サーバーは、新しい発動が受ける拒否より先に、動作中のものを終える。

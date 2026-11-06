@@ -23,9 +23,12 @@ public final class AcademyNetwork {
      * DevelopAddonAvailability 54番）と、ログインの時の登録簿の照合（AbilityRegistryCheck 55番、AbilityRegistryVerdict 56番）も足した（1.4.0の公開の前なので、版は64のまま。設計の文書13.4の4）。
      * 65: v1.5.0。未元物質の技能の学習で開発機の可用性のビットが48を超え、メニューのデータを4スロットにした。技能由来の直接効果の
      * 同期（DirectEffectSync）を足した。64のクライアントは新しい技能・効果を受け取れないので繋がせない。
+     * 66: v1.5.1。甲虫の実体に同期データ（EMERGE、出現の残りtick）と実体のイベント101（EVENT_RECALL、回収の演出）を足し、
+     * 甲虫生成の発動をINSTANTからHELD（短押しで生成、2秒の長押しで全個体の回収）にした。1.5.0と1.5.1が混ざると、実体の同期データの並びと
+     * キーの送り方が食い違うので繋がせない（主担当の決定）。
      * 版が違う相手とは、ログインの時点で接続を断る（古い通知を誤って読むところまで進ませない）。
      */
-    public static final String VERSION = "65";
+    public static final String VERSION = "66";
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             ResourceLocation.fromNamespaceAndPath("academy", "main"), () -> VERSION, AcademyNetwork::accepts, AcademyNetwork::accepts);
 

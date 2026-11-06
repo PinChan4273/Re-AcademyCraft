@@ -1,7 +1,7 @@
 package io.github.pinchan4273.reacademycraft.api.client;
 
 /**
- * 外部の演出の光線の見た目（公開API、実験的。演出API版2）。値は、Re:AcademyCraftの描画の部品と寿命の組を選ぶだけで、
+ * 外部の演出の光線の見た目（公開API、実験的。演出API版3）。値は、Re:AcademyCraftの描画の部品と寿命の組を選ぶだけで、
  * 威力・射程・判定とは関係しない。後の版で見た目を足すことがある。この版が持たない見た目は{@link ExternalPresentation#supports}がfalse。
  */
 public enum BeamStyle {
@@ -17,5 +17,11 @@ public enum BeamStyle {
     /** レイ・バラージの狙いの光線。演出API版2から。寿命は30tick。始点は術者の手元へずらす。 */
     BARRAGE_AIM,
     /** レイ・バラージの扇形の副光線（25〜29本。{@code from}から、{@code to}の方向の周りに散る）。演出API版2から。寿命は50tick。 */
-    BARRAGE_SCATTER
+    BARRAGE_SCATTER,
+    /**
+     * 未元光線（未元物質）の白い光線。演出API版3から。本体の照射中の光線と同じ芯と光の帯を、{@code from}から{@code to}へ1本描く
+     * （本体は六翼それぞれから1本ずつ出す。六翼の分を出したいときは6本送る）。始点は手元へずらさない。寿命は本体の当たりの間隔と同じ10tickで、
+     * 伸びや薄れは無い（本体の照射と同じ）。10tickごとに送れば、続く照射に見える。最大96ブロック。
+     */
+    DARK_MATTER_RAY
 }

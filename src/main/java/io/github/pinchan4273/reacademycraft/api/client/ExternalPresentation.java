@@ -5,7 +5,7 @@ import io.github.pinchan4273.reacademycraft.client.ClientExternalEffects;
 import io.github.pinchan4273.reacademycraft.visual.ExternalBeamRules;
 
 /**
- * 外部MODのための、見た目だけの演出の入口（公開API、実験的。演出API版2）。
+ * 外部MODのための、見た目だけの演出の入口（公開API、実験的。演出API版3）。
  * <p>
  * <b>クライアント専用。</b>クライアントの主スレッドからだけ呼ぶ。書き込みの入口（beam・end・clear）は、ほかのスレッドからは{@link IllegalStateException}。
  * 読み取りの入口（limit・active・diagnostics）はスレッドを検査せず、ほかのスレッドで読んだ値は保証しない。サーバーや共通のコード（Dedicatedのサーバーで読み込まれうるクラス）から参照しない。アドオンは、自分の通信でサーバーの確定した結果を受け取ったクライアントで呼ぶ。
@@ -25,8 +25,17 @@ import io.github.pinchan4273.reacademycraft.visual.ExternalBeamRules;
 public final class ExternalPresentation {
     private ExternalPresentation() { }
 
-    /** 演出APIの版（この版は2。2で{@link BeamStyle#MELTDOWNER_RAY_SMALL}を足した）。 */
-    public static final int API_VERSION = 2;
+    /**
+     * 演出APIの版（この版は3）。
+     * <ul>
+     * <li>2（1.4.1）: 光線に{@link BeamStyle#MELTDOWNER_RAY_SMALL}ほか3つ、光線以外の演出（{@link EffectStyle}の27種類と{@link #play}・{@link #startEffect}など）を足した。</li>
+     * <li>3（1.5.1）: 未元物質の演出を足した。{@link EffectStyle}に{@link EffectStyle#DARK_WINGS}・{@link EffectStyle#DARK_WING_STAB}・
+     * {@link EffectStyle#DARK_FEATHER_BALL}・{@link EffectStyle#DARK_HALO}・{@link EffectStyle#DARK_AIR_CANNON}・{@link EffectStyle#DARK_EMERGE_RING}・
+     * {@link EffectStyle#HEAVEN_RING}の7つ、{@link BeamStyle}に{@link BeamStyle#DARK_MATTER_RAY}。入口・上限・効果ID・距離の決まりは版2と同じで、
+     * 新しい値も同じ持ち主ごとの枠（光線は光線の枠、ほかは演出の枠）を使う。音は足していない。前からある値の順番と意味は変えていない。</li>
+     * </ul>
+     */
+    public static final int API_VERSION = 3;
 
     /** 演出APIの版。実行時の機能の確かめに使う（定数{@link #API_VERSION}はアドオンに埋め込まれる）。 */
     public static int apiVersion() { return API_VERSION; }
@@ -66,7 +75,8 @@ public final class ExternalPresentation {
 
     /**
      * 持続する演出を始める（{@link EffectStyle#lasting()}がtrueの種類。演出API版2）。{@link #EFFECT_LEASE_TICKS}の間に
-     * {@link #updateEffect}が無ければ自動で終わる。持ち主ごとの上限は光線以外の演出で共通。{@link EffectStyle#PLASMA_CANNON}はさらに同時2つまで。
+     * {@link #updateEffect}が無ければ自動で終わる（薄れる種類は{@link #endEffect}と同じ終わり方）。持ち主ごとの上限は光線以外の演出で共通。
+     * {@link EffectStyle#PLASMA_CANNON}はさらに同時2つまで。
      */
     public static BeamResult startEffect(EffectRequest request) { return ClientExternalEffects.start(request); }
 
@@ -82,6 +92,8 @@ public final class ExternalPresentation {
     /**
      * 持ち主のその演出を、寿命の前に終える。描いていればtrue。すぐ消える。ただし{@link EffectStyle#STORM_WING}と{@link EffectStyle#PLASMA_CANNON}は
      * 自然能力と同じように薄れて消え、消えるまで上限の枠と効果IDを使う（薄れている途中はfalse、更新もできない）。出した後の粒子と雷は消せない。
+     * 翼を使う{@link EffectStyle#DARK_WINGS}・{@link EffectStyle#DARK_WING_STAB}・{@link EffectStyle#DARK_FEATHER_BALL}（演出API版3）も同じで、
+     * 動作を止めて、その演出が出した翼が本体と同じ速さで畳み終わるまで（ほかの演出が翼を出したままなら、その時点で）枠と効果IDを使う。
      */
     public static boolean endEffect(String ownerModId, long effectId) { return ClientExternalEffects.end(ownerModId, effectId); }
 

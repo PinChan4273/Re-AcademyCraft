@@ -8,7 +8,7 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.phys.Vec3;
 
 /**
- * 外部の演出の要求の検査（演出API版2）。描画とMinecraftのクライアントに依存しない（GameTestで確かめる）。
+ * 外部の演出の要求の検査（演出API版3）。描画とMinecraftのクライアントに依存しない（GameTestで確かめる）。
  * 結果はnullなら通る。順番: 種類 → 持ち主 → 効果ID → 次元 → 座標 → 種類ごとの欄。
  */
 public final class ExternalEffectRules {
@@ -21,6 +21,11 @@ public final class ExternalEffectRules {
     public static final float MAX_WAVE_SCALE = 8, MAX_DEBRIS_RADIUS = 6, MAX_SHIELD_RADIUS = 8, MAX_SURROUND_SIZE = 32, MAX_PLASMA_SCALE = 4;
     /** 細い電弧の模様の長さ（LegacyArcGeometryのTHIN_CONTINUOUSの範囲）。 */
     public static final double MAX_CONTINUOUS_ARC = 20;
+    /**
+     * 白翼刺突の、目から届いた点までの長さの上限（演出API版3）。本体の刺突の射程の上限（16）と同じ。翼のしなる形（{@code client/WingBend}）はこの長さまでで
+     * 形を変え、足す羽の数は長さに比例するので、電弧と同じく描画の部品の範囲で区切る。
+     */
+    public static final double MAX_STAB_REACH = 16;
     private static final double MAX_HORIZONTAL = 30_000_000, MAX_VERTICAL = 20_000;
 
     public static @Nullable BeamResult check(EffectRequest request, @Nullable ResourceLocation currentDimension, Predicate<String> modLoaded) {
@@ -47,6 +52,12 @@ public final class ExternalEffectRules {
             case RAILGUN_HAND, JET_SHIELD, STORM_WING, MINE_RAY_BASIC, MINE_RAY_EXPERT, MINE_RAY_LUCK -> entity(request) ? null : BeamResult.INVALID;
             case PLASMA_CANNON -> request.target() != null && !bounded(request.target()) ? BeamResult.INVALID : scale(request, MAX_PLASMA_SCALE);
             case ARC_BURST, LIGHTNING, BLOOD_SPLASH, BLOOD_SPLASH_LARGE, CRITICAL_FORMULA, ORB, RIPPLE -> null;
+            // 演出API版3: 未元物質。翼と頭上の輪はプレイヤーに付く（プレイヤーかどうかはクライアントが実体を見て確かめる）。
+            case DARK_WINGS, DARK_HALO -> entity(request) ? null : BeamResult.INVALID;
+            case DARK_WING_STAB -> entity(request) ? between(request, MAX_STAB_REACH) : BeamResult.INVALID;
+            case DARK_FEATHER_BALL -> !entity(request) || (request.target() != null && !bounded(request.target())) ? BeamResult.INVALID : null;
+            case DARK_AIR_CANNON -> between(request, MAX_LENGTH);
+            case DARK_EMERGE_RING, HEAVEN_RING -> null;
         };
     }
 

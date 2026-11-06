@@ -47,6 +47,12 @@ public final class HeavenPhenomena {
     /** 領域の状態異常の損傷。通常攻撃の倍率（{@link HeavenEffects#dealer}）を掛けないために区別する。 */
     public static final class StatusSource extends DamageSource {
         StatusSource(Holder<DamageType> type, Entity causing) { super(type, causing); }
+        /** この損傷を起こした技能（天界発現）。公開APIの{@code AcademySafety.skillOf}が答える。 */
+        public net.minecraft.resources.ResourceLocation skill() { return HeavenManifest.ID; }
+    }
+    /** 試験用の入口: 状態異常の損傷の源を作る（公開APIの技能の識別を確かめるため）。 */
+    public static DamageSource statusSourceForTest(LivingEntity entity, Entity causing, ResourceKey<DamageType> type) {
+        return new StatusSource(entity.level().registryAccess().registryOrThrow(Registries.DAMAGE_TYPE).getHolderOrThrow(type), causing);
     }
     /** 対象に付いている1つの状態。 */
     private static final class Status {

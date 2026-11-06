@@ -40,31 +40,44 @@ public final class ClientExternalBeams {
     /** 持ち主ごとの上限の既定（既定の32は、クライアントごと・持ち主のMOD IDごとの同時32本として採用した値（2026-10-25のユーザーの決定、Issue #5 6399564392）。）と、設定で選べる範囲。 */
     public static final int DEFAULT_LIMIT = 32, MIN_LIMIT = 1, MAX_LIMIT = 256;
 
+    /** 未元光線（{@link io.github.pinchan4273.reacademycraft.api.client.BeamStyle#DARK_MATTER_RAY}）の寿命（tick）。本体の当たりの間隔と同じ。 */
+    public static final int DARK_RAY_TICKS = io.github.pinchan4273.reacademycraft.skill.DarkMatterRay.HIT_INTERVAL;
+
     private static final class Beam {
-        final BeamRequest request; final LegacyMdRayAnimation animation;
+        final BeamRequest request;
+        /** 原子崩し・電撃使いの光線のアニメーション。未元光線はnull（伸び・薄れが無く、{@link #age}で寿命を数える）。 */
+        @Nullable final LegacyMdRayAnimation animation;
         final LegacyChargingArcPose.Orientation orientation;
         final RandomSource random = RandomSource.create();
         final float[][] scatter;
         final java.util.List<ClientMdEffects.SubArc> arcs;
+        int age;
         boolean small() { return request.style() == io.github.pinchan4273.reacademycraft.api.client.BeamStyle.MELTDOWNER_RAY_SMALL; }
+        boolean dark() { return request.style() == io.github.pinchan4273.reacademycraft.api.client.BeamStyle.DARK_MATTER_RAY; }
+        boolean finished() { return animation == null ? age >= DARK_RAY_TICKS : animation.snapshot().finished(); }
         /** 自然能力と同じく、始点を術者の手元へずらす種類。 */
         boolean handFixed() {
-            return switch (request.style()) { case MELTDOWNER_BEAM, RAILGUN, BARRAGE_AIM -> true; case MELTDOWNER_RAY_SMALL, BARRAGE_SCATTER -> false; };
+            return switch (request.style()) {
+                case MELTDOWNER_BEAM, RAILGUN, BARRAGE_AIM -> true;
+                case MELTDOWNER_RAY_SMALL, BARRAGE_SCATTER, DARK_MATTER_RAY -> false;
+            };
         }
-        static LegacyMdRayAnimation.Profile profile(io.github.pinchan4273.reacademycraft.api.client.BeamStyle style) {
+        @Nullable static LegacyMdRayAnimation.Profile profile(io.github.pinchan4273.reacademycraft.api.client.BeamStyle style) {
             return switch (style) {
                 case MELTDOWNER_BEAM -> LegacyMdRayAnimation.Profile.MELTDOWNER;
                 case MELTDOWNER_RAY_SMALL -> LegacyMdRayAnimation.Profile.SMALL;
                 case RAILGUN -> LegacyMdRayAnimation.Profile.RAILGUN;
                 case BARRAGE_AIM -> LegacyMdRayAnimation.Profile.BARRAGE_PRE;
                 case BARRAGE_SCATTER -> LegacyMdRayAnimation.Profile.BARRAGE;
+                case DARK_MATTER_RAY -> null;
             };
         }
         Beam(BeamRequest request) {
             this.request = request;
             var delta = request.to().subtract(request.from());
             orientation = LegacyChargingArcPose.rayOrientation(delta.x, delta.y, delta.z);
-            animation = new LegacyMdRayAnimation(profile(request.style()), delta.length(), MAX_LENGTH);
+            var profile = profile(request.style());
+            animation = profile == null ? null : new LegacyMdRayAnimation(profile, delta.length(), MAX_LENGTH);
             if (request.style() == io.github.pinchan4273.reacademycraft.api.client.BeamStyle.BARRAGE_SCATTER) {
                 float range = 50 + random.nextFloat() * 10;
                 scatter = new float[25 + random.nextInt(5)][];
@@ -119,6 +132,8 @@ public final class ClientExternalBeams {
         if (client.isPaused()) return;
         BOOK.advance();
         for (var beam : BOOK.all()) {
+            beam.age++;
+            if (beam.animation == null) continue;
             beam.animation.tick(beam.random);
             // 自然能力のレールガンと同じ: 光線が30tick経つと弧を消す。
             if (!beam.arcs.isEmpty()) {
@@ -133,7 +148,7 @@ public final class ClientExternalBeams {
                         wiggle(beam.random), wiggle(beam.random), wiggle(beam.random));
             }
         }
-        BOOK.retire(beam -> beam.animation.snapshot().finished());
+        BOOK.retire(Beam::finished);
     }
 
     private static double wiggle(RandomSource random) { return -.015 + random.nextDouble() * .03; }
@@ -149,6 +164,7 @@ public final class ClientExternalBeams {
     /** 自然能力の光線（{@link ClientMdEffects#render}、普通の優先度）の後に描く。 */
     @SubscribeEvent(priority = EventPriority.LOWEST)
     public static void render(RenderLevelStageEvent event) {
+        if (event.getStage() == RenderLevelStageEvent.Stage.AFTER_PARTICLES) { renderDark(event); return; }
         if (event.getStage() != ClientMdEffects.STAGE) return;
         lastFrameQuads = lastFrameBatches = 0; lastFrameNanos = 0;
         var client = Minecraft.getInstance();
@@ -159,6 +175,8 @@ public final class ClientExternalBeams {
         var camera = event.getCamera().getPosition();
         var pose = event.getPoseStack();
         for (var beam : beams) {
+            // 未元光線は、自然能力の未元光線と同じ段階（renderDark）で描く。
+            if (beam.dark() || beam.animation == null) continue;
             var origin = beam.request.from();
             var orientation = beam.orientation;
             var caster = beam.handFixed() ? caster(beam.request) : null;
@@ -203,6 +221,22 @@ public final class ClientExternalBeams {
         totalQuads += lastFrameQuads;
         lastFrameNanos = System.nanoTime() - started;
     }
+    /**
+     * 未元光線（演出API版3）: 自然能力の未元光線（{@link ClientDarkEffects}）と同じ段階（{@code AFTER_PARTICLES}）・同じ描き方で、受け付けた
+     * {@code from}から{@code to}へ描く。計数は同じフレームの原子崩しの光線の計数（{@code AFTER_BLOCK_ENTITIES}で0に戻す）へ足す。
+     */
+    private static void renderDark(RenderLevelStageEvent event) {
+        var client = Minecraft.getInstance();
+        if (client.level != world || client.player == null || client.getOverlay() != null) return;
+        var rays = new java.util.ArrayList<net.minecraft.world.phys.Vec3[]>();
+        for (var beam : BOOK.all()) if (beam.dark() && !beam.finished()) rays.add(new net.minecraft.world.phys.Vec3[] {beam.request.from(), beam.request.to()});
+        if (rays.isEmpty()) return;
+        long started = System.nanoTime();
+        int quads = ClientDarkEffects.drawExternalRays(event.getPoseStack(), event.getCamera().getPosition(), rays);
+        lastFrameQuads += quads; totalQuads += quads;
+        if (quads > 0) lastFrameBatches++;
+        lastFrameNanos += System.nanoTime() - started;
+    }
 
     @Mod.EventBusSubscriber(modid = "academy", value = Dist.CLIENT, bus = Mod.EventBusSubscriber.Bus.MOD)
     public static final class ExternalBeamReloadRegistration {
@@ -218,7 +252,10 @@ public final class ClientExternalBeams {
     /** 試験用の入口: 持ち主の最新の光線のアニメーションの値（撮影の前に、伸び切るまで待つため）。 */
     public static @Nullable LegacyMdRayAnimation.Snapshot newest(String ownerModId) {
         var all = BOOK.all();
-        for (int i = all.size() - 1; i >= 0; i--) if (all.get(i).request.ownerModId().equals(ownerModId)) return all.get(i).animation.snapshot();
+        for (int i = all.size() - 1; i >= 0; i--) {
+            var beam = all.get(i);
+            if (beam.request.ownerModId().equals(ownerModId)) return beam.animation == null ? null : beam.animation.snapshot();
+        }
         return null;
     }
     /** 試験用の入口: 描いているすべての外部の光線の長さ（足した順）。 */

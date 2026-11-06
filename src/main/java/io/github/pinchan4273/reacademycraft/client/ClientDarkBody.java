@@ -85,35 +85,77 @@ public final class ClientDarkBody {
     /** サーバーからの形態と変化の合図（{@link ClientDarkWings}が受けて渡す）。 */
     public static void receive(DarkWingAction packet) {
         var level = Minecraft.getInstance().level;
-        if (level != world) { MARKS.clear(); world = level; }
+        if (level != world) { MARKS.clear(); EXTERNAL.clear(); HOLDS.clear(); world = level; }
         var mark = MARKS.computeIfAbsent(packet.entityId(), id -> new Mark());
         if (packet.kind() == DarkWingAction.BODY_FLASH) { mark.body = true; mark.flashTicks = 0; }
         else mark.body = packet.value() != 0;
     }
     @Nullable public static Mark mark(int entityId) { return MARKS.get(entityId); }
+    /**
+     * 頭上の輪が描く状態: 自然能力の未元物質人間ならその状態、そうでなければ外部の演出（公開APIの{@code DARK_HALO}、演出API版3）の状態。
+     * 自然能力の輪がある実体では、外部の輪を重ねない。
+     */
+    @Nullable public static Mark haloMark(int entityId) {
+        var own = MARKS.get(entityId);
+        return own != null && own.body ? own : EXTERNAL.get(entityId);
+    }
+
+    // ---- 外部の演出の頭上の輪（演出API版3） ----
+
+    /** 外部の演出の輪の状態（実体の番号ごと。揺れは自然能力と同じ{@link #advance}で進める）と、輪を出したままにしている演出の札。 */
+    private static final Map<Integer, Mark> EXTERNAL = new HashMap<>();
+    private static final Map<Integer, java.util.Set<Object>> HOLDS = new HashMap<>();
+    /** 札で外部の輪を出す。 */
+    static void holdExternal(int entityId, Object token) {
+        var level = Minecraft.getInstance().level;
+        if (level != world) { MARKS.clear(); EXTERNAL.clear(); HOLDS.clear(); world = level; }
+        EXTERNAL.computeIfAbsent(entityId, id -> new Mark()).body = true;
+        HOLDS.computeIfAbsent(entityId, id -> new java.util.HashSet<>()).add(token);
+    }
+    /** 札を離す。札が無くなれば、自然能力と同じくすぐ消す。 */
+    static void releaseExternal(int entityId, Object token) {
+        var holds = HOLDS.get(entityId);
+        if (holds == null || !holds.remove(token) || !holds.isEmpty()) return;
+        HOLDS.remove(entityId);
+        EXTERNAL.remove(entityId);
+    }
+    /** 試験用の入口: 外部の輪の数。 */
+    public static int externalHalos() { return EXTERNAL.size(); }
+
+    /** 揺れを1tick進める（自然能力と外部の輪で共通）。 */
+    private static void advance(Mark mark, Entity entity) {
+        // 歩く・飛ぶほど大きく速く揺れる（翼を閉じて歩くときも揺れる）。
+        var wings = ClientDarkWings.state(entity.getId());
+        double speed = Math.hypot(entity.getX() - entity.xo, entity.getZ() - entity.zo) + Math.abs(entity.getY() - entity.yo) * .5;
+        float target = wings != null && wings.flight != 0 ? 1 : (float) Mth.clamp(speed / .2, 0, 1);
+        mark.moveO = mark.move;
+        mark.move += (target - mark.move) * .15f;
+        mark.phaseO = mark.phase;
+        mark.phase += Mth.lerp(mark.move, BOB_IDLE_SPEED, BOB_MOVE_SPEED);
+    }
 
     @SubscribeEvent public static void tick(TickEvent.ClientTickEvent event) {
         if (event.phase != TickEvent.Phase.END) return;
         var client = Minecraft.getInstance(); var level = client.level;
-        if (level != world) { MARKS.clear(); world = level; return; }
+        if (level != world) { MARKS.clear(); EXTERNAL.clear(); HOLDS.clear(); world = level; return; }
         if (level == null || client.isPaused()) return;
         MARKS.entrySet().removeIf(entry -> {
             var mark = entry.getValue();
             Entity entity = level.getEntity(entry.getKey());
             if (entity == null || entity.isRemoved()) return true;
             if (mark.flashTicks >= 0 && ++mark.flashTicks > FLASH_RISE + FLASH_HOLD + FLASH_DECAY) mark.flashTicks = -1;
-            // 歩く・飛ぶほど大きく速く揺れる（翼を閉じて歩くときも揺れる）。
-            var wings = ClientDarkWings.state(entity.getId());
-            double speed = Math.hypot(entity.getX() - entity.xo, entity.getZ() - entity.zo) + Math.abs(entity.getY() - entity.yo) * .5;
-            float target = wings != null && wings.flight != 0 ? 1 : (float) Mth.clamp(speed / .2, 0, 1);
-            mark.moveO = mark.move;
-            mark.move += (target - mark.move) * .15f;
-            mark.phaseO = mark.phase;
-            mark.phase += Mth.lerp(mark.move, BOB_IDLE_SPEED, BOB_MOVE_SPEED);
+            advance(mark, entity);
             return !mark.body && mark.flashTicks < 0;
         });
+        // 外部の輪: 実体を失った演出は自分で札を離すが、ここでも実体の無い状態は消す。
+        EXTERNAL.entrySet().removeIf(entry -> {
+            Entity entity = level.getEntity(entry.getKey());
+            if (entity == null || entity.isRemoved()) { HOLDS.remove(entry.getKey()); return true; }
+            advance(entry.getValue(), entity);
+            return false;
+        });
     }
-    @SubscribeEvent public static void loggedOut(ClientPlayerNetworkEvent.LoggingOut event) { MARKS.clear(); world = null; }
+    @SubscribeEvent public static void loggedOut(ClientPlayerNetworkEvent.LoggingOut event) { MARKS.clear(); EXTERNAL.clear(); HOLDS.clear(); world = null; }
 
     /**
      * 変化の瞬間の白いシルエット: 体・装備・手の持ち物・翼を、同じ描画経路でもう一度描き直し、そのとき頂点の重ね色（オーバーレイ）を白へ、

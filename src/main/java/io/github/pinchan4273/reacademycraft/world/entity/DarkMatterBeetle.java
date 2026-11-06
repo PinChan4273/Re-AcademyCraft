@@ -40,13 +40,24 @@ import net.minecraft.world.phys.Vec3;
  * 行動はこのクラスの{@link #customServerAiStep}で毎tick決める: 実行中の突進 → 帰還（所有者の追従開始距離Dを超えてから、D−4以内へ戻るまで）→ 標的との戦闘 → 追従。
  * 地上は経路探索、飛行は直線の速度指定で、進路を塞ぐブロックは{@link #clear}が設定に従って壊す。
  * <p>
- * 描画のために同期する値: {@link #ownerId()}、{@link #flying()}、{@link #attackKind()}、{@link #attackSerial()}。
+ * 描画のために同期する値: {@link #ownerId()}、{@link #flying()}、{@link #attackKind()}、{@link #attackSerial()}、{@link #emergeLeft()}。
+ * <p>
+ * 出現の演出（v1.5.1の試作）: 技能が生成した個体は、まず{@link #EMERGE_TICKS}tickの間「現れる途中」で、体は描かず、甲虫より大きい輪だけを描く。
+ * その間は攻撃・被弾・AI・当たり判定のどれにも参加しない（{@link #inert()}）。残りのtickは実体の同期データなので、追加の通信は無く、
+ * 途中から見えるようになった人にも残りの分だけ見える。状態は保存しない（収納や復帰の後は、また最初から現れる）。
+ * 回収で消える時は、消す直前に実体のイベント（{@link #EVENT_RECALL}、バニラの仕組み）を送り、クライアントが逆の演出を描く。
  */
 public final class DarkMatterBeetle extends PathfinderMob {
     private static final EntityDataAccessor<Optional<UUID>> OWNER = SynchedEntityData.defineId(DarkMatterBeetle.class, EntityDataSerializers.OPTIONAL_UUID);
     private static final EntityDataAccessor<Boolean> FLYING = SynchedEntityData.defineId(DarkMatterBeetle.class, EntityDataSerializers.BOOLEAN);
     private static final EntityDataAccessor<Byte> ATTACK_KIND = SynchedEntityData.defineId(DarkMatterBeetle.class, EntityDataSerializers.BYTE);
     private static final EntityDataAccessor<Integer> ATTACK_SERIAL = SynchedEntityData.defineId(DarkMatterBeetle.class, EntityDataSerializers.INT);
+    /** 出現の演出の残りのtick（0なら現れ終わっている）。サーバーが毎tick減らす。 */
+    private static final EntityDataAccessor<Integer> EMERGE = SynchedEntityData.defineId(DarkMatterBeetle.class, EntityDataSerializers.INT);
+    /** 出現の演出の長さ（tick。0.6秒）。この間に輪が出て、終わった瞬間に甲虫が現れる。 */
+    public static final int EMERGE_TICKS = 12;
+    /** 回収の演出を始める実体のイベントの番号（バニラの番号と重ならない値）。 */
+    public static final byte EVENT_RECALL = 101;
     /** 同期する攻撃の種類。近接と砲撃は{@link #ATTACK_LOCK}tickの間、突進は終わるまでこの値のまま。 */
     public static final byte ATTACK_NONE = 0, ATTACK_MELEE = 1, ATTACK_DASH = 2, ATTACK_SHOT = 3;
     /**
@@ -106,6 +117,70 @@ public final class DarkMatterBeetle extends PathfinderMob {
         entityData.define(FLYING, false);
         entityData.define(ATTACK_KIND, ATTACK_NONE);
         entityData.define(ATTACK_SERIAL, 0);
+        entityData.define(EMERGE, 0);
+    }
+    /** 出現の演出の残りのtick（クライアントでも読める）。 */
+    public int emergeLeft() { return entityData.get(EMERGE); }
+    /** 現れる途中か。 */
+    public boolean emerging() { return emergeLeft() > 0; }
+    /** 戦いにも当たり判定にも参加しない状態か（今は現れる途中だけ）。 */
+    public boolean inert() { return emerging(); }
+    /** 技能が生成の直後（世界へ足す前）に呼ぶ: 現れる途中から始める。 */
+    public void startEmerging() { entityData.set(EMERGE, EMERGE_TICKS); }
+    /** 試験用の入口: 出現の演出を今すぐ終える。 */
+    public void finishEmergingForTest() { entityData.set(EMERGE, 0); }
+
+    // ---- クライアントの描画用（サーバーでは使わない） ----
+
+    /** クライアント: 現れる途中を見ていたか。 */
+    private boolean seenEmerging;
+    /** クライアント: 現れてからのtick（現れる途中を見ていなければ-1）。 */
+    private int appearAge = -1;
+    /** クライアント: 回収の演出で体を縮める倍率（{@code ClientDarkBeetleSummon}が描く間だけ1未満）。 */
+    public float ghostScale = 1;
+    /** クライアント: 現れてからのtick（現れた瞬間を見ていなければ-1）。 */
+    public int appearAge() { return appearAge; }
+    /** 体の描画の倍率: 現れた直後は0.6から1へ広がり、回収の演出では縮む。 */
+    public float renderScale(float partial) {
+        float scale = ghostScale;
+        if (appearAge >= 0 && appearAge < APPEAR_GROW) {
+            float k = Mth.clamp((appearAge + partial) / APPEAR_GROW, 0, 1);
+            scale *= .6f + .4f * k * k * (3 - 2 * k);
+        }
+        return scale;
+    }
+    /** 現れた直後に体が広がるtick。 */
+    public static final int APPEAR_GROW = 4;
+    @Override public void onSyncedDataUpdated(EntityDataAccessor<?> key) {
+        super.onSyncedDataUpdated(key);
+        if (!EMERGE.equals(key) || !level().isClientSide) return;
+        boolean now = emerging();
+        if (!now && seenEmerging) appearAge = 0;
+        seenEmerging = now;
+    }
+    @Override public void tick() {
+        super.tick();
+        if (level().isClientSide) { if (appearAge >= 0 && appearAge < 100) appearAge++; return; }
+        int left = emergeLeft();
+        if (left <= 0) return;
+        entityData.set(EMERGE, left - 1);
+        // 現れた瞬間の音（バニラの音の通知で、近くの人に届く）。
+        if (left == 1) level().playSound(null, getX(), getY(), getZ(), net.minecraft.sounds.SoundEvents.AMETHYST_CLUSTER_BREAK, getSoundSource(), 1f, .8f);
+    }
+    /** 回収の演出の通知を受けたクライアント（この直後に実体は消える）。 */
+    @Override public void handleEntityEvent(byte id) {
+        if (id == EVENT_RECALL) {
+            net.minecraftforge.fml.DistExecutor.unsafeRunWhenOn(net.minecraftforge.api.distmarker.Dist.CLIENT,
+                    () -> () -> io.github.pinchan4273.reacademycraft.client.ClientDarkBeetleSummon.recalled(this));
+            return;
+        }
+        super.handleEntityEvent(id);
+    }
+    /** サーバー: 回収で消す直前に呼ぶ。見えている人のクライアントが回収の演出を描き、音が鳴る。 */
+    public void announceRecall() {
+        if (!(level() instanceof ServerLevel server)) return;
+        server.broadcastEntityEvent(this, EVENT_RECALL);
+        server.playSound(null, getX(), getY(), getZ(), net.minecraft.sounds.SoundEvents.BEACON_DEACTIVATE, getSoundSource(), .6f, 1.6f);
     }
     /** 所有者のUUID（クライアントでも読める）。 */
     public @Nullable UUID ownerId() { return entityData.get(OWNER).orElse(null); }
@@ -179,17 +254,29 @@ public final class DarkMatterBeetle extends PathfinderMob {
     }
     /** §9: 召喚者本人と同じ所有者の個体からの損傷を受けない。他のプレイヤーへの無敵ではない。環境の損傷（{@link #environmental}）も受けない。 */
     @Override public boolean isInvulnerableTo(DamageSource source) {
+        // 現れる途中は何からも傷つかない（奈落と/killのような無敵を貫く物だけは通す）。
+        if (inert() && !source.is(net.minecraft.tags.DamageTypeTags.BYPASSES_INVULNERABILITY)) return true;
         return isFriendly(source.getEntity()) || isFriendly(source.getDirectEntity()) || environmental(source) || super.isInvulnerableTo(source);
     }
-    /** §9: 召喚者本人と同じ所有者の個体からの状態異常を受けない。 */
+    /** §9: 召喚者本人と同じ所有者の個体からの状態異常を受けない。現れる途中は何からも受けない。 */
     @Override public boolean addEffect(MobEffectInstance effect, @Nullable Entity source) {
-        return !isFriendly(source) && super.addEffect(effect, source);
+        return !inert() && !isFriendly(source) && super.addEffect(effect, source);
     }
-    /** §9: 召喚者本人と同じ所有者の個体の間で押し合わない。 */
-    @Override public void push(Entity entity) { if (!isFriendly(entity)) super.push(entity); }
-    @Override protected void doPush(Entity entity) { if (!isFriendly(entity)) super.doPush(entity); }
-    /** §9: 所有者本人のクライアントの照準は自分の甲虫を選ばない（照準の攻撃を遮らない）。他の人やサーバーの判定には今までどおり当たる。 */
+    /** §9: 召喚者本人と同じ所有者の個体の間で押し合わない。現れる途中は誰とも押し合わない。 */
+    @Override public void push(Entity entity) { if (!inert() && !isFriendly(entity)) super.push(entity); }
+    @Override protected void doPush(Entity entity) { if (!inert() && !isFriendly(entity)) super.doPush(entity); }
+    @Override public boolean isPushable() { return !inert() && super.isPushable(); }
+    /** 現れる途中は、モブの標的の選び方（バニラの{@code TargetingConditions}）に選ばれない。 */
+    @Override public boolean canBeSeenAsEnemy() { return !inert() && super.canBeSeenAsEnemy(); }
+    @Override public boolean isAttackable() { return !inert() && super.isAttackable(); }
+    /** 現れる途中は動かない（重力も押しも受けない）。 */
+    @Override public void travel(Vec3 input) {
+        if (inert()) { setDeltaMovement(Vec3.ZERO); return; }
+        super.travel(input);
+    }
+    /** §9: 所有者本人のクライアントの照準は自分の甲虫を選ばない（照準の攻撃を遮らない）。他の人やサーバーの判定には今までどおり当たる。現れる途中は誰の照準にも当たらない。 */
     @Override public boolean isPickable() {
+        if (inert()) return false;
         if (level().isClientSide && Boolean.TRUE.equals(net.minecraftforge.fml.DistExecutor.unsafeCallWhenOn(net.minecraftforge.api.distmarker.Dist.CLIENT,
                 () -> () -> io.github.pinchan4273.reacademycraft.client.ClientDarkBeetles.isLocalPlayer(ownerId())))) return false;
         return super.isPickable();
@@ -206,7 +293,8 @@ public final class DarkMatterBeetle extends PathfinderMob {
 
     @Override protected void customServerAiStep() {
         super.customServerAiStep();
-        if (party == null) return;
+        // 現れる途中は行動を決めない（クールダウンも進めない）。
+        if (party == null || inert()) { getNavigation().stop(); return; }
         ServerPlayer owner = party.player();
         float p = DarkMatterBeetles.proficiency(owner);
         if (meleeCooldown > 0) meleeCooldown--;

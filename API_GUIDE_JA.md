@@ -15,7 +15,7 @@
 | `io.github.pinchan4273.reacademycraft.api` | ID、能力系統・技能の定義、発動方式、実行結果、停止理由、発動元の種類・関係、スキルツリー上の配置、APIバージョン | Javaのみ。Minecraftの型は使用しません |
 | `...api.mc` | 発動元、発動時の情報、技能の実行処理、リソース消費方針、外部発動、技能習得、安全判定 | Minecraft 1.20.1の型 |
 | `...api.forge` | 能力・技能の登録イベント（`RegisterAbilitiesEvent`） | Forge |
-| `...api.client` | 描画専用の演出API（`ExternalPresentation`、演出APIバージョン2） | Minecraft 1.20.1のクライアント |
+| `...api.client` | 描画専用の演出API（`ExternalPresentation`、1.4.1は演出APIバージョン2、1.5.1はバージョン3） | Minecraft 1.20.1のクライアント |
 
 表中の `...` は `io.github.pinchan4273.reacademycraft` を表します。
 
@@ -164,6 +164,8 @@ bus.addListener((RegisterAbilitiesEvent event) -> {
 
 `AcademySafety.skillOf(DamageSource)` は、Re:AcademyCraftの技能によるダメージであれば技能IDを返し、それ以外の場合は `null` を返します。`AcademySafety.isBeam(DamageSource)` は、本体の技能のうち、光線として扱う6技能（`railgun`、`meltdowner`、`ray_barrage`、`electron_bomb`、`scatter_bomb`、`electron_missile`）によるダメージであれば `true` を返します。
 
+1.5.1からは、`isBeam` は未元光線（`academy:dark_matter_ray`）によるダメージも光線として扱います。`skillOf` は、未元物質の技能（白翼刺突・未元光線・未元空気砲・甲虫・天界発現）によるダメージにも技能IDを返し、天界発現の領域の状態異常（燃焼・毒・衰弱）によるダメージでは `academy:heaven_manifest` を返します。公開APIのバージョン（`AcademyApi.VERSION`）は2のままです。
+
 いずれも状態を変更しない参照用メソッドです。サーバースレッド上で呼び出してください。`AcademyApi.VERSION` はコンパイル時に値が埋め込まれる定数のため、実行中のバージョンの判定には使用できません。古いバージョンにも対応する場合は、これらのメソッドの呼び出し時に発生する `LinkageError` を捕捉し、対応していない場合の処理を用意してください。
 
 ### 空間移動
@@ -209,7 +211,7 @@ bus.addListener((RegisterAbilitiesEvent event) -> {
 
 ### 対応範囲と役割
 
-`io.github.pinchan4273.reacademycraft.api.client` は、アドオンから本体の視覚効果を利用するための公開APIです。1.4.1の演出APIバージョン2では、従来のメルトダウナーの光線（`MELTDOWNER_BEAM`）に加えて、4種類の光線と27種類の演出に対応しています。追加された種類と使い方は、後述の「光線以外の演出（演出APIバージョン2）」を参照してください。
+`io.github.pinchan4273.reacademycraft.api.client` は、アドオンから本体の視覚効果を利用するための公開APIです。1.4.1の演出APIバージョン2では、従来のメルトダウナーの光線（`MELTDOWNER_BEAM`）に加えて、4種類の光線と27種類の演出に対応しています。追加された種類と使い方は、後述の「光線以外の演出（演出APIバージョン2）」を参照してください。1.5.1の演出APIバージョン3では、未元物質の7種類の演出と1種類の光線を追加しました。後述の「未元物質の演出（演出APIバージョン3）」を参照してください。
 
 このAPIは描画専用で、ダメージ・命中判定・リソース消費・通信は行いません。効果音も原則として再生しませんが、`LIGHTNING` ではバニラの雷と同じ音が鳴ります。
 
@@ -332,6 +334,30 @@ HUD・照準・画面の色・手の構え・視線・歩行など、プレイ�
 
 1.4.0向けアドオンの互換性と、1.4.0と1.4.1の混在接続は未検証です。上記のAPI対応確認だけで動作互換性が保証されるわけではありません。利用するアドオンの対応状況を確認し、マルチプレイではサーバーと全クライアントを1.4.1にそろえることを推奨します。
 
+### 未元物質の演出（演出APIバージョン3）
+
+1.5.1の演出APIバージョン3では、未元物質の7種類の演出と1種類の光線を追加しました。使用する前に、`ExternalPresentation.apiVersion() >= 3` を確認してください。バージョン2以前の環境で追加した値を参照すると、`NoSuchFieldError` などの `LinkageError` が発生します。
+
+既存の値の順番と意味は変えずに、`EffectStyle` と `BeamStyle` の末尾に追加しています。単発か持続かは、値の並び順ではなく `EffectStyle.lasting()` で判断してください（バージョン3から、末尾の値にも単発の演出があります）。
+
+表示枠・効果ID・更新期限・距離の上限などの規則は、バージョン2と同じです。追加した演出は `externalEffectsPerOwner`、追加した光線は `externalBeamsPerOwner` の枠を使用します。効果音は再生しません（未元物質に専用の効果音はありません）。HUD・照準・画面・操作は、これまでどおり対象外です。
+
+| 種類（`EffectStyle`） | 表示方式 | 使用する項目と描画内容 |
+| --- | --- | --- |
+| `DARK_WINGS` | 持続 | エンティティ（プレイヤー）。本体の六翼と同じ描画で、展開と収納は本体と同じ12tickです。見る人の能力設定の「翼の発光」に従います（シェーダーパックの使用中は100%を90%として描画）。終了すると本体と同じように翼を畳み、畳み終わるまで表示枠と効果IDを使用します |
+| `DARK_WING_STAB` | 単発 | エンティティ（プレイヤー）と `target`。翼の1枚が、白翼刺突と同じしなる形で、目から `target` へ伸びます（2tickで伸び、6tickで戻ります）。`position`（目の位置を指定）から `target` までは16ブロックまでです。翼は本体と同じく、前回の刺突と反対側から選びます |
+| `DARK_FEATHER_BALL` | 単発 | エンティティ（プレイヤー）。白翼自動防御と同じ羽の球で体を包みます（18tick）。`target`（攻撃の来た位置）を指定すると、本体と同じく左右から来た場合は半球になります。指定しない場合は全体の球です |
+| `DARK_HALO` | 持続 | エンティティ（プレイヤー）。未元物質人間の頭上の輪です。見る人の「翼の発光」設定に従います。終了するとすぐに消えます |
+| `DARK_AIR_CANNON` | 単発 | `position`→`target`（96ブロックまで）。`position` を撃つ人の目の位置とみなし、その体の六翼の根元にあたる6か所から、本体の未元空気砲と同じ風の柱を `target` の向きの周りへ伸ばします（約0.7秒）。途中のブロックで止まります |
+| `DARK_EMERGE_RING` | 単発 | `position`（足元）。甲虫の出現と同じ輪です（20tick）。甲虫は出しません |
+| `HEAVEN_RING` | 単発 | エンティティ、または `position`（足元。幅1・高さ2の体として扱います）。天界発現の予兆と同じ、上がりながら縮む3本の輪です（10tick）。見る人の天界の設定で「輪」がオフの場合は描画しません |
+
+光線の種類（`BeamStyle`）には、`DARK_MATTER_RAY` を追加しました。本体の未元光線の照射中と同じ白い光線を、`from` から `to` へ1本描画します（最大96ブロック）。表示期間は本体の当たり判定の間隔と同じ10tickで、伸び縮みや薄れはありません。照射を続けて見せる場合は、10tickごとに送ってください。本体のように六翼から出す場合は6本を送ります。始点は手元へ補正しません。
+
+翼と頭上の輪は、プレイヤーの体の描画に付けて表示します。エンティティがプレイヤーでない場合は `INVALID` を返します。`DARK_WING_STAB` と `DARK_FEATHER_BALL` は、その時点で翼が表示されていなければ、動作の間だけ翼を表示し、終了後に畳みます。翼を使う3種類（`DARK_WINGS`・`DARK_WING_STAB`・`DARK_FEATHER_BALL`）は、`endEffect`・`clearEffects` で終了した場合や更新期限が切れた場合も、翼を畳み終わるまで表示枠と効果IDを使用します。
+
+本体の能力で六翼や頭上の輪が表示されているプレイヤーには、外部の翼や輪を重ねて描画しません（本体の表示を優先します）。
+
 ### 効果音の識別子
 
 演出APIは、`LIGHTNING` を除き、効果音を再生しません。本体の効果音を利用する場合は、`api.mc.AcademySoundIds` の識別子を使い、アドオン側で再生処理を実装してください。音を聞かせるプレイヤーの範囲も、アドオン側で決めます。
@@ -397,6 +423,8 @@ Minecraft・Forge本体、および原作の画像・音声・モデルは、SDK
 
 ## 10. 変更履歴
 
+- **1.5.1／演出APIバージョン3（実験的）**：未元物質の演出 `DARK_WINGS`・`DARK_WING_STAB`・`DARK_FEATHER_BALL`・`DARK_HALO`・`DARK_AIR_CANNON`・`DARK_EMERGE_RING`・`HEAVEN_RING` と、光線 `DARK_MATTER_RAY` を追加。`EffectStyle.lasting()` を値の並び順に依存しない判定に変更。演出APIは通信を行いません。
+- **1.5.1／公開APIバージョン2のまま**：`AcademySafety.isBeam` が `academy:dark_matter_ray` を光線として扱い、`skillOf` が天界発現の領域の状態異常に `academy:heaven_manifest` を返すように変更。また、本体の技能 `academy:dark_matter_beetle`（未元物質・甲虫生成）の発動方式（`SkillDefinition` の `ActivationKind`）を、1.5.0の `INSTANT`（単発型）から `HELD`（押し続け型）に変更。発動方式で処理を分けるアドオンは確かめてください。
 - **1.4.1／公開APIバージョン2（実験的）**：`AcademySafety.reflection`・`skillOf`・`isBeam`、`ReflectionState`、`AcademySoundIds` を追加。
 - **1.4.1／演出APIバージョン2（実験的）**：`EffectStyle`・`EffectRequest`、`play`・`startEffect`・`updateEffect`・`endEffect`・`clearEffects` を追加。光線に `MELTDOWNER_RAY_SMALL`・`RAILGUN`・`BARRAGE_AIM`・`BARRAGE_SCATTER` を追加。通信プロトコルは変えていません。
 - **1.4.0／公開APIバージョン1（実験的）**：最初の公開APIを提供。

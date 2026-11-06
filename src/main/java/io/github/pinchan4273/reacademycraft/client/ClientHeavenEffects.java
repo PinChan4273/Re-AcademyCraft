@@ -214,7 +214,8 @@ public final class ClientHeavenEffects {
 
     // ---- 怪現象 ----
 
-    private static void ring(BufferBuilder buffer, Matrix4f matrix, Vec3 center, float radius, float width, float r, float g, float b, float alpha) {
+    /** 水平の輪（加算の半透明、POSITION_COLORの四角形）。甲虫の出現と回収の演出（{@link ClientDarkBeetleSummon}）も同じ輪を使う。 */
+    static void ring(BufferBuilder buffer, Matrix4f matrix, Vec3 center, float radius, float width, float r, float g, float b, float alpha) {
         for (int i = 0; i < RING_SEGMENTS; i++) {
             float a0 = i * Mth.TWO_PI / RING_SEGMENTS, a1 = (i + 1) * Mth.TWO_PI / RING_SEGMENTS;
             float c0 = Mth.cos(a0), s0 = Mth.sin(a0), c1 = Mth.cos(a1), s1 = Mth.sin(a1);
@@ -225,12 +226,34 @@ public final class ClientHeavenEffects {
             buffer.vertex(matrix, x + c0 * radius, y, z + s0 * radius).color(r, g, b, alpha).endVertex();
         }
     }
-    private static float size(Entity entity) { return Math.max(.6f, entity.getBbWidth() * .9f); }
+    private static float size(Entity entity) { return ringRadius(entity.getBbWidth()); }
+    /** 体の幅からの輪の半径（自然能力の予兆と同じ決まり。外部の演出が実体を持たないときは幅1で使う）。 */
+    static float ringRadius(float width) { return Math.max(.6f, width * .9f); }
+    /**
+     * 外部の演出（公開APIの{@code HEAVEN_RING}、演出API版3）: 自然能力の予兆と同じ3本のリングを、同じ描き方（加算・深度を書かない、段階は{@code AFTER_PARTICLES}）で描く。
+     * 見る人の設定で「輪」がOFFなら描かない（自然能力と同じ）。描いた四角形の数を返す。
+     */
+    static int drawExternalTelegraph(com.mojang.blaze3d.vertex.PoseStack pose, Vec3 camera, Vec3 feet, float height, float radius, float t) {
+        if (!ClientSettings.getOn(ClientSettings.HEAVEN_RINGS)) return 0;
+        var matrix = pose.last().pose();
+        RenderSystem.setShader(GameRenderer::getPositionColorShader);
+        RenderSystem.enableBlend(); RenderSystem.blendFunc(GlStateManager.SourceFactor.SRC_ALPHA, GlStateManager.DestFactor.ONE);
+        RenderSystem.disableCull(); RenderSystem.depthMask(false);
+        try {
+            var buffer = Tesselator.getInstance().getBuilder();
+            buffer.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_COLOR);
+            telegraph(buffer, matrix, feet.subtract(camera), height, radius, Mth.clamp(t, 0, 1));
+            BufferUploader.drawWithShader(buffer.end());
+            return 3 * RING_SEGMENTS;
+        } finally { RenderSystem.depthMask(true); RenderSystem.enableCull(); RenderSystem.defaultBlendFunc(); }
+    }
     /** 上がりながら縮む3本のリング。終わりに近いほど明るい。 */
     private static void telegraph(BufferBuilder buffer, Matrix4f matrix, Vec3 camera, Entity entity, Mark mark, float partial) {
         float t = Mth.clamp((mark.age + partial) / mark.life, 0, 1);
-        var at = entity.getPosition(partial).subtract(camera);
-        float height = entity.getBbHeight(), radius = size(entity);
+        telegraph(buffer, matrix, entity.getPosition(partial).subtract(camera), entity.getBbHeight(), size(entity), t);
+    }
+    /** 予兆の3本のリングを、足元at（カメラからの相対）・体の高さ・半径・進みt（0〜1）で描く（自然能力と外部の演出で共通）。 */
+    private static void telegraph(BufferBuilder buffer, Matrix4f matrix, Vec3 at, float height, float radius, float t) {
         for (int i = 0; i < 3; i++) {
             float phase = (t + i / 3f) % 1;
             float scale = 1.5f - phase * .7f;
