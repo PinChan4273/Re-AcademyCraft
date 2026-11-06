@@ -10,7 +10,7 @@ plugins {
 }
 
 group = 'io.github.pinchan4273.academyexample'
-version = '0.1.0'
+version = '0.1.1'
 base { archivesName = 'academy-api-example-neoforge-1.21.1' }
 
 java { toolchain.languageVersion = JavaLanguageVersion.of(21) }
@@ -48,7 +48,8 @@ repositories {
     flatDir { dirs '../../build/libs' }
 }
 
-def academyVersion = project.findProperty('academyVersion') ?: '1.4.1'
+// 本体のJARの名前の版。本体のmod_versionと同じにする（本体の版を上げるときに、一緒に上げる）。
+def academyVersion = project.findProperty('academyVersion') ?: '1.5.1'
 
 dependencies {
     // 本体のJARに対してコンパイルする。サンプルのJARには入らない（配布では、本体のJARをmodsに置く）。

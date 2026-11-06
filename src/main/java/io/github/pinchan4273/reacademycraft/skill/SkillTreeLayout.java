@@ -64,7 +64,18 @@ public final class SkillTreeLayout {
                     node(StormWing.ID, "vecmanip", 130, 20, VecAccel.ID),
                     node(BloodRetrograde.ID, "vecmanip", 204, 83, DirectedBlastwave.ID),
                     node(VecReflection.ID, "vecmanip", 210, 50, VecDeviation.ID),
-                    node(PlasmaCannon.ID, "vecmanip", 175, 14, StormWing.ID)));
+                    node(PlasmaCannon.ID, "vecmanip", 175, 14, StormWing.ID)),
+            // v1.5.0の未元物質（採用仕様・版41の§1）。線は§1の前提の技能から引く。汎用コースの段（y = 110）には重ねない。
+            DarkMatter.CATEGORY, List.of(
+                    node(DarkMatter.STAB, "dark_matter", 16, 25, null),
+                    node(DarkMatter.FLIGHT, "dark_matter", 16, 75, null),
+                    node(DarkMatter.RAY, "dark_matter", 68, 20, DarkMatter.STAB),
+                    node(DarkMatter.GUARD, "dark_matter", 68, 80, DarkMatter.FLIGHT),
+                    node(DarkMatter.AIR_CANNON, "dark_matter", 120, 15, DarkMatter.RAY),
+                    node(DarkMatter.ARMOR, "dark_matter", 120, 85, DarkMatter.GUARD),
+                    node(DarkMatter.BEETLE, "dark_matter", 172, 35, DarkMatter.AIR_CANNON),
+                    node(DarkMatter.HEAVEN, "dark_matter", 220, 15, DarkMatter.BEETLE),
+                    node(DarkMatter.BODY, "dark_matter", 220, 65, DarkMatter.BEETLE)));
 
     private SkillTreeLayout() { }
 

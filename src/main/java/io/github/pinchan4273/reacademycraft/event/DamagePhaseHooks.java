@@ -28,4 +28,13 @@ public final class DamagePhaseHooks {
         container.setNewDamage(Math.max(0, amount));
         return amount <= 0;
     }
+
+    /**
+     * Forge版{@code ForgeHooks.onLivingDamage}（v1.5.0で使い始めた段階）: 衝撃吸収を差し引いた後、HPを減らす直前。結果をcontainerへ書き戻す
+     * （取り消しは0）。呼び出し元の{@code actuallyHurt}は、この直後にcontainerから残りの量を読む。
+     */
+    public static void damage(LivingEntity entity, DamageSource source, DamageContainer container) {
+        var event = NeoForge.EVENT_BUS.post(new AcademyLivingDamageEvent(entity, source, container.getNewDamage()));
+        container.setNewDamage(event.isCanceled() ? 0 : Math.max(0, event.getAmount()));
+    }
 }

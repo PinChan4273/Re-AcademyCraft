@@ -54,6 +54,7 @@ public final class DeveloperMenu extends AbstractContainerMenu {
                     case 3 -> session.energy() & 0xffff; case 4 -> availabilityPart(session.availability(), 0);
                     case 5 -> session.energy() >>> 16; case 6 -> session.tier().ordinal();
                     case 7 -> availabilityPart(session.availability(), 1); case 8 -> availabilityPart(session.availability(), 2);
+                    case 9 -> availabilityPart(session.availability(), 3);
                     default -> 0;
                 };
             }
@@ -68,18 +69,20 @@ public final class DeveloperMenu extends AbstractContainerMenu {
     public int total() { return display.get(2); }
     public int energy() { return (display.get(3) & 0xffff) | ((display.get(5) & 0xffff) << 16); }
     public DeveloperTier tier() { return DeveloperTier.fromId(display.get(6)); }
-    public long availability() { return joinAvailability(display.get(4), display.get(7), display.get(8)); }
+    public long availability() { return joinAvailability(display.get(4), display.get(7), display.get(8), display.get(9)); }
 
     /**
      * バニラはメニューのデータスロットを符号付き16ビットshortで送る（ClientboundContainerSetDataPacket）ので、それより
      * 幅の広い値は分割する必要がある。可用性は以前は1スロットだったが、meltdownerの学習アクションでビットが15を超えると、
      * それより上のビットはクライアントへの途中で黙って落ち、ビット15は符号拡張されて戻り、学習ボタンが信用できなくなった。
      * 3スロットで48ビットとし、今後のカテゴリの余地も残す。
+     * v1.5.0: 未元物質の9技能の学習でビットが45〜53になり48ビットを超えたので、4スロット目（ビット48〜63）を足した。
      */
-    private static final int DATA_SLOTS = 9;
+    private static final int DATA_SLOTS = 10;
     public static int availabilityPart(long availability, int part) { return (int) ((availability >>> (16 * part)) & 0xffff); }
-    public static long joinAvailability(int low, int middle, int high) {
-        return (low & 0xffffL) | ((middle & 0xffffL) << 16) | ((high & 0xffffL) << 32);
+    public static long joinAvailability(int low, int middle, int high) { return joinAvailability(low, middle, high, 0); }
+    public static long joinAvailability(int low, int middle, int high, int top) {
+        return (low & 0xffffL) | ((middle & 0xffffL) << 16) | ((high & 0xffffL) << 32) | ((top & 0xffffL) << 48);
     }
     public boolean usesDevice(DevelopmentDevice device) { return session != null && session.usesDevice(device); }
     @Override public boolean stillValid(Player player) {

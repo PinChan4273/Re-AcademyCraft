@@ -169,6 +169,7 @@ public final class LocationTeleport {
                 e -> e.isAlive() && !e.isSpectator() && TPSkillHelper.living(e)
                         && e.getBbWidth() * e.getBbWidth() * e.getBbHeight() < CARRY_VOLUME
                         && e.position().distanceToSqr(origin) <= CARRY_RANGE * CARRY_RANGE);
+        if (!data.safetyPermits(ID, cpCost(data.getProficiency(ID), origin.distanceTo(location.position()), cross), player.getAbilities().instabuild)) return "academy.cast.cp";
         move(player, destination, target);
         // Forgeのディメンション移動のイベントが術者を拒否することがある。その場合は何も払わず、何も連れて行かない。
         if (player.level() != destination) return "";

@@ -6,7 +6,11 @@
   "mixins": [
     "ChunkMapUnloadLivelockMixin",
     "LivingEntityDamageMixin",
-    "PlayerDamageMixin"
+    "PlayerDamageMixin",
+    "ProjectileTargetMixin"
+  ],
+  "client": [
+    "client.GuiPortalOverlayMixin"
   ],
   "injectors": {
     "defaultRequire": 1

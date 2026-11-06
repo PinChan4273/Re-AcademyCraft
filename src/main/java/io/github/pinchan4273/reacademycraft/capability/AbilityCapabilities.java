@@ -79,7 +79,8 @@ public final class AbilityCapabilities {
         next.copyFrom(previous);
         next.forgetCooldowns();
         // エンドからの帰還でも何度実行してよいように、代入だけを行う。状態を加えたり重複させたりしない。
-        if (event.isWasDeath()) next.recoverAfterDeath();
+        // v1.5.0 §15: 死亡からの復活では、設定の復活形態も当てる。
+        if (event.isWasDeath()) { next.recoverAfterDeath(); next.applyRespawnForm(); }
         // この置き換えの後に、PlayerRespawnEventで写し・回復した状態を送る。
     }
 }

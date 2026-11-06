@@ -1,6 +1,6 @@
 name: Re:AcademyCraft 1.21.1 NeoForge build
 on:
-  # 手動実行と、releaseのtag（例: 1.21.1-neoforge-v1.4.1）で動く。tagのcommitからclean buildし、JARのSHA-256をログとStep Summaryに残す。
+  # 手動実行と、releaseのtag（例: 1.21.1-neoforge-v1.5.1）で動く。tagのcommitからclean buildし、JARのSHA-256をログとStep Summaryに残す。
   # tagで動くworkflowは、そのtagのcommitにあるもの（このブランチのもの）だけ。
   # 1.4.1から、アドオンの開発者向けのSDKのJAR（API・API sources・Javadoc・サンプル）も作る。
   # JARはArtifactとして保存しない（導入用のJARはCurseForge、SDKはGitHubのreleaseのファイルで配布する）。

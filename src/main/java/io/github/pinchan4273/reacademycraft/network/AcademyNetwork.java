@@ -30,10 +30,16 @@ public final class AcademyNetwork {
      * 64: 能力設定の画面（Forge 1.4.0のS1）の通知を足した（SkillSettingEdit、SkillSettingsSnapshot）。63のクライアントは
      * 設定の値を受け取れないので繋がせない。Forge 1.4.0のS4で、開発機の外部の技能の学習（DevelopAddonSkill、DevelopAddonAvailability）と、
      * ログインの時の登録簿の照合（AbilityRegistryCheck、AbilityRegistryVerdict）も足した（Forge版の1.4.0と同じく、版は64のまま）。
+     * 65: v1.5.0（Forge版の65と同じ意味）。未元物質の技能の学習で開発機の可用性のビットが48を超え、メニューのデータを4スロットにした。
+     * 技能由来の直接効果の同期（DirectEffectSync）を足し、能力の表示（AbilitySnapshot）にCPセーフティと未元物質人間の値を足した。
+     * 64のクライアントは新しい技能・効果を受け取れないので繋がせない。
+     * 66: v1.5.1（Forge版の66と同じ意味）。甲虫の実体に同期データ（EMERGE、出現の残りtick）と実体のイベント101（EVENT_RECALL、回収の演出）を足し、
+     * 甲虫生成の発動をINSTANTからHELD（短押しで生成、2秒の長押しで全個体の回収）にした。1.5.0と1.5.1が混ざると、実体の同期データの並びと
+     * キーの送り方が食い違うので繋がせない（主担当の決定）。
      * 版が違う相手とは、ログインの時点で接続を断る（NeoForgeのregistrarの版。古い通知を誤って読むところまで進ませない）。
-     * NeoForge版の通信はForge版と繋がらないので、版の番号はForge版の番号に合わせている。
+     * NeoForge版の通信はForge版と繋がらないので、版の番号はForge版の番号に合わせている（同じ番号でもForge版とは接続しない）。
      */
-    public static final String VERSION = "64";
+    public static final String VERSION = "66";
     private static final Map<Class<?>, CustomPacketPayload.Type<?>> TYPES = new ConcurrentHashMap<>();
 
     /** 相手の版を受け入れるか。クライアント・サーバーとも同じ版だけ。 */
@@ -134,6 +140,20 @@ public final class AcademyNetwork {
         // 1.4.0のS4（司令室11の裁定D7）: ログインの時の、能力の登録簿の照合。
         toClient(registrar, AbilityRegistryCheck.class, AbilityRegistryCheck::encode, AbilityRegistryCheck::decode, (packet, context) -> io.github.pinchan4273.reacademycraft.client.ClientRegistryCheck.receive(packet));
         toServer(registrar, AbilityRegistryVerdict.class, AbilityRegistryVerdict::encode, AbilityRegistryVerdict::decode, (packet, context) -> io.github.pinchan4273.reacademycraft.ability.RegistryCheck.answer((ServerPlayer) context.player(), packet));
+        // v1.5.0（版65）: 技能由来の直接効果の今の一覧（サーバー→対象のプレイヤーだけ）。向きはplayToClientで、サーバーへ送られても受けない。
+        toClient(registrar, DirectEffectSync.class, DirectEffectSync::encode, DirectEffectSync::decode, (packet, context) -> io.github.pinchan4273.reacademycraft.client.ClientDirectEffects.receive(packet));
+        // v1.5.0（版65）: 未元物質の翼・甲虫・白翼飛行・天界発現の通知（Forge版の58〜62・70〜73番と同じ中身と向き）。
+        // サーバー→クライアントの物はplayToClientで、サーバーへ送られても受けない。クライアント→サーバーの物はplayToServerで、
+        // 送り手は接続のプレイヤー（context.player()）だけ。値の範囲は各通知の作り方と各処理が確かめる（Forge版と同じ）。
+        toClient(registrar, DarkWingState.class, DarkWingState::encode, DarkWingState::decode, (packet, context) -> io.github.pinchan4273.reacademycraft.client.ClientDarkWings.receive(packet));
+        toClient(registrar, DarkWingAction.class, DarkWingAction::encode, DarkWingAction::decode, (packet, context) -> io.github.pinchan4273.reacademycraft.client.ClientDarkWings.receive(packet));
+        toServer(registrar, HeavenSettingEdit.class, HeavenSettingEdit::encode, HeavenSettingEdit::decode, (packet, context) -> packet.handle((ServerPlayer) context.player()));
+        toClient(registrar, HeavenSettingsSnapshot.class, HeavenSettingsSnapshot::encode, HeavenSettingsSnapshot::decode, (packet, context) -> io.github.pinchan4273.reacademycraft.client.ClientHeavenSettings.receive(packet));
+        toClient(registrar, HeavenRegionState.class, HeavenRegionState::encode, HeavenRegionState::decode, (packet, context) -> io.github.pinchan4273.reacademycraft.client.ClientHeavenEffects.receive(packet));
+        toClient(registrar, HeavenMark.class, HeavenMark::encode, HeavenMark::decode, (packet, context) -> io.github.pinchan4273.reacademycraft.client.ClientHeavenEffects.receive(packet));
+        toClient(registrar, DarkBeetleShot.class, DarkBeetleShot::encode, DarkBeetleShot::decode, (packet, context) -> io.github.pinchan4273.reacademycraft.client.ClientDarkBeetles.receive(packet));
+        toClient(registrar, WhiteWingFlightState.class, WhiteWingFlightState::encode, WhiteWingFlightState::decode, (packet, context) -> io.github.pinchan4273.reacademycraft.client.ClientWhiteWingFlight.receive(packet));
+        toServer(registrar, WhiteWingFlightInput.class, WhiteWingFlightInput::encode, WhiteWingFlightInput::decode, (packet, context) -> packet.handle((ServerPlayer) context.player()));
     }
 
     public static void lightning(net.minecraft.server.level.ServerLevel level, net.minecraft.world.phys.Vec3 position) {

@@ -40,6 +40,8 @@ neoForge {
             if (project.hasProperty('dedicatedSmokeTest')) {
                 gameDirectory = project.file('run/dedicated-client')
                 systemProperty 'academy.dedicatedSmokeTest', 'true'
+                // v1.5.0（Forge版と同じ）: v1.4.1以前の確かめはCPをちょうど使い切る形で書かれているので、試験の起動だけCPセーフティの既定をOFFにする。
+                systemProperty 'academy.test.cpSafetyDefaultOff', 'true'
                 programArguments.addAll('--username', 'AcademySmoke')
                 jvmArgument '-Xmx1536m'
                 sourceSet = sourceSets.test
@@ -65,6 +67,16 @@ neoForge {
                     systemProperty "academy.${tag}", (project.findProperty(tag) ?: 'run').toString()
                     sourceSet = sourceSets.test
                 }
+            }
+            // v1.5.0 六翼・甲虫・天界の見た目の撮影（smoke/client/DarkMatterPreviewCheck。Forge版と同じ-PdmPreview=<タグ>）。製品のJARには関係しない。
+            // D06の負荷の比較（-PdmPreview=measure...）では、天界の描画時間のp95をログへ出す。
+            if (project.hasProperty('dmPreview')) {
+                gameDirectory = project.file('run/dm-preview')
+                systemProperty 'academy.dmPreview', project.property('dmPreview').toString()
+                if (project.property('dmPreview').toString().startsWith('measure')) systemProperty 'academy.heaven.measure', 'true'
+                programArguments.addAll('--username', 'PreviewPlayer', '--width', '1600', '--height', '900')
+                jvmArgument '-Xmx2048m'
+                sourceSet = sourceSets.test
             }
             // 実クライアント2人の試験（Forge版と同じ。tools/run_mp_contact.pyのMultiplayerContactCheck、tools/run_mp_rc2.pyのRc2MultiplayerCheck）。
             // 名前ごとに作業フォルダを分ける。このプロパティを付けたときだけ効き、製品のJARには関係しない。
@@ -113,6 +125,7 @@ neoForge {
             if (project.hasProperty('runtimeSmokeTest')) {
                 gameDirectory = project.file('run/client-smoke')
                 systemProperty 'academy.runtimeSmokeTest', 'true'
+                systemProperty 'academy.test.cpSafetyDefaultOff', 'true'
                 // Forge 1.4.0のS4: 統合サーバーのclient smokeでも試験だけのアドオンを登録する（クライアントとサーバーが同じ登録簿）。
                 // dedicatedのクライアントには付けない（製品のJARのサーバーと同じ登録簿で、ログインの照合が通ることを確かめる）。
                 systemProperty 'academy.testAddon', 'true'
@@ -142,6 +155,8 @@ neoForge {
             systemProperty 'academy.gameTestReport', project.file("${gameTestDirectory}/gametest-junit.xml").absolutePath
             // Forge 1.4.0のS4: 試験だけのアドオン（src/testのTestAddon）を登録する。GameTestのサーバーだけで効き、製品のJARとclient smokeの既定には関係しない。
             systemProperty 'academy.testAddon', 'true'
+            // v1.5.0（Forge版と同じ）: v1.4.1以前の試験はCPをちょうど使い切る形で書かれている。セーフティの試験（CpSafetyGameTests）は値を明示する。
+            systemProperty 'academy.test.cpSafetyDefaultOff', 'true'
             if (project.hasProperty('phaseLakeExtended')) systemProperty 'academy.phaseLakeExtended', 'true'
             if (project.hasProperty('payloadRiskTests')) systemProperty 'academy.payloadRiskTests', 'true'
             if (project.hasProperty('m03UnloadTests')) systemProperty 'academy.m03UnloadTests', 'true'
@@ -200,7 +215,7 @@ neoForge.ideSyncTask generateModMetadata
 // 読み込む（サーバーには同じJARをそのまま入れる）。1.21.1は再難読化が無いので、Forge版のfg.deobfは要らない。このプロパティを付けたときだけ効き、製品のJARには関係しない。
 if (project.hasProperty('mpWithSample')) {
     repositories { flatDir { dirs project.property('mpWithSample') } }
-    dependencies { runtimeOnly "blank:academy-api-example-neoforge-1.21.1:${project.findProperty('mpSampleVersion') ?: '0.1.0'}" }
+    dependencies { runtimeOnly "blank:academy-api-example-neoforge-1.21.1:${project.findProperty('mpSampleVersion') ?: '0.1.1'}" }
 }
 
 tasks.withType(JavaCompile).configureEach {

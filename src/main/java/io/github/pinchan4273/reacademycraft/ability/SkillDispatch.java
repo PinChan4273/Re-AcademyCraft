@@ -106,6 +106,15 @@ public final class SkillDispatch {
     public static void stopAll(ServerPlayer player) {
         for (Owner owner : STOP) if (owner.stop() != null) { record(owner.stop().name()); owner.stop().action().run(player); }
     }
+    /** CPセーフティの作動で止めない持ち主（§14: 飛行は滞空へ移り、両防御は設定を保つ。それぞれ自分で扱う）。 */
+    private static final java.util.Set<String> SAFETY_KEEPS = java.util.Set.of("WhiteWingFlight", "WhiteWingGuard", "DarkMatterArmor", "DarkMatterAirCannon", "DarkMatterBeetle", "DarkMatterBody");
+    /** CPセーフティの作動: 消費技能をまとめて止める（§14）。 */
+    public static void stopForSafety(ServerPlayer player) {
+        for (Owner owner : STOP) if (owner.stop() != null && !SAFETY_KEEPS.contains(owner.name())) { record(owner.stop().name()); owner.stop().action().run(player); }
+        // §14: 光線と領域も止める（どちらも§13のためSTOPの並びに無い）。
+        if (io.github.pinchan4273.reacademycraft.skill.DarkMatterRay.active(player)) io.github.pinchan4273.reacademycraft.skill.DarkMatterRay.stop(player);
+        io.github.pinchan4273.reacademycraft.skill.HeavenManifest.stop(player);
+    }
     /**
      * 動作中の切り替え型技能は、自身のキーで終わる。この押下がそのキーだったらtrue（終えた、または直前にオンにした押下の
      * リピートとして飲み込んだ）。

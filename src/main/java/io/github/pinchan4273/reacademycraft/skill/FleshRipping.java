@@ -8,8 +8,6 @@ import java.util.UUID;
 import java.util.function.DoubleSupplier;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.effect.MobEffectInstance;
-import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.level.Level;
 import net.neoforged.neoforge.event.tick.PlayerTickEvent;
@@ -85,13 +83,14 @@ public final class FleshRipping {
         // 原作s_end: 最後のtickに何も取っていなければ中断で、コストはかからない。
         if (session.target == null) return;
         float exp = session.exp;
-        data.consumeWithForce(ID, consumption(exp), overload(exp), player.getAbilities().instabuild);
+        if (!data.consumeWithForce(ID, consumption(exp), overload(exp), player.getAbilities().instabuild)) return;
         SkillCombat.attackIgnoreArmor(player, session.target, ID, damage(exp) * TPSkillHelper.critical(player, data, session.target, roll));
         player.level().playSound(null, player, io.github.pinchan4273.reacademycraft.world.AcademySounds.TP_GUTS.get(), net.minecraft.sounds.SoundSource.AMBIENT, .6f, 1f);
         // 原作c_endEffect: 血はその音と共に、コンテキストを持っていたすべてのクライアントで出る。
         io.github.pinchan4273.reacademycraft.network.SkillBurst.showNear(player, session.target, io.github.pinchan4273.reacademycraft.network.SkillBurst.BLOOD, 0);
         if (roll.getAsDouble() < NAUSEA_CHANCE)
-            player.addEffect(new MobEffectInstance(MobEffects.CONFUSION, NAUSEA_TICKS));
+            // v1.5.0: 術者の画面の歪み（吐き気I相当）を、技能由来の直接効果で。
+            DirectEffects.add(player, DirectEffects.Kind.NAUSEA, 0, NAUSEA_TICKS, ID, player);
         data.setCooldown(ID, (int) ArcGen.lerp(90, 40, exp));
         data.addProficiency(ID, .005f);
         AbilitySyncEvents.sync(player, true);

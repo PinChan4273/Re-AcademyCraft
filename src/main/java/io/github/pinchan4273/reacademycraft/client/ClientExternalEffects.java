@@ -108,6 +108,8 @@ public final class ClientExternalEffects {
         var refused = ExternalEffectRules.check(request, client.level.dimension().location(), id -> ModList.get().isLoaded(id));
         if (refused == null && request.style().lasting() != lasting) refused = BeamResult.INVALID;
         if (refused == null && needsEntity(request.style()) && follow(request, client.level) == null) refused = BeamResult.INVALID;
+        // 翼と頭上の輪はプレイヤーの体の描画に付くので、プレイヤーでなければ断る（演出API版3）。
+        if (refused == null && needsPlayer(request.style()) && !(follow(request, client.level) instanceof net.minecraft.world.entity.player.Player)) refused = BeamResult.INVALID;
         if (refused != null) { BOOK.refuse(owner, refused); return refused; }
         if (request.style() == EffectStyle.PLASMA_CANNON && BOOK.owned(owner).stream().filter(Plasma.class::isInstance).count() >= MAX_PLASMA_PER_OWNER
                 && BOOK.get(owner, request.effectId()) == null) {
@@ -117,7 +119,14 @@ public final class ClientExternalEffects {
         return BOOK.offer(owner, request.effectId(), limit(), () -> make(request, client.level));
     }
     private static boolean needsEntity(EffectStyle style) {
-        return switch (style) { case RAILGUN_HAND, LIGHT_SHIELD, JET_SHIELD, STORM_WING, MINE_RAY_BASIC, MINE_RAY_EXPERT, MINE_RAY_LUCK -> true; default -> false; };
+        return switch (style) {
+            case RAILGUN_HAND, LIGHT_SHIELD, JET_SHIELD, STORM_WING, MINE_RAY_BASIC, MINE_RAY_EXPERT, MINE_RAY_LUCK,
+                 DARK_WINGS, DARK_WING_STAB, DARK_FEATHER_BALL, DARK_HALO -> true;
+            default -> false;
+        };
+    }
+    private static boolean needsPlayer(EffectStyle style) {
+        return switch (style) { case DARK_WINGS, DARK_WING_STAB, DARK_FEATHER_BALL, DARK_HALO -> true; default -> false; };
     }
     public static boolean update(String ownerModId, long effectId, @Nullable Vec3 position, @Nullable Vec3 target) {
         onMainThread();
@@ -137,7 +146,7 @@ public final class ClientExternalEffects {
         onMainThread();
         var effect = BOOK.get(ownerModId, effectId);
         if (effect == null) return false;
-        if (effect instanceof Fading fading) return fading.fade();
+        if (effect instanceof Fades fading) return fading.fade();
         effect.stop();
         return BOOK.end(ownerModId, effectId);
     }
@@ -146,10 +155,15 @@ public final class ClientExternalEffects {
         // 薄れる演出は、薄れ終わるまで帳簿に残す（上限の外で残らない）。数には入れる。
         int fading = 0;
         for (var effect : BOOK.owned(ownerModId)) {
-            if (effect instanceof Fading fade) { if (fade.fade()) fading++; }
+            if (effect instanceof Fades fade) { if (fade.fade()) fading++; }
             else effect.stop();
         }
-        return fading + BOOK.clearIf(ownerModId, effect -> !(effect instanceof Fading));
+        return fading + BOOK.clearIf(ownerModId, effect -> !(effect instanceof Fades));
+    }
+    /** 終えると、すぐには消えずに薄れる（畳む）演出。薄れ終わるまで帳簿に残り、上限に数える。 */
+    interface Fades {
+        /** 薄れ始める。今回で始めたらtrue（すでに薄れていればfalse）。 */
+        boolean fade();
     }
     /** すべて消す（ログアウト・世界の切り替え・資源の読み直し）。自然能力のクラスへ預けた分も止める。 */
     private static void cancelAll() {
@@ -193,6 +207,13 @@ public final class ClientExternalEffects {
             case MINE_RAY_BASIC -> new Visual(request, io.github.pinchan4273.reacademycraft.skill.MineRay.BASIC.id(), 0, ClientMineRayEffect::receive);
             case MINE_RAY_EXPERT -> new Visual(request, io.github.pinchan4273.reacademycraft.skill.MineRay.EXPERT.id(), 0, ClientMineRayEffect::receive);
             case MINE_RAY_LUCK -> new Visual(request, io.github.pinchan4273.reacademycraft.skill.MineRay.LUCK.id(), 0, ClientMineRayEffect::receive);
+            case DARK_WINGS -> new DarkWings(request, level);
+            case DARK_WING_STAB -> new DarkWingMove(request, level, true);
+            case DARK_FEATHER_BALL -> new DarkWingMove(request, level, false);
+            case DARK_HALO -> new DarkHalo(request, level);
+            case DARK_AIR_CANNON -> new DarkCannon(request, level);
+            case DARK_EMERGE_RING -> new EmergeRing(request);
+            case HEAVEN_RING -> new HeavenRing(request, level);
         };
     }
 
@@ -811,7 +832,7 @@ public final class ClientExternalEffects {
      * 止めると、自然能力と同じように薄れて消える演出。薄れている間も帳簿に残り、上限に数える。効果IDも使ったまま。
      * ログアウト・世界の切り替え・資源の読み直し・実体の入れ替わりでは、{@link #stop}ですぐ取り除く。
      */
-    private abstract static class Fading extends Visual {
+    private abstract static class Fading extends Visual implements Fades {
         /** 預け先から消えないときに自分で取り除くまでのtick（どちらの演出も、薄れるのにこれより短い）。 */
         private static final int MAX_FADE_TICKS = 200;
         boolean fading; int fadeTicks;
@@ -820,7 +841,7 @@ public final class ClientExternalEffects {
         }
         abstract boolean handed();
         /** 薄れ始める。今回で始めたらtrue（すでに薄れていればfalse）。 */
-        boolean fade() {
+        @Override public boolean fade() {
             if (fading || over) return false;
             fading = true;
             target.accept(new io.github.pinchan4273.reacademycraft.network.SkillVisual(request.dimension(), request.entityId(), token, null, 0));
@@ -897,6 +918,136 @@ public final class ClientExternalEffects {
             if (!gone && (++ticks >= 64 || !ClientRailgunHand.hasExternal(burst))) stop();
         }
         @Override public boolean finished() { return gone; }
+    }
+
+    // ---- 未元物質（演出API版3） -------------------------------------------------------------------
+    // 翼と頭上の輪は、自然能力の状態とは別の外部の状態（ClientDarkWings・ClientDarkBody）を札で出し、自然能力と同じ体の描画（DarkWingsLayer・
+    // DarkHaloLayer）が描く。柱・光線・輪は、自然能力のクラスの描画の部品を、外部の帳簿の分だけ呼ぶ。
+
+    /** 外部の六翼（持続）。止めると本体と同じ速さで畳み、畳み終わるまで帳簿に残る（{@link StormWing}と同じ扱い）。 */
+    private static final class DarkWings extends Lasting implements Fades {
+        final Object token = new Object(); final EffectRequest request; boolean folding;
+        DarkWings(EffectRequest request, ClientLevel level) {
+            super(request);
+            this.request = request;
+            ClientDarkWings.holdExternal(request.entityId(), token, false);
+        }
+        @Override public boolean fade() {
+            if (folding || over) return false;
+            folding = true;
+            ClientDarkWings.releaseExternal(request.entityId(), token);
+            return true;
+        }
+        @Override boolean fading() { return folding; }
+        @Override void expire() { fade(); }
+        /** すぐ取り除く（ログアウト・世界の切り替え・資源の読み直し・実体の入れ替わり）。 */
+        @Override public void stop() { ClientDarkWings.dropExternal(request.entityId(), token); }
+        @Override public void frame(ClientLevel level) {
+            if (!over && follow(request, level) == null) { stop(); over = true; }
+        }
+        @Override public void tick(Minecraft client) {
+            frame(client.level);
+            if (over) return;
+            if (!folding) { tickLease(); return; }
+            if (!ClientDarkWings.externalFolding(request.entityId())) over = true;
+        }
+    }
+
+    /**
+     * 外部の白翼刺突・羽の球（一発）。外部の翼を札で出し（出ていなければすぐ開いた形にする）、自然能力と同じ動きを始める。動きが終わると札を離し、
+     * この演出が出した翼が畳み終わるまで帳簿に残る。早めに終えると、動きを止めて同じように畳む。
+     */
+    private static final class DarkWingMove implements Effect, Fades {
+        final Object token = new Object(); final EffectRequest request; final boolean stab; @Nullable final Entity entity;
+        boolean released, gone;
+        DarkWingMove(EffectRequest request, ClientLevel level, boolean stab) {
+            this.request = request; this.stab = stab;
+            entity = follow(request, level);
+            ClientDarkWings.holdExternal(request.entityId(), token, true);
+            if (stab) ClientDarkWings.stabExternal(request.entityId(), request.target(), RANDOM);
+            else ClientDarkWings.guardExternal(request.entityId(),
+                    ClientDarkWings.guardDirection((net.minecraft.world.entity.LivingEntity) entity, request.target()));
+        }
+        private void release() { released = true; ClientDarkWings.releaseExternal(request.entityId(), token); }
+        @Override public boolean fade() {
+            if (released || gone) return false;
+            ClientDarkWings.cancelExternal(request.entityId(), stab);
+            release();
+            return true;
+        }
+        @Override public void stop() {
+            if (gone) return;
+            ClientDarkWings.cancelExternal(request.entityId(), stab);
+            ClientDarkWings.dropExternal(request.entityId(), token);
+            released = gone = true;
+        }
+        @Override public void frame(ClientLevel level) { if (!gone && lost(entity, level)) stop(); }
+        @Override public void tick(Minecraft client) {
+            frame(client.level);
+            if (gone) return;
+            if (!released) { if (!ClientDarkWings.externalActing(request.entityId(), stab)) release(); }
+            else if (!ClientDarkWings.externalFolding(request.entityId())) gone = true;
+        }
+        @Override public boolean finished() { return gone; }
+    }
+
+    /** 外部の頭上の輪（持続）。止めると自然能力と同じくすぐ消える。 */
+    private static final class DarkHalo extends Lasting {
+        final Object token = new Object(); final EffectRequest request;
+        DarkHalo(EffectRequest request, ClientLevel level) {
+            super(request);
+            this.request = request;
+            ClientDarkBody.holdExternal(request.entityId(), token);
+        }
+        @Override public void stop() { ClientDarkBody.releaseExternal(request.entityId(), token); }
+        @Override public void frame(ClientLevel level) {
+            if (!over && follow(request, level) == null) { stop(); over = true; }
+        }
+        @Override public void tick(Minecraft client) {
+            frame(client.level);
+            if (!over) tickLease();
+        }
+    }
+
+    /** 外部の未元空気砲の柱（一発）。自然能力の柱の一覧へ札を付けて預け、柱が消えるまで帳簿に残る。 */
+    private static final class DarkCannon implements Effect {
+        final Object token = new Object(); boolean gone;
+        DarkCannon(EffectRequest request, ClientLevel level) { ClientDarkEffects.gustExternal(level, request.position(), request.target(), token); }
+        @Override public void tick(Minecraft client) { if (!ClientDarkEffects.gusting(token)) gone = true; }
+        @Override public boolean finished() { return gone; }
+        @Override public void stop() { ClientDarkEffects.endGusts(token); gone = true; }
+    }
+
+    /** 外部の甲虫の出現の輪（一発）。甲虫の出現と同じ輪を、同じ時間で描く。 */
+    private static final class EmergeRing implements Effect {
+        final Vec3 feet; int age;
+        EmergeRing(EffectRequest request) { feet = request.position(); }
+        @Override public void tick(Minecraft client) { age++; }
+        @Override public boolean finished() { return age >= ClientDarkBeetleSummon.EXTERNAL_TICKS; }
+        @Override public RenderLevelStageEvent.Stage stage() { return RenderLevelStageEvent.Stage.AFTER_PARTICLES; }
+        @Override public int render(PoseStack pose, Camera camera, float partial, Minecraft client) {
+            return ClientDarkBeetleSummon.drawExternal(pose, camera.getPosition(), feet, age + partial);
+        }
+    }
+
+    /** 外部の天界の予兆の輪（一発）。自然能力の予兆と同じ輪と長さ（{@link io.github.pinchan4273.reacademycraft.skill.HeavenPhenomena#TELEGRAPH}）。 */
+    private static final class HeavenRing implements Effect {
+        final EffectRequest request; @Nullable final Entity entity; int age; boolean gone;
+        HeavenRing(EffectRequest request, ClientLevel level) { this.request = request; entity = follow(request, level); }
+        @Override public void frame(ClientLevel level) { if (lost(entity, level)) gone = true; }
+        @Override public void tick(Minecraft client) {
+            frame(client.level);
+            age++;
+        }
+        /** 自然能力の予兆と同じく、寿命のtickを過ぎたら消す。 */
+        @Override public boolean finished() { return gone || age > io.github.pinchan4273.reacademycraft.skill.HeavenPhenomena.TELEGRAPH; }
+        @Override public RenderLevelStageEvent.Stage stage() { return RenderLevelStageEvent.Stage.AFTER_PARTICLES; }
+        @Override public int render(PoseStack pose, Camera camera, float partial, Minecraft client) {
+            var feet = entity != null ? entity.getPosition(partial) : request.position();
+            float height = entity != null ? entity.getBbHeight() : 2, radius = ClientHeavenEffects.ringRadius(entity != null ? entity.getBbWidth() : 1);
+            float t = (age + partial) / io.github.pinchan4273.reacademycraft.skill.HeavenPhenomena.TELEGRAPH;
+            return ClientHeavenEffects.drawExternalTelegraph(pose, camera.getPosition(), feet, height, radius, t);
+        }
     }
 
     // ---- 帳簿を進める・描く ----------------------------------------------------------------------

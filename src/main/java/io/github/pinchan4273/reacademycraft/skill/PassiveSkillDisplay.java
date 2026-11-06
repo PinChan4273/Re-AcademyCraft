@@ -35,7 +35,7 @@ public final class PassiveSkillDisplay {
     public static float ring(PlayerAbilityData data, ResourceLocation skill, @Nullable Float level5BaseCp) {
         if (RadiationIntensify.ID.equals(skill))
             return level5BaseCp == null ? 0 : RadiationIntensify.derivedProficiency(data.getMaxCp(), level5BaseCp);
-        if (course(skill)) return 1;
+        if (course(skill) || DarkMatter.BODY.equals(skill)) return 1; // §2: 人体生成は習得時完成で熟練度なし。
         return data.getProficiency(skill);
     }
 
@@ -47,7 +47,7 @@ public final class PassiveSkillDisplay {
             return new Line("academy.developer.ui.effective_exp", List.of(
                     String.format(Locale.ROOT, "%.1f%%", proficiency * 100), String.format(Locale.ROOT, "%.2f", RadiationIntensify.rate(proficiency))));
         }
-        if (course(skill)) return new Line("academy.developer.ui.course_learned", List.of());
+        if (course(skill) || DarkMatter.BODY.equals(skill)) return new Line("academy.developer.ui.course_learned", List.of());
         return null;
     }
 }

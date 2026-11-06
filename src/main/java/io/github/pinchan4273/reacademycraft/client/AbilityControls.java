@@ -43,6 +43,31 @@ public final class AbilityControls {
     private static final boolean[] ABORTED = new boolean[4];
     /** この枠の押し続け型の技能が押されているか（キーの案内の表示用）。 */
     static boolean held(int slot) { return slot >= 0 && slot < 4 && HELD[slot]; }
+    /** 押し続け型の技能を押し続けているtick（表示用。押していなければ0）。 */
+    private static final int[] HELD_TICKS = new int[4];
+    /** 長押しの表示を出し始めるtick（短く押して離す操作で表示がちらつかないように）。 */
+    public static final int HOLD_HINT_AFTER = 4;
+    /**
+     * 甲虫生成のキーの長押しの進み（0〜1）。押していないか、まだ{@link #HOLD_HINT_AFTER}tickに届かなければ0。表示だけに使い、回収はサーバーが自分の時刻で決める。
+     * 撮影の試験は{@link #previewBeetleHold}で値を与える。
+     */
+    public static float beetleHold(int slot) {
+        if (slot < 0 || slot >= 4) return 0;
+        var client = Minecraft.getInstance();
+        var data = client.player == null ? null : AbilityCapabilities.of(client.player).orElse(null);
+        if (data == null || !io.github.pinchan4273.reacademycraft.skill.DarkMatter.BEETLE.equals(data.getSlot(data.getCurrentPreset(), slot))) return 0;
+        if (previewBeetleHold != null) return previewBeetleHold;
+        if (!HELD[slot] || HELD_TICKS[slot] < HOLD_HINT_AFTER) return 0;
+        return Math.min(1, HELD_TICKS[slot] / (float) io.github.pinchan4273.reacademycraft.skill.DarkMatterBeetles.RECALL_HOLD);
+    }
+    /** どの枠でもよい、甲虫生成のキーの長押しの進みの最大（0〜1）。 */
+    public static float beetleHold() {
+        float most = 0;
+        for (int i = 0; i < 4; i++) most = Math.max(most, beetleHold(i));
+        return most;
+    }
+    /** 撮影の試験だけが置く長押しの進み（nullなら実際のキー）。 */
+    public static @javax.annotation.Nullable Float previewBeetleHold;
     private static int heartbeatTicks;
     private AbilityControls() {}
     private static KeyMapping key(String name, int code) {
@@ -172,14 +197,15 @@ public final class AbilityControls {
                 boolean pressed = false;
                 while (SLOTS[i].consumeClick()) pressed = true;
                 if (pressed && canSend && SLOT_LATCHES[i].usable() && data.canUseAbility()) { client.setScreen(new LocationTeleportScreen()); canSend = false; }
-                HELD[i] = false;
+                HELD[i] = false; HELD_TICKS[i] = 0;
                 continue;
             }
             var skill = data == null ? null : data.getSlot(data.getCurrentPreset(), i);
             // 原作ClientRuntime.tickのshouldAbort: 能力を使えない間（OFF・過負荷・干渉中）、技能のクールダウン中、
             // 端末を開いている間は、どの技能のキーも動作しない。押し続けている技能は、そうなったtickで中断する。
+            // v1.5.1: 甲虫生成は、クールダウン中も押し続けを送る（長押しの回収のため。AbilityAction.holdsDuringCooldown）。
             boolean blocked = data == null || !data.canUseAbility() || TerminalHud.isOpen()
-                    || (skill != null && data.getCooldown(skill) > 0);
+                    || (skill != null && data.getCooldown(skill) > 0 && !AbilityAction.holdsDuringCooldown(skill));
             // 切り替え型の技能は、新しく押されたときだけ受け付ける。押し続けるとクリックが繰り返され、
             // OFFとONを繰り返してしまうため。
             boolean clicked = false;
@@ -198,6 +224,7 @@ public final class AbilityControls {
                 case RELEASE -> AbilityAction.RELEASE; case CANCEL -> AbilityAction.CANCEL;
             }, i));
             HELD[i] = result.held(); ABORTED[i] = result.aborted();
+            HELD_TICKS[i] = HELD[i] ? HELD_TICKS[i] + 1 : 0;
         }
         safeStopThrust(client);
         safeStopIntensify(client);
@@ -412,6 +439,7 @@ public final class AbilityControls {
             var skill = data.getSlot(data.getCurrentPreset(), i);
             if ((io.github.pinchan4273.reacademycraft.skill.Flashing.ID.equals(skill) && ClientFlashing.active())
                     || (io.github.pinchan4273.reacademycraft.skill.StormWing.ID.equals(skill) && ClientStormWing.state() >= 0)
+                    || (io.github.pinchan4273.reacademycraft.skill.WhiteWingFlight.ID.equals(skill) && ClientWhiteWingFlight.active())
                     || ClientSkillModes.active(skill)) return i;
         }
         return -1;

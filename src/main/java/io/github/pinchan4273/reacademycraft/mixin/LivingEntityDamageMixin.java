@@ -33,4 +33,10 @@ abstract class LivingEntityDamageMixin {
     private void academy$hurt(DamageSource source, float amount, CallbackInfo ci) {
         if (DamagePhaseHooks.hurtCancelled((LivingEntity) (Object) this, source, damageContainers.peek())) ci.cancel();
     }
+
+    /** Forge版: {@code actuallyHurt}の衝撃吸収の差し引きの直後の{@code onLivingDamage}（v1.5.0の{@code AcademyLivingDamageEvent}）。 */
+    @Inject(method = "actuallyHurt", at = @At(value = "INVOKE", target = "setAbsorptionAmount(F)V", shift = At.Shift.AFTER))
+    private void academy$damage(DamageSource source, float amount, CallbackInfo ci) {
+        DamagePhaseHooks.damage((LivingEntity) (Object) this, source, damageContainers.peek());
+    }
 }

@@ -55,6 +55,34 @@ public final class PlayerAbilityData {
     private @Nullable ElectronMissileAimMode electronMissileAimMode;
     /** Electron Missileの攻撃対象のフィルターのうち、プレイヤーが選んだもの（F9-02）。無い分類は既定（{@link ElectronMissileTargetKind#defaultOn()}）。 */
     private final java.util.EnumMap<ElectronMissileTargetKind, Boolean> electronMissileTargets = new java.util.EnumMap<>(ElectronMissileTargetKind.class);
+    /** v1.5.0 §9: 甲虫の接触ブロック破壊（初期ON）、修復方式、攻撃方針。系統を失っても保持する（§15）。 */
+    private boolean beetleContactBreak = true;
+    private DarkMatterBeetles.Repair beetleRepair = DarkMatterBeetles.Repair.AUTO;
+    private DarkMatterBeetles.Stance beetleStance = DarkMatterBeetles.Stance.MID;
+    /** v1.5.0 §9: 甲虫の追従開始距離（ブロック）。攻撃方針と同じく、系統を失っても保持する。 */
+    private int beetleFollow = DarkMatterBeetles.FOLLOW_DEFAULT;
+    /** v1.5.0 §9（ユーザーの決定）: 甲虫が自動で狙う分類のうち、プレイヤーが選んだもの。無い分類は既定（敵対だけON）。系統を失っても保持する。 */
+    private final java.util.EnumMap<ElectronMissileTargetKind, Boolean> beetleTargets = new java.util.EnumMap<>(ElectronMissileTargetKind.class);
+    /** v1.5.0 §9: 甲虫の個体の記録（{@link DarkMatterBeetles}が書く）。ログアウトと再起動を越えて残す。系統を失うと消える。 */
+    private ListTag beetleRecords = new ListTag();
+    /** v1.5.0 §15: 未元物質人間か。系統を失うと解ける。保存する。 */
+    private boolean darkBody;
+    /** v1.5.0 §15: 死亡後の復活形態（trueは未元物質人間で、初期値）。系統を失っても保持する。 */
+    private boolean darkBodyRespawn = true;
+    /** 白翼飛行の飛び立ちと停止の操作が連打か（既定は長押し）。系統を失っても保持する。 */
+    private boolean flightDoubleTap;
+    /** 系統の喪失の直前のCPの残量率（{@code DarkBody#category}が受け取る。人体生成は第2便）。無ければ負。保存しない。 */
+    private float darkBodyLossRate = -1;
+    /**
+     * 未元物質人間の未修復の身体損傷（CP。COMMAND-RE-150-DARK-BODY-REPAIR-R1-20261104、ユーザーの採用）。身体に通った最終ダメージの分だけ増え、
+     * 毎秒{@link #BODY_REPAIR_PER_SECOND}CPずつ修復してCPへ戻す。CP不足の内訳で、通常の自然回復はこの分を埋めない（上限は最大CP−損傷）。
+     * 明示的なCP回復で損傷の分まで戻ったら、その分だけ損傷も減る（常に損傷 ≤ 最大CP−現在CP にそろえる）。
+     */
+    private float bodyDamage;
+    /** 身体修復の速さ（CP/秒）。 */
+    public static final float BODY_REPAIR_PER_SECOND = 2;
+    /** v1.5.0 §10〜§12: 天界発現の設定。系統を失っても保持する（§15）。領域そのものは保存しない。 */
+    private HeavenSettings heavenSettings = new HeavenSettings();
     /**
      * このデータが属するサーバーのプレイヤー（原作の能力イベント用）。どのプレイヤーにも属さないデータ（写し、テスト専用のもの）や
      * クライアントにあるデータではnullで、その場合は何も送らない。
@@ -109,6 +137,9 @@ public final class PlayerAbilityData {
         loads++; clearSkills();
         levelExperience = 0;
         ability = value;
+        if (!DarkMatter.CATEGORY.equals(value)) beetleRecords = new ListTag(); // §15: 系統を失ったら収納個体も回収する。
+        // §15: 形態を解く。下の再計算でCPが満たされるので、復帰HPのための残量率は今読む。
+        if (darkBody && !DarkMatter.CATEGORY.equals(value)) { darkBody = false; bodyDamage = 0; darkBodyLossRate = maxCp > 0 ? cp / maxCp : 0; }
         level = value == null ? 0 : Math.max(1, level);
         if (value == null) active = false;
         // 原作AbilityData.setCategoryはレベルを直接設定し、CategoryChangeEventだけを送る。CPDataはそれに応じて最大値を計算し直し、
@@ -140,6 +171,8 @@ public final class PlayerAbilityData {
         float base = maxCp;
         bonusCp = Math.max(0, Math.min(io.github.pinchan4273.reacademycraft.config.AcademyConfig.addCp(level), before - base));
         maxCp = base + bonusCp; cp = maxCp;
+        // C217-F01（WORK-183）: 明示的にCPが増えたら、その場で身体損傷を減らす（同じtickの後の支払いで損傷が戻らないように）。
+        clampBodyDamage();
         post(io.github.pinchan4273.reacademycraft.event.AbilityEvent.LevelChange::new);
     }
 
@@ -147,11 +180,14 @@ public final class PlayerAbilityData {
         requireWritable();
         maxCp = requireNonnegativeFinite(value);
         cp = Math.min(cp, maxCp);
+        clampBodyDamage();
     }
 
     public void setCp(float value) {
         requireWritable();
         cp = Math.min(requireNonnegativeFinite(value), maxCp);
+        // C217-F01（WORK-183）: 明示的にCPが増えたら、その場で身体損傷を減らす（同じtickの後の支払いで損傷が戻らないように）。
+        clampBodyDamage();
     }
 
     public void setMaxOverload(float value) {
@@ -189,6 +225,7 @@ public final class PlayerAbilityData {
             cp = maxCp;
             overload = 0;
         }
+        bodyDamage = 0;
     }
 
     /**
@@ -198,6 +235,7 @@ public final class PlayerAbilityData {
     public void recoverAll() {
         if (readOnly || !hasAbility()) return;
         cp = maxCp; overload = 0; overloadLocked = true;
+        clampBodyDamage();
     }
 
     public boolean hasLearned(ResourceLocation skill) { return skills.containsKey(skill); }
@@ -250,6 +288,7 @@ public final class PlayerAbilityData {
             // 原作SkillLearnEventは能動技能の資源も更新する。
             // 消費の成長、タイマー、プリセット、既存の技能の進捗は保つ。
             cp = maxCp; overload = 0;
+            clampBodyDamage();
             post(p -> new io.github.pinchan4273.reacademycraft.event.AbilityEvent.SkillLearn(p, skill));
         }
     }
@@ -286,7 +325,9 @@ public final class PlayerAbilityData {
     }
     private boolean gainable(ResourceLocation skill) {
         SkillCatalog.Definition definition = SkillCatalog.find(skill);
-        return definition != null && definition.offeredTo(ability) && hasLearned(skill) && !GenericSkills.isPassive(skill);
+        // 白翼飛行は2026-11-03に受動へ変えたが、飛んで熟練度を得る（§5）ので、受動技能のうちこれだけは受け取る。
+        return definition != null && definition.offeredTo(ability) && hasLearned(skill)
+                && (!GenericSkills.isPassive(skill) || DarkMatter.passiveGains(skill));
     }
     /**
      * 原作AbilityData.addSkillExpそのもの。まだ習得していない技能は、レベルや前提条件を確かめず（カテゴリが提供するかだけを確かめ）、
@@ -366,14 +407,27 @@ public final class PlayerAbilityData {
      */
     public void tick() {
         if (readOnly || !hasAbility()) return;
+        // §7・§15: 未元物質人間のCPが0のときの死亡は、同じtickの自然回復より先に確定する（{@link DarkBody}が同じtickの終わりに死亡させる）。
+        if (darkBody && cp <= 0) return;
+        clampBodyDamage();
+        // 身体修復: 回復待ち・能力OFF・過負荷・プリセット変更・干渉に関係なく、未修復の損傷を毎秒2CPずつ戻す（端数も毎tick）。
+        if (bodyDamage > 0) {
+            float repair = Math.min(bodyDamage, BODY_REPAIR_PER_SECOND / 20f);
+            bodyDamage -= repair;
+            cp = Math.min(maxCp, cp + repair);
+        }
         cooldowns.replaceAll((id, ticks) -> ticks - 1);
         cooldowns.values().removeIf(ticks -> ticks <= 0);
+        if (safetyBlockedCost >= 0 && (!cpSafety || cp - safetyBlockedCost > safetyLine())) safetyBlockedCost = -1;
+        // 被弾などでラインを割ったときも、動いている消費技能を止める（§14）。
+        if (cpSafety && !upkeeps.isEmpty() && cp <= safetyLine()) tripSafety(0);
         float rawOverload = Math.max(0, maxOverload - bonusOverload);
         if (overload == 0 && overloadRecoveryDelay == 0) overloadLocked = false;
         boolean waiting = cpRecoveryDelay > 0;
         if (waiting) cpRecoveryDelay--;
         float hover = -1;
-        if (upkeeps.isEmpty()) { if (!waiting && maxCp > 0) cp = (float) Math.min(maxCp, cp + recovery()); }
+        // 通常の自然回復は、未修復の身体損傷の分を埋めない（上限は最大CP−損傷）。
+        if (upkeeps.isEmpty()) { if (!waiting && maxCp > 0) cp = (float) Math.max(cp, Math.min(maxCp - bodyDamage, cp + recovery())); }
         else hover = settleUpkeep(waiting);
         if (overloadRecoveryDelay > 0) overloadRecoveryDelay--;
         else if (hover >= 0) {
@@ -420,10 +474,16 @@ public final class PlayerAbilityData {
         private boolean skillOnlyHold;
         /** Storm Wing: 推進しない滞空で失うCPと、そのときのオーバーロードの回復（熟練度ごと、1tickあたり）。 */
         private @Nullable java.util.function.DoubleUnaryOperator idleLoss, hoverRecovery;
+        /** 費用をモードが自分で決める（白翼飛行）。与えられた回復から、このtickの費用を返す。払った後も回復待ちは動かない。 */
+        private @Nullable java.util.function.DoubleUnaryOperator custom;
         /** このtickの精算が払い終えた維持の種類（{@link #upkeepEarn}が1回だけ受け取る）: 0は無し、1は待機、2は行動。 */
         private int earned;
         private Upkeep(ResourceLocation skill, java.util.function.BooleanSupplier exempt) { this.skill = skill; this.exempt = exempt; }
         public ResourceLocation skill() { return skill; }
+        public Upkeep custom(java.util.function.DoubleUnaryOperator due) { custom = due; return this; }
+        /** CPセーフティを自分で判定するモード（白翼飛行は外れずに滞空へ移る）。 */
+        private boolean selfSafety;
+        public Upkeep selfSafety() { selfSafety = true; return this; }
         public Upkeep alwaysActing() { alwaysActing = true; return this; }
         /** 維持の熟練度を、待機と同じ量・技能の熟練度だけにする（{@link #skillOnlyHold}）。CPの精算は変えない。 */
         public Upkeep skillOnlyHold() { skillOnlyHold = true; return this; }
@@ -522,7 +582,8 @@ public final class PlayerAbilityData {
             if (upkeep.exempt.getAsBoolean()) continue;
             float due;
             // 熟練度100%は保存された値そのもので判定する（表示の丸めで100%に見える値は含めない）。
-            if (idle && alone && proficiency >= 1) due = (1 - io.github.pinchan4273.reacademycraft.config.AcademyConfig.idleRecoveryShare()) * granted;
+            if (upkeep.custom != null) due = (float) upkeep.custom.applyAsDouble(granted);
+            else if (idle && alone && proficiency >= 1) due = (1 - io.github.pinchan4273.reacademycraft.config.AcademyConfig.idleRecoveryShare()) * granted;
             else if (upkeep.idleLoss != null) due = granted + (idle ? (float) upkeep.idleLoss.applyAsDouble(proficiency) : 0);
             else due = basis + io.github.pinchan4273.reacademycraft.config.AcademyConfig.toggleUpkeep(upkeep.skill) * (1 - proficiency);
             cost[i] = perform(cpFor(upkeep.skill, due), 0)[0];
@@ -538,8 +599,15 @@ public final class PlayerAbilityData {
         double available = (double) cp + granted;
         for (int i = order.size() - 1; i >= 0 && total > available; i--)
             if (cost[i] > 0 && upkeepHeld(order.get(i))) { endUpkeep(order.get(i)); total -= cost[i]; }
+        // CPセーフティ: 払った後がライン以下になる維持は新しいものから外し、作動させる（§14。回復の分はこのtickに実際に入る分だけ数える）。
+        if (cpSafety && total > 0) {
+            double line = safetyLine();
+            for (int i = order.size() - 1; i >= 0 && total > 0 && available - total <= line; i--)
+                if (cost[i] > 0 && upkeepHeld(order.get(i)) && !order.get(i).selfSafety) { endUpkeep(order.get(i)); total -= cost[i]; tripSafety(cost[i]); }
+        }
         double change = granted - total;
-        if (Double.isFinite(change)) cp = (float) Math.max(0, Math.min(maxCp, cp + change));
+        // 回復の分は、未修復の身体損傷の分を埋めない（上限は最大CP−損傷。払う分は従来どおり）。
+        if (Double.isFinite(change)) cp = (float) Math.max(0, Math.min(change > 0 ? Math.max(cp, maxCp - bodyDamage) : maxCp, cp + change));
         // 払い終えた維持だけが、このtickの維持の熟練度を受け取れる（技能が続くと確かめてからupkeepEarnで）。
         for (int i = 0; i < order.size(); i++) if (upkeepHeld(order.get(i))) order.get(i).earned = idles[i] ? 1 : 2;
         return hover;
@@ -564,10 +632,56 @@ public final class PlayerAbilityData {
         bonusOverload += overloadIncrease; maxOverload += overloadIncrease;
     }
 
+    // ---- v1.5.0 §14 CPセーフティ（全系統共通） ----
+    /**
+     * セーフティの既定。製品ではON。v1.4.1以前の試験はCPをちょうど使い切る形で書かれているので、試験の起動だけプロパティでOFFにできる
+     * （セーフティ自身の試験は値を明示して確かめる）。
+     */
+    private static final boolean DEFAULT_CP_SAFETY = !Boolean.getBoolean("academy.test.cpSafetyDefaultOff");
+    public static final int CP_SAFETY_DEFAULT_PERCENT = 10, CP_SAFETY_MIN_PERCENT = 1, CP_SAFETY_MAX_PERCENT = 95;
+    private boolean cpSafety = DEFAULT_CP_SAFETY;
+    private int cpSafetyPercent = CP_SAFETY_DEFAULT_PERCENT;
+    /** セーフティが止めた次の1回の費用（赤い点滅の解除の条件）。止めていなければ負。保存しない。 */
+    private float safetyBlockedCost = -1;
+    /** セーフティが作動した（次のtickで消費技能をまとめて止める）。保存しない。 */
+    private boolean safetyTripped;
+    /** クライアントが受けた、赤い点滅をするか。 */
+    private boolean clientSafetyBlink;
+
+    public boolean isCpSafety() { return cpSafety; }
+    public int getCpSafetyPercent() { return cpSafetyPercent; }
+    public void setCpSafety(boolean on) { cpSafety = on; if (!on) safetyBlockedCost = -1; }
+    public void setCpSafetyPercent(int percent) {
+        if (percent < CP_SAFETY_MIN_PERCENT || percent > CP_SAFETY_MAX_PERCENT) throw new IllegalArgumentException("CP safety percent out of range: " + percent);
+        cpSafetyPercent = percent;
+    }
+    /** 停止ライン（最大CPの割合）。 */
+    public float safetyLine() { return maxCp * cpSafetyPercent / 100f; }
+    /** この額（倍率の後の最終の費用）を払った後のCPがラインを超えるか。回復の予定は先取りしない。セーフティOFFなら常にtrue。 */
+    public boolean safetyClears(float finalCost) { return !cpSafety || cp - finalCost > safetyLine(); }
+    /** 技能の費用をセーフティが通すか（技能の倍率を掛けてから判定する）。止めるなら作動させる。クリエイティブは費用が無いので止めない。 */
+    public boolean safetyPermits(ResourceLocation skill, float cpCost, boolean creative) {
+        float cost = cpFor(skill, cpCost);
+        if (creative || safetyClears(cost)) return true;
+        tripSafety(cost);
+        return false;
+    }
+    /** 払わずに確かめるだけ（自動防御・修復の再開の判定）。作動させない。 */
+    public boolean safetyWouldPermit(ResourceLocation skill, float cpCost) { return safetyClears(cpFor(skill, cpCost)); }
+    private void tripSafety(float cost) { safetyTripped = true; safetyBlockedCost = Math.max(safetyBlockedCost, cost); }
+    /** 作動の知らせを受け取る（1回だけtrue）。 */
+    public boolean takeSafetyTrip() { boolean tripped = safetyTripped; safetyTripped = false; return tripped; }
+    /** 赤い点滅をするか: 今のCPから止めた次の1回分を引いた値が、ラインを厳密に上回るまで続く。 */
+    public boolean safetyBlinking() {
+        if (readOnly) return false;
+        return clientSafetyBlink || (cpSafety && safetyBlockedCost >= 0 && cp - safetyBlockedCost <= safetyLine());
+    }
+    public void setClientSafetyBlink(boolean blink) { clientSafetyBlink = blink; }
+
     /** 原作CPData.canPerform: これだけのCPを今使えるか（使わずに確かめる）。 */
     public boolean canConsumeCp(float cpCost) {
         requireNonnegativeFinite(cpCost);
-        return !readOnly && hasAbility() && active && !overloadLocked && cp >= cpCost;
+        return !readOnly && hasAbility() && active && !overloadLocked && cp >= cpCost && safetyClears(cpCost);
     }
 
     // 原作default.confの技能ごとのcp_consume_speedとoverload_consume_speed。原作のAbilityContextが、技能の払うすべてのコストに
@@ -584,14 +698,24 @@ public final class PlayerAbilityData {
     public boolean consumeInMode(ResourceLocation skill, float cpCost, float overloadCost, boolean creative) {
         return consumeInMode(cpFor(skill, cpCost), overloadFor(skill, overloadCost), creative);
     }
-    public void consumeWithForce(ResourceLocation skill, float cpCost, float overloadCost, boolean creative) {
-        consumeWithForce(cpFor(skill, cpCost), overloadFor(skill, overloadCost), creative);
+    public boolean consumeWithForce(ResourceLocation skill, float cpCost, float overloadCost, boolean creative) {
+        return consumeWithForce(cpFor(skill, cpCost), overloadFor(skill, overloadCost), creative);
     }
+    /** 回復待ちを作らず・延ばさずに払う開始の費用（光線・甲虫・領域。§3）。他の技能が作った待ちは解除しない。 */
+    public boolean consumeQuiet(ResourceLocation skill, float cpCost, float overloadCost, boolean creative) {
+        int wait = cpRecoveryDelay;
+        boolean paid = consume(skill, cpCost, overloadCost, creative);
+        cpRecoveryDelay = wait;
+        return paid;
+    }
+    /** 防御の費用: CPだけを減らす。回復待ち・過負荷・最大値の成長は動かさない（§8）。判定は呼ぶ側が済ませる。 */
+    public void payWithoutWait(float cpCost) { requireNonnegativeFinite(cpCost); if (!readOnly) cp = Math.max(0, cp - cpCost); }
     /** 不可分な資源の取引。原作と同じく、クリエイティブは消費を免除する。 */
     public boolean consume(float cpCost, float overloadCost, boolean creative) {
         requireNonnegativeFinite(cpCost); requireNonnegativeFinite(overloadCost);
         var perform = perform(cpCost, overloadCost); cpCost = perform[0]; overloadCost = perform[1];
         if (readOnly || !hasAbility() || !active || overloadLocked || (!creative && cp < cpCost)) return false;
+        if (!creative && !safetyClears(cpCost)) { tripSafety(cpCost); return false; }
         charge(cpCost, overloadCost, creative);
         return true;
     }
@@ -604,15 +728,18 @@ public final class PlayerAbilityData {
         requireNonnegativeFinite(cpCost); requireNonnegativeFinite(overloadCost);
         var perform = perform(cpCost, overloadCost); cpCost = perform[0]; overloadCost = perform[1];
         if (readOnly || !hasAbility() || (!creative && cp < cpCost)) return false;
+        if (!creative && !safetyClears(cpCost)) { tripSafety(cpCost); return false; }
         charge(cpCost, overloadCost, creative);
         return true;
     }
-    /** 原作CPData.performWithForce: 足りるか確かめずに課し、CPは拒否せず0で止まる。テレポーターの移動技能は距離をこの方法で払う。 */
-    public void consumeWithForce(float cpCost, float overloadCost, boolean creative) {
+    /** 原作CPData.performWithForce: 足りるか確かめずに課し、CPは拒否せず0で止まる。テレポーターの移動技能は距離をこの方法で払う。CPセーフティだけは止める（falseを返す。v1.5.0 §14）。 */
+    public boolean consumeWithForce(float cpCost, float overloadCost, boolean creative) {
         requireNonnegativeFinite(cpCost); requireNonnegativeFinite(overloadCost);
         var perform = perform(cpCost, overloadCost); cpCost = perform[0]; overloadCost = perform[1];
-        if (readOnly || !hasAbility()) return;
+        if (readOnly || !hasAbility()) return false;
+        if (!creative && !safetyClears(cpCost)) { tripSafety(cpCost); return false; }
         charge(cpCost, overloadCost, creative);
+        return true;
     }
     /** 原作CalcEvent.SkillPerform: リスナーが残した[cp, overload]。負にはしない。 */
     private float[] perform(float cpCost, float overloadCost) {
@@ -663,6 +790,9 @@ public final class PlayerAbilityData {
         cpPart.putBoolean(OVERLOAD_FINE, !overloadLocked);
         cpPart.putInt(UNTIL_RECOVER, cpRecoveryDelay); cpPart.putInt(UNTIL_OVERLOAD_RECOVER, overloadRecoveryDelay);
         cpPart.putInt(CP_MODEL, CURRENT_CP_MODEL);
+        if (darkBody) cpPart.putBoolean(DARK_BODY, true); else cpPart.remove(DARK_BODY);
+        clampBodyDamage();
+        if (bodyDamage > 0) cpPart.putFloat(BODY_DAMAGE, bodyDamage); else cpPart.remove(BODY_DAMAGE);
 
         CompoundTag presetPart = section(tag, PRESET);
         presetPart.putInt(PRESET_ID, currentPreset);
@@ -681,11 +811,36 @@ public final class PlayerAbilityData {
         skills.keySet().forEach(id -> { int ticks = getCooldown(id); if (ticks > 0) cooling.putInt(id.toString(), ticks); });
         // 選んだ設定だけを書く。選んでいなければ区分に触れない（区分が無ければ作らない）。
         if (lightShieldMode != null) section(tag, SETTINGS).putString(LIGHT_SHIELD_MODE, lightShieldMode.id());
+        if (cpSafety != DEFAULT_CP_SAFETY) section(tag, SETTINGS).putBoolean(CP_SAFETY, cpSafety);
+        else if (tag.contains(SETTINGS)) tag.getCompound(SETTINGS).remove(CP_SAFETY);
+        if (cpSafetyPercent != CP_SAFETY_DEFAULT_PERCENT) section(tag, SETTINGS).putInt(CP_SAFETY_PERCENT, cpSafetyPercent);
+        else if (tag.contains(SETTINGS)) tag.getCompound(SETTINGS).remove(CP_SAFETY_PERCENT);
         if (electronMissileAimMode != null) section(tag, SETTINGS).putString(ELECTRON_MISSILE_AIM, electronMissileAimMode.id());
         if (!electronMissileTargets.isEmpty()) {
             CompoundTag targets = section(section(tag, SETTINGS), ELECTRON_MISSILE_TARGETS);
             electronMissileTargets.forEach((kind, on) -> targets.putBoolean(kind.id(), on));
         }
+        if (!beetleContactBreak) section(tag, SETTINGS).putBoolean(BEETLE_CONTACT_BREAK, false);
+        else if (tag.contains(SETTINGS)) tag.getCompound(SETTINGS).remove(BEETLE_CONTACT_BREAK);
+        if (beetleRepair != DarkMatterBeetles.Repair.AUTO) section(tag, SETTINGS).putString(BEETLE_REPAIR, beetleRepair.id());
+        else if (tag.contains(SETTINGS)) tag.getCompound(SETTINGS).remove(BEETLE_REPAIR);
+        if (beetleStance != DarkMatterBeetles.Stance.MID) section(tag, SETTINGS).putString(BEETLE_STANCE, beetleStance.id());
+        else if (tag.contains(SETTINGS)) tag.getCompound(SETTINGS).remove(BEETLE_STANCE);
+        if (beetleFollow != DarkMatterBeetles.FOLLOW_DEFAULT) section(tag, SETTINGS).putInt(BEETLE_FOLLOW, beetleFollow);
+        else if (tag.contains(SETTINGS)) tag.getCompound(SETTINGS).remove(BEETLE_FOLLOW);
+        if (!beetleTargets.isEmpty()) {
+            CompoundTag targets = section(section(tag, SETTINGS), BEETLE_TARGETS);
+            beetleTargets.forEach((kind, on) -> targets.putBoolean(kind.id(), on));
+        } else if (tag.contains(SETTINGS)) tag.getCompound(SETTINGS).remove(BEETLE_TARGETS);
+        if (!darkBodyRespawn) section(tag, SETTINGS).putBoolean(DARK_BODY_RESPAWN, false);
+        else if (tag.contains(SETTINGS)) tag.getCompound(SETTINGS).remove(DARK_BODY_RESPAWN);
+        if (flightDoubleTap) section(tag, SETTINGS).putBoolean(FLIGHT_DOUBLE_TAP, true);
+        else if (tag.contains(SETTINGS)) tag.getCompound(SETTINGS).remove(FLIGHT_DOUBLE_TAP);
+        CompoundTag heaven = heavenSettings.save();
+        if (!heaven.isEmpty()) section(tag, SETTINGS).put(HEAVEN_SETTINGS, heaven);
+        else if (tag.contains(SETTINGS)) tag.getCompound(SETTINGS).remove(HEAVEN_SETTINGS);
+        if (beetleRecords.isEmpty()) tag.remove(BEETLE_RECORDS);
+        else tag.put(BEETLE_RECORDS, beetleRecords.copy());
         return tag;
     }
 
@@ -706,6 +861,11 @@ public final class PlayerAbilityData {
         lightShieldMode = null;
         electronMissileAimMode = null;
         electronMissileTargets.clear();
+        beetleContactBreak = true; beetleRepair = DarkMatterBeetles.Repair.AUTO; beetleStance = DarkMatterBeetles.Stance.MID; beetleFollow = DarkMatterBeetles.FOLLOW_DEFAULT; beetleRecords = new ListTag();
+        beetleTargets.clear();
+        darkBody = false; darkBodyRespawn = true; darkBodyLossRate = -1; flightDoubleTap = false; bodyDamage = 0;
+        cpSafety = DEFAULT_CP_SAFETY; cpSafetyPercent = CP_SAFETY_DEFAULT_PERCENT; safetyBlockedCost = -1; safetyTripped = false;
+        heavenSettings = new HeavenSettings();
         CompoundTag source = PlayerDataMigration.needed(tag) ? PlayerDataMigration.fromSchemaOne(tag) : tag;
         preserved = source.copy();
         readOnly = !source.contains(VERSION_KEY, Tag.TAG_INT) || source.getInt(VERSION_KEY) != VERSION;
@@ -726,6 +886,10 @@ public final class PlayerAbilityData {
         cp = Math.min(readNonnegativeFinite(cpPart, CUR_CP, 0), maxCp);
         overload = Math.min(readNonnegativeFinite(cpPart, CUR_OVERLOAD, 0), maxOverload);
         active = hasAbility() && cpPart.getBoolean(ACTIVATED);
+        darkBody = DarkMatter.CATEGORY.equals(ability) && cpPart.getBoolean(DARK_BODY);
+        // 旧セーブ（損傷の値なし）は0から。読み込んだ値は、形態・現在CP・最大CPにそろえる。
+        bodyDamage = readNonnegativeFinite(cpPart, BODY_DAMAGE, 0);
+        clampBodyDamage();
         overloadLocked = cpPart.contains(OVERLOAD_FINE, Tag.TAG_ANY_NUMERIC) && !cpPart.getBoolean(OVERLOAD_FINE);
         // 原作CPDataはuntilRecoverとuntilOverloadRecoverをそのまま保存する。より長く設定した待ちは再読込を越えて残らなければならないので、
         // 設定が決して生まない値だけを拒否する。
@@ -755,10 +919,32 @@ public final class PlayerAbilityData {
         if (hasAbility() && !(cpPart.contains(CP_MODEL, Tag.TAG_INT) && cpPart.getInt(CP_MODEL) >= CURRENT_CP_MODEL)) migrateCapacity(cpPart);
         // 設定は能力の有無に関わらず読む（能力を失っても、選んだモードは残る）。知らない値は読まず、保存でも書き換えない。
         lightShieldMode = LightShieldMode.parse(source.getCompound(SETTINGS).getString(LIGHT_SHIELD_MODE));
+        if (source.getCompound(SETTINGS).contains(CP_SAFETY, Tag.TAG_BYTE)) cpSafety = source.getCompound(SETTINGS).getBoolean(CP_SAFETY);
+        if (source.getCompound(SETTINGS).contains(CP_SAFETY_PERCENT, Tag.TAG_INT))
+            cpSafetyPercent = net.minecraft.util.Mth.clamp(source.getCompound(SETTINGS).getInt(CP_SAFETY_PERCENT), CP_SAFETY_MIN_PERCENT, CP_SAFETY_MAX_PERCENT);
         electronMissileAimMode = ElectronMissileAimMode.parse(source.getCompound(SETTINGS).getString(ELECTRON_MISSILE_AIM));
         CompoundTag targets = source.getCompound(SETTINGS).getCompound(ELECTRON_MISSILE_TARGETS);
         for (var kind : ElectronMissileTargetKind.values())
             if (targets.contains(kind.id(), Tag.TAG_BYTE)) electronMissileTargets.put(kind, targets.getBoolean(kind.id()));
+        CompoundTag settings = source.getCompound(SETTINGS);
+        heavenSettings = HeavenSettings.load(settings.getCompound(HEAVEN_SETTINGS));
+        if (settings.contains(BEETLE_CONTACT_BREAK, Tag.TAG_BYTE)) beetleContactBreak = settings.getBoolean(BEETLE_CONTACT_BREAK);
+        if (settings.contains(DARK_BODY_RESPAWN, Tag.TAG_BYTE)) darkBodyRespawn = settings.getBoolean(DARK_BODY_RESPAWN);
+        if (settings.contains(FLIGHT_DOUBLE_TAP, Tag.TAG_BYTE)) flightDoubleTap = settings.getBoolean(FLIGHT_DOUBLE_TAP);
+        var repair = DarkMatterBeetles.Repair.parse(settings.getString(BEETLE_REPAIR));
+        if (repair != null) beetleRepair = repair;
+        var stance = DarkMatterBeetles.Stance.parse(settings.getString(BEETLE_STANCE));
+        if (stance != null) beetleStance = stance;
+        // 旧セーブ（キー無し）と、許されない値（範囲外・刻み外）は既定の32のまま。
+        if (settings.contains(BEETLE_FOLLOW, Tag.TAG_INT) && DarkMatterBeetles.validFollow(settings.getInt(BEETLE_FOLLOW))) beetleFollow = settings.getInt(BEETLE_FOLLOW);
+        CompoundTag beetleTargetTag = settings.getCompound(BEETLE_TARGETS);
+        for (var kind : ElectronMissileTargetKind.values())
+            if (beetleTargetTag.contains(kind.id(), Tag.TAG_BYTE)) beetleTargets.put(kind, beetleTargetTag.getBoolean(kind.id()));
+        // 記録は系統が未元物質のときだけ読む。形の違う要素は読まない（最大で3体）。
+        if (DarkMatter.CATEGORY.equals(ability)) {
+            ListTag records = source.getList(BEETLE_RECORDS, Tag.TAG_COMPOUND);
+            for (int i = 0; i < Math.min(DarkMatterBeetles.MAX_BEETLES, records.size()); i++) beetleRecords.add(records.getCompound(i).copy());
+        }
     }
 
     /**
@@ -793,6 +979,8 @@ public final class PlayerAbilityData {
     public float getAddedMaxOverload() { return bonusOverload; }
     /** CPの回復が始まるまでの残りtick（原作CPData.untilRecover）。 */
     public int getCpRecoveryDelay() { return cpRecoveryDelay; }
+    /** テスト用の入口: CP回復の待ちを置く。 */
+    public void setCpRecoveryDelay(int ticks) { cpRecoveryDelay = Math.max(0, ticks); }
     /** オーバーロードの回復が始まるまでの残りtick（原作CPData.untilOverloadRecover）。 */
     public int getOverloadRecoveryDelay() { return overloadRecoveryDelay; }
 
@@ -828,6 +1016,66 @@ public final class PlayerAbilityData {
         requireWritable();
         electronMissileTargets.put(java.util.Objects.requireNonNull(kind), on);
     }
+
+    /** §9: 甲虫の接触ブロック破壊の設定。 */
+    public boolean isBeetleContactBreak() { return beetleContactBreak; }
+    public void setBeetleContactBreak(boolean on) { requireWritable(); beetleContactBreak = on; }
+    /** §9: 甲虫の修復方式。 */
+    public DarkMatterBeetles.Repair getBeetleRepair() { return beetleRepair; }
+    public void setBeetleRepair(DarkMatterBeetles.Repair repair) { requireWritable(); beetleRepair = java.util.Objects.requireNonNull(repair); }
+    /** §9: 甲虫の攻撃方針。 */
+    public DarkMatterBeetles.Stance getBeetleStance() { return beetleStance; }
+    public void setBeetleStance(DarkMatterBeetles.Stance stance) { requireWritable(); beetleStance = java.util.Objects.requireNonNull(stance); }
+    /** §9（ユーザーの決定）: 甲虫がこの分類を自動で狙ってよいか。選んでいなければ既定（{@link ElectronMissileTargetKind#defaultOn()}）。 */
+    public boolean beetleTargets(ElectronMissileTargetKind kind) { return beetleTargets.getOrDefault(kind, kind.defaultOn()); }
+    /** この分類のON／OFFを選ぶ。読み取り専用のデータでは例外（呼び出し元の{@link AbilitySettings}が先に断る）。 */
+    public void setBeetleTarget(ElectronMissileTargetKind kind, boolean on) { requireWritable(); beetleTargets.put(java.util.Objects.requireNonNull(kind), on); }
+    /** §9: 甲虫の追従開始距離（ブロック。{@link DarkMatterBeetles#validFollow}の値）。 */
+    public int getBeetleFollow() { return beetleFollow; }
+    /** 追従開始距離を置く。許されない値は例外（呼び出し元の{@link AbilitySettings}が先に断る）。 */
+    public void setBeetleFollow(int blocks) {
+        requireWritable();
+        if (!DarkMatterBeetles.validFollow(blocks)) throw new IllegalArgumentException("Invalid beetle follow distance: " + blocks);
+        beetleFollow = blocks;
+    }
+    /** §9: 甲虫の個体の記録の写し。 */
+    public ListTag getBeetleRecords() { return beetleRecords.copy(); }
+    public void setBeetleRecords(ListTag records) { if (!readOnly) beetleRecords = records.copy(); }
+    /** §10〜§12: 天界発現の設定（領域は毎回ここを読む）。 */
+    public HeavenSettings getHeavenSettings() { return heavenSettings; }
+
+    /** §15: 未元物質人間か。 */
+    public boolean isDarkBody() { return darkBody; }
+    /** §15: 未元物質人間へ変わる。CPは全回復し、回復待ちとセーフティの点滅の条件を解除する。 */
+    public void becomeDarkBody() { requireWritable(); darkBody = true; cp = maxCp; cpRecoveryDelay = 0; safetyBlockedCost = -1; bodyDamage = 0; }
+    /**
+     * 未元物質人間の身体に通った最終ダメージを、1HP＝1CPで一度だけCPから引き、同額（実際に引けた分）を未修復の身体損傷に記録する。
+     * 回復待ちは付けない。CPセーフティは見ない（生命へのダメージを肩代わりしない）。
+     */
+    public void takeBodyDamage(float amount) {
+        requireNonnegativeFinite(amount);
+        if (readOnly) return;
+        float taken = Math.min(cp, amount);
+        cp -= taken;
+        if (darkBody) bodyDamage = Math.min(maxCp, bodyDamage + taken);
+    }
+    /** 未修復の身体損傷（CP）。 */
+    public float getBodyDamage() { clampBodyDamage(); return bodyDamage; }
+    /**
+     * 損傷 ≤ 最大CP−現在CP（明示的な回復で戻った分は損傷も減る）。未元物質人間でなければ0。
+     * CPを明示的に上げる処理（setCp・recoverAll・習得・レベルアップ・最大CPの変更）は、その場でこれを呼ぶ（C217-F01）。
+     */
+    private void clampBodyDamage() { bodyDamage = darkBody ? Math.max(0, Math.min(bodyDamage, maxCp - cp)) : 0; }
+    /** §15: 死亡後の復活形態（trueは未元物質人間）。今の形態は変えない。 */
+    public boolean isDarkBodyRespawn() { return darkBodyRespawn; }
+    public void setDarkBodyRespawn(boolean body) { requireWritable(); darkBodyRespawn = body; }
+    /** 白翼飛行の飛び立ちと停止の操作が連打か（falseなら長押し）。 */
+    public boolean isFlightDoubleTap() { return flightDoubleTap; }
+    public void setFlightDoubleTap(boolean on) { requireWritable(); flightDoubleTap = on; }
+    /** §15: 未元物質人間として死亡した後の復活に、設定の形態を適用する。通常人間のままの死亡では形態を変えない。 */
+    public void applyRespawnForm() { if (!readOnly && darkBody && !darkBodyRespawn) { darkBody = false; bodyDamage = 0; } }
+    /** 系統の喪失の直前の残量率を受け取る（1回だけ）。喪失していなければ負。 */
+    public float takeDarkBodyLossRate() { float rate = darkBodyLossRate; darkBodyLossRate = -1; return rate; }
 
     public void copyFrom(PlayerAbilityData other) {
         load(other.save());

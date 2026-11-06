@@ -7,8 +7,6 @@ import java.util.UUID;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.damagesource.DamageSource;
-import net.minecraft.world.effect.MobEffectInstance;
-import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.Level;
@@ -185,7 +183,8 @@ public final class LightShield {
         var data = data(player);
         if (data != null) data.endUpkeep(session.upkeep);
         if (data == null || data.isReadOnly() || session.level != player.level()) return;
-        player.addEffect(new MobEffectInstance(MobEffects.MOVEMENT_SLOWDOWN, 100, 1));
+        // v1.5.0: 盾の終了の移動の反動（鈍足II相当、100tick）を、技能由来の直接効果で。
+        DirectEffects.add(player, DirectEffects.Kind.SLOWNESS, 1, 100, ID, player);
         // 習得していない技能（止める前にリスナーやカテゴリの変更が外した）にはクールダウンを書かない（M-110-02）。
         if (data.hasLearned(ID)) data.setCooldown(ID, session.cooldown());
     }
@@ -363,6 +362,8 @@ public final class LightShield {
 
     @SubscribeEvent public static void hurt(AcademyLivingHurtEvent event) {
         if (!(event.getEntity() instanceof ServerPlayer player) || !ACTIVE.containsKey(player.getUUID())) return;
+        // v1.5.0: 50%以上の白翼刺突は防御を無視する（§4・R08）。
+        if (SkillDamageSource.ignoresDefenses(event.getSource())) return;
         float left = absorb(player, event.getSource(), event.getAmount());
         event.setAmount(left);
         if (left == 0) event.setCanceled(true);

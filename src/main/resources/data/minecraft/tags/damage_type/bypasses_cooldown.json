@@ -1,6 +1,8 @@
 {
   "replace": false,
   "values": [
-    "academy:skill_contact"
+    "academy:skill_contact",
+    "academy:skill_stab",
+    "academy:skill_pierce"
   ]
 }

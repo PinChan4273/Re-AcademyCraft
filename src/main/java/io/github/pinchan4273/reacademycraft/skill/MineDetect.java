@@ -4,8 +4,6 @@ import io.github.pinchan4273.reacademycraft.network.AcademyNetwork;
 import io.github.pinchan4273.reacademycraft.network.OreSurveyStart;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.effect.MobEffectInstance;
-import net.minecraft.world.effect.MobEffects;
 
 /**
  * 原作MineDetect（MDContext、WeAthFolD・KSkun）のサーバー側。コストと成長を払い、探査そのものは原作と同じく
@@ -24,7 +22,8 @@ public final class MineDetect {
         float exp=data.getProficiency(ID);
         var grant=new OreSurveyStart(player.getUUID(),player.level().dimension().location(),ArcGen.lerp(15,30,exp),exp>.5f&&data.getLevel()>=4);
         if (!data.consume(ID, ArcGen.lerp(1500,1000,exp),ArcGen.lerp(200,180,exp),player.getAbilities().instabuild)) return "academy.cast.cp";
-        player.addEffect(new MobEffectInstance(MobEffects.BLINDNESS,DURATION));
+        // v1.5.0: 術者だけの視界の制限を、技能由来の直接効果で（バニラの盲目は付けない。牛乳で消えず、/effect clearで外れる）。
+        DirectEffects.add(player,DirectEffects.Kind.BLINDNESS,0,DURATION,ID,player);
         data.addProficiency(ID,.008f);
         data.setCooldown(ID,(int)ArcGen.lerp(900,400,data.getProficiency(ID)));
         AcademyNetwork.send(player,grant);

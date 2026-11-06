@@ -67,12 +67,16 @@ public final class AcademySafety {
      * （0.6〜1.2）が1以上なら丸ごと止まり、1未満なら割合の分だけ減って残りが通る。
      */
     public static ReflectionState reflection(@Nullable LivingEntity target) { return SafetyService.reflection(target); }
-    /** Re:AcademyCraftの技能のダメージなら、その技能のID（組み込みと、{@link #attack}を通した外部の技能）。それ以外はnull。API版2。 */
+    /**
+     * Re:AcademyCraftの技能のダメージなら、その技能のID（組み込みと、{@link #attack}を通した外部の技能）。それ以外はnull。API版2。
+     * 1.5.1から、未元物質の技能のダメージ（{@code academy:white_wing_stab}・{@code academy:dark_matter_ray}・{@code academy:dark_matter_air_cannon}・
+     * {@code academy:dark_matter_beetle}・{@code academy:heaven_manifest}）も答える。天界発現の領域の状態異常（燃焼・毒・衰弱）は{@code academy:heaven_manifest}。
+     */
     public static @Nullable AbilityId skillOf(@Nullable DamageSource source) { return SafetyService.skillOf(source); }
     /**
      * Re:AcademyCraftの組み込みの技能のうち、光線として当てるもののダメージか（API版2）。今の一覧は
      * {@code academy:railgun}・{@code academy:meltdowner}・{@code academy:ray_barrage}・{@code academy:electron_bomb}・
-     * {@code academy:scatter_bomb}・{@code academy:electron_missile}。外部の技能のダメージはfalse。
+     * {@code academy:scatter_bomb}・{@code academy:electron_missile}と、1.5.1から未元光線の{@code academy:dark_matter_ray}。外部の技能のダメージはfalse。
      */
     public static boolean isBeam(@Nullable DamageSource source) { return SafetyService.isBeam(source); }
     /** 主体が今、能力の妨害の範囲の中か。 */

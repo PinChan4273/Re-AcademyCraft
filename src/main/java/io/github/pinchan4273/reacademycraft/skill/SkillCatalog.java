@@ -19,9 +19,12 @@ public final class SkillCatalog {
         }
         public boolean canLearn(PlayerAbilityData data) {
             // 原作default.confのenabled: 無効にした技能は習得できない。
-            return !data.isReadOnly() && io.github.pinchan4273.reacademycraft.config.AcademyConfig.skillEnabled(id) && offeredTo(data.getAbility()) && data.getLevel() >= level
+            // v1.5.0: 未元物質のまだ実装していない技能は習得できない（DarkMatter.learnable。ほかの技能は常に通る）。
+            return !data.isReadOnly() && io.github.pinchan4273.reacademycraft.config.AcademyConfig.skillEnabled(id) && DarkMatter.learnable(id) && offeredTo(data.getAbility()) && data.getLevel() >= level
                     && !data.hasLearned(id) && data.learnedSkills().size() < PlayerAbilityData.MAX_SKILLS
-                    && (!passive() || IMPLEMENTED.stream().anyMatch(s -> s.level() == level && data.hasLearned(s.id())))
+                    // §16: 人体生成は天界発現の習得を要らない採用の木なので、受動技能の「同じレベルの技能」の条件を掛けない。
+                    // 白翼飛行も受動になったが、Lv1の最初の技能のまま習得できるよう同じ扱いにする（2026-11-03）。
+                    && (!passive() || DarkMatter.unconditionalPassive(id) || IMPLEMENTED.stream().anyMatch(s -> s.level() == level && data.hasLearned(s.id())))
                     && prerequisites.stream().allMatch(r -> data.hasLearned(r.skill()) && data.getProficiency(r.skill()) >= r.proficiency());
         }
     }

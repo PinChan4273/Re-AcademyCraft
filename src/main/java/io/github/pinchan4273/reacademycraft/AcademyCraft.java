@@ -31,6 +31,7 @@ public final class AcademyCraft {
         AcademyContent.register(modBus);
         io.github.pinchan4273.reacademycraft.world.AcademySounds.register(modBus);
         io.github.pinchan4273.reacademycraft.world.AcademyParticles.register(modBus);
+        io.github.pinchan4273.reacademycraft.world.AcademyEffects.register(modBus);
         io.github.pinchan4273.reacademycraft.world.PhaseContent.register(modBus);
         io.github.pinchan4273.reacademycraft.world.PhaseLakeFeature.register(modBus);
         io.github.pinchan4273.reacademycraft.world.MaterialContent.register(modBus);
@@ -46,6 +47,8 @@ public final class AcademyCraft {
         NeoForge.EVENT_BUS.addListener(EventPriority.LOWEST, AbilityCapabilities::clonePlayer);
         NeoForge.EVENT_BUS.addListener(AbilityCapabilities::wakeUp);
         NeoForge.EVENT_BUS.addListener(this::registerCommands);
+        // v1.5.0 §15: 死亡の最終判断は、全MODのリスナーの後（最低優先度の最後）に置く。全MODの読み込みの完了の後、主スレッドで登録する。
+        modBus.addListener((net.neoforged.fml.event.lifecycle.FMLLoadCompleteEvent e) -> e.enqueueWork(io.github.pinchan4273.reacademycraft.skill.DeathOrder::register));
     }
 
     private void commonSetup(FMLCommonSetupEvent event) {

@@ -21,14 +21,10 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.effect.MobEffect;
-import net.minecraft.world.effect.MobEffectInstance;
-import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.level.Level;
 import net.neoforged.neoforge.event.tick.PlayerTickEvent;
-import net.neoforged.neoforge.event.entity.living.MobEffectEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.neoforged.neoforge.event.server.ServerStoppedEvent;
-import net.neoforged.bus.api.EventPriority;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.Mod;
 
@@ -47,21 +43,27 @@ import net.neoforged.fml.common.Mod;
  * ディメンションの移動、サーバーの停止、術者自身のクライアントのフォーカス喪失。準備は画面が開いても終わる。強化の終了でだけ
  * クールダウンfloor(lerp(900, 600, p))を1回設定する。途中で切れた準備は何も返さず、何も与えない。
  *
- * 強化はMinecraft自身の効果で、切れる前に付け直し、外すことはしない: ゲーム自身の統合により、他から来たより強い効果は上に、
- * 弱い効果はそれ自身の時間で隠れて残る。オフになると10tick以内に切れる。Regenerationは自身の回復周期の内で切れ、終了後の回復は
- * 最大でも2tick以内に来る予定だった1回だけ（durationを参照）。牛乳、/effect clear、その他でどれかが外れるとオフになる。
+ * v1.5.0（採用仕様・版41の§0、文書版26〜28・R03・R04）: 強化はバニラの状態効果ではなく、技能由来の直接効果（{@link DirectEffects}、
+ * トグル中だけ続く{@link DirectEffects#BOUND}）。発動で付け、オフ（停止の規則のどれか）で外すので、オフの後に補正は残らない。
+ * ポーションの同種の効果とは別に両方が効く。牛乳・他MODの効果の削除では外れず、トグルも続く。権限のある{@code /effect clear}で
+ * 外れたらトグルをOFFにし、付け直さない（{@link #stopByCommand}）。熟練度帯・起動時の抽選・費用・クールダウンは変えていない。
  */
 @net.neoforged.fml.common.EventBusSubscriber(modid = "academy")
 public final class BodyIntensify {
     public static final ResourceLocation ID = ResourceLocation.fromNamespaceAndPath("academy","body_intensify");
     /** 5つの強化。Jump BoostとResistanceはどの帯でもIIまで。 */
     public enum Buff {
-        SPEED(MobEffects.MOVEMENT_SPEED, false), JUMP(MobEffects.JUMP, true), REGENERATION(MobEffects.REGENERATION, false),
-        STRENGTH(MobEffects.DAMAGE_BOOST, false), RESISTANCE(MobEffects.DAMAGE_RESISTANCE, true);
-        // 1.20.5から効果はHolderで扱う（Forge版はMobEffect）。
-        private final net.minecraft.core.Holder<MobEffect> effect; private final boolean capped;
-        Buff(net.minecraft.core.Holder<MobEffect> effect, boolean capped) { this.effect = effect; this.capped = capped; }
-        public net.minecraft.core.Holder<MobEffect> effect() { return effect; }
+        SPEED(DirectEffects.Kind.SPEED, false), JUMP(DirectEffects.Kind.JUMP, true), REGENERATION(DirectEffects.Kind.REGENERATION, false),
+        STRENGTH(DirectEffects.Kind.STRENGTH, false), RESISTANCE(DirectEffects.Kind.RESISTANCE, true);
+        private final DirectEffects.Kind kind; private final boolean capped;
+        Buff(DirectEffects.Kind kind, boolean capped) { this.kind = kind; this.capped = capped; }
+        /** この強化の直接効果の種類。 */
+        public DirectEffects.Kind kind() { return kind; }
+        /**
+         * 同じ種類のバニラの効果（名前を指定した{@code /effect clear}の対象の照合と、試験の比較のため。強化自身は付けない）。
+         * 1.20.5から効果はHolderで扱う（Forge版はMobEffect）。
+         */
+        public net.minecraft.core.Holder<MobEffect> effect() { return kind.vanilla(); }
     }
     /** 熟練度帯0（25%未満）〜4（100%）: 強化はindex + 1個、増幅値はindex（上限のある2つは最大II）。 */
     public record Band(int index) {
@@ -81,13 +83,6 @@ public final class BodyIntensify {
         for (int i = 0; i < band.kinds(); i++) chosen.add(all.remove(random.nextInt(all.size())));
         return List.copyOf(chosen);
     }
-    /** 各強化を付ける時間。したがってオフ後にどれだけ早く切れるか。Regenerationはrefreshを参照。 */
-    public static final int REFRESH = 10;
-    /**
-     * Regenerationは残り時間が50 >> amplifierの倍数のときに回復する: 1tick長く付け、残り1tickで付け直すと、ちょうどその頻度で回復する。
-     * 付け直さなくなると、残り時間がその倍数を通るのは最後の付け直しから2tick以内に最大1回なので、終了後の回復はそのとき予定の1回まで。
-     */
-    public static int duration(Buff buff, int amplifier) { return buff == Buff.REGENERATION ? (50 >> amplifier) + 1 : REFRESH; }
 
     private static final Map<UUID, Session> ACTIVE = new HashMap<>();
     private static long nextEffectSession;
@@ -96,7 +91,7 @@ public final class BodyIntensify {
         final Set<UUID> listeners = new LinkedHashSet<>();
         final float warmupCost, overloadFloor; final Band band; final int warmup;
         boolean active; int ticks, age; long lastTick = Long.MIN_VALUE;
-        List<Buff> buffs = List.of(); final int[] left = new int[Buff.values().length];
+        List<Buff> buffs = List.of();
         PlayerAbilityData.Upkeep upkeep; double exhaustion;
         Session(ServerPlayer p, PlayerAbilityData d, int slot, float proficiency) {
             level = p.level(); preset = d.getCurrentPreset(); this.slot = slot;
@@ -185,6 +180,8 @@ public final class BodyIntensify {
         var s = ACTIVE.remove(p.getUUID());
         if (s == null) return;
         var d = data(p);
+        // 強化の直接効果は、オフになったこのtickで外す（v1.5.0。付け直しの時間を待たない）。
+        DirectEffects.remove(p, ID);
         if (d != null) d.endUpkeep(s.upkeep);
         // クールダウンがあるのは強化の終了だけ。途中で切れた準備はループ音とHUDを終え、実行しない。
         if (s.active) { if (d != null && !d.isReadOnly() && d.hasLearned(ID)) d.setCooldown(ID, cooldown(d.getProficiency(ID))); }
@@ -193,6 +190,10 @@ public final class BodyIntensify {
         BodyIntensifyState.send(p, BodyIntensifyState.OFF, s.slot);
         if (d != null) AbilitySyncEvents.sync(p, true);
     }
+    /**
+     * 権限のある{@code /effect clear}が強化の直接効果を外した（v1.5.0、文書版28）: 既存の停止の規則でトグルをOFFにし、継続更新で付け直さない。
+     */
+    public static void stopByCommand(ServerPlayer p) { if (isActive(p)) stop(p); }
     public static int cooldown(float proficiency) { return (int) Math.floor(ArcGen.lerp(900, 600, proficiency)); }
     /** 起動のオーバーロード（2026-10-16、統合指示書3章。原作lerp(200, 120)から）。 */
     public static float startOverload(float proficiency) { return ArcGen.lerp(60, 30, proficiency); }
@@ -221,8 +222,6 @@ public final class BodyIntensify {
         float exhaustion = AcademyConfig.bodyExtraExhaustion();
         // Player.causeFoodExhaustionは、すべての消耗と同じく無敵（クリエイティブ、スペクテイター）のプレイヤーを飛ばす。
         if (exhaustion > 0 && !p.getAbilities().invulnerable) { p.causeFoodExhaustion(exhaustion); s.exhaustion += exhaustion; }
-        refresh(p, s);
-        if (!carriesOn(p, s)) return;
         AbilitySyncEvents.sync(p, false);
     }
     private static void activate(ServerPlayer p, PlayerAbilityData d, Session s) {
@@ -245,42 +244,22 @@ public final class BodyIntensify {
         BodyIntensifyState.send(p, BodyIntensifyState.ACTIVE, s.slot);
         AbilitySyncEvents.sync(p, true);
     }
+    /** 強化の直接効果を、トグルが続く間だけ（{@link DirectEffects#BOUND}）付ける。発生元は術者自身。 */
     private static void add(ServerPlayer p, Session s, Buff buff) {
-        int amplifier = s.band.amplifier(buff), duration = duration(buff, amplifier);
-        s.left[buff.ordinal()] = duration;
-        p.addEffect(new MobEffectInstance(buff.effect, duration, amplifier, false, true, true));
-    }
-    /**
-     * 各強化は、このセッションが与えた時間が残り1tickになったときに付け直す。表示中の効果は他人のより強いものかもしれないので、
-     * そこから読まず自身で数える。
-     */
-    private static void refresh(ServerPlayer p, Session s) {
-        for (var buff : s.buffs) {
-            if (--s.left[buff.ordinal()] > 1) continue;
-            add(p, s, buff);
-            if (!carriesOn(p, s)) return;
-        }
+        DirectEffects.add(p, buff.kind, s.band.amplifier(buff), DirectEffects.BOUND, ID, p);
     }
     /** テスト用の入口: ゲーム時刻に関係なくサーバー1tick分を進める（テストは1回に多数進める）。 */
     public static void tickForTest(ServerPlayer p) { var s = ACTIVE.get(p.getUUID()); if (s != null) s.lastTick = Long.MIN_VALUE; tick(p); }
 
-    /**
-     * 何か（牛乳、/effect clear、トーテム、他のmod）が強化の1つを外し、誰もそれを止めなかった: 術者が望まなかったので終える。
-     * 切れることと付け直しはこれに当たらない。
-     */
-    @SubscribeEvent(priority = EventPriority.LOWEST)
-    public static void removed(MobEffectEvent.Remove e) {
-        if (!(e.getEntity() instanceof ServerPlayer p) || e.getEffect() == null) return;
-        var s = ACTIVE.get(p.getUUID());
-        if (s == null || !s.active) return;
-        for (var buff : s.buffs) if (buff.effect == e.getEffect()) { stop(p); return; }
-    }
+    // v1.5.0: 牛乳・トーテム・他MODによるバニラの効果の削除（MobEffectEvent.Remove）では、もう止めない（文書版27・28）。
+    // 権限のある/effect clearは、DirectEffects.commandがstopByCommandを呼ぶ。
     @SubscribeEvent public static void playerTick(PlayerTickEvent.Post e) { if (e.getEntity() instanceof ServerPlayer p) tick(p); }
     @SubscribeEvent public static void logout(PlayerEvent.PlayerLoggedOutEvent e) { if (e.getEntity() instanceof ServerPlayer p) stop(p); }
     @SubscribeEvent public static void dimension(PlayerEvent.PlayerChangedDimensionEvent e) { if (e.getEntity() instanceof ServerPlayer p) stop(p); }
     /** 死亡またはエンドからの帰還: 新しいプレイヤーはセッションを持たない。クールダウンは既存の死亡と帰還の規則に従うので、ここでは設定しない。 */
     @SubscribeEvent public static void clone(PlayerEvent.Clone e) {
         if (e.getEntity() instanceof ServerPlayer p && ACTIVE.remove(p.getUUID()) != null) {
+            DirectEffects.remove(p, ID);
             SkillModeState.send(p, ID, false);
             BodyIntensifyState.send(p, BodyIntensifyState.OFF, 0);
         }

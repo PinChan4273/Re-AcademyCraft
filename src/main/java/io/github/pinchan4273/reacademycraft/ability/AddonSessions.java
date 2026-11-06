@@ -192,7 +192,8 @@ public final class AddonSessions {
     @SubscribeEvent public static void addonSessionsOnLogout(PlayerEvent.PlayerLoggedOutEvent event) {
         if (event.getEntity() instanceof ServerPlayer player) stopAll(player, StopReason.LOGGED_OUT);
     }
-    @SubscribeEvent public static void addonSessionsOnDeath(LivingDeathEvent event) {
+    /** 真の死亡で止める。取り消された死亡（§15の人体生成・他MODの救済）では止めないよう、{@link io.github.pinchan4273.reacademycraft.skill.DeathOrder}が最後に呼ぶ。 */
+    public static void addonSessionsOnDeath(LivingDeathEvent event) {
         if (event.getEntity() instanceof ServerPlayer player) stopAll(player, StopReason.INELIGIBLE);
     }
     @SubscribeEvent public static void addonSessionsOnDimensionChange(PlayerEvent.PlayerChangedDimensionEvent event) {

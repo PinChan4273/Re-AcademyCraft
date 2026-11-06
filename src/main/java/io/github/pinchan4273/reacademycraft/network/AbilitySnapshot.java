@@ -12,12 +12,13 @@ import java.util.UUID;
 /** 所有者だけに見せる、範囲を限った表示。任意に保存された拡張NBTは決して送らない。 */
 public record AbilitySnapshot(UUID player, ResourceLocation dimension,
         @Nullable ResourceLocation ability, int level, float levelExperience, float cp, float maxCp,
-        float overload, float maxOverload, boolean active, boolean readOnly, boolean interfering, SkillSnapshot skills) implements AcademyPayload {
+        float overload, float maxOverload, boolean active, boolean readOnly, boolean interfering, boolean safetyBlink, int safetyPercent, boolean darkBody, SkillSnapshot skills) implements AcademyPayload {
     public static final int MAX_ID_LENGTH = 256;
 
     public AbilitySnapshot {
         if (skills == null || player == null || dimension == null || dimension.toString().length() > MAX_ID_LENGTH
                 || (ability != null && ability.toString().length() > MAX_ID_LENGTH)
+                || safetyPercent < 0 || safetyPercent > PlayerAbilityData.CP_SAFETY_MAX_PERCENT
                 || level < 0 || level > 5 || (ability == null ? level != 0 || active : level == 0)
                 || !finite(levelExperience) || (ability == null && levelExperience != 0)
                 || !finite(cp) || !finite(maxCp) || cp > maxCp
@@ -35,7 +36,7 @@ public record AbilitySnapshot(UUID player, ResourceLocation dimension,
         return new AbilitySnapshot(player, dimension, id, id == null ? 0 : data.getLevel(),
                 id == null ? 0 : data.getLevelExperience(),
                 data.getCp(), data.getMaxCp(), data.getOverload(), data.getMaxOverload(),
-                id != null && data.isActive(), data.isReadOnly(), data.isInterfering(), SkillSnapshot.capture(data));
+                id != null && data.isActive(), data.isReadOnly(), data.isInterfering(), data.safetyBlinking(), data.isCpSafety() ? data.getCpSafetyPercent() : 0, data.isDarkBody(), SkillSnapshot.capture(data));
     }
 
     public void encode(FriendlyByteBuf buffer) {
@@ -47,14 +48,14 @@ public record AbilitySnapshot(UUID player, ResourceLocation dimension,
         buffer.writeFloat(levelExperience);
         buffer.writeFloat(cp); buffer.writeFloat(maxCp);
         buffer.writeFloat(overload); buffer.writeFloat(maxOverload);
-        buffer.writeBoolean(active); buffer.writeBoolean(readOnly); buffer.writeBoolean(interfering); skills.encode(buffer);
+        buffer.writeBoolean(active); buffer.writeBoolean(readOnly); buffer.writeBoolean(interfering); buffer.writeBoolean(safetyBlink); buffer.writeByte(safetyPercent); buffer.writeBoolean(darkBody); skills.encode(buffer);
     }
 
     public static AbilitySnapshot decode(FriendlyByteBuf buffer) {
         return new AbilitySnapshot(buffer.readUUID(), ResourceLocation.parse(buffer.readUtf(MAX_ID_LENGTH)),
                 buffer.readBoolean() ? ResourceLocation.parse(buffer.readUtf(MAX_ID_LENGTH)) : null,
                 buffer.readUnsignedByte(), buffer.readFloat(), buffer.readFloat(), buffer.readFloat(),
-                buffer.readFloat(), buffer.readFloat(), buffer.readBoolean(), buffer.readBoolean(), buffer.readBoolean(), SkillSnapshot.decode(buffer));
+                buffer.readFloat(), buffer.readFloat(), buffer.readBoolean(), buffer.readBoolean(), buffer.readBoolean(), buffer.readBoolean(), buffer.readUnsignedByte(), buffer.readBoolean(), SkillSnapshot.decode(buffer));
     }
 
     public boolean belongsTo(UUID owner, ResourceLocation world) {
@@ -72,9 +73,15 @@ public record AbilitySnapshot(UUID player, ResourceLocation dimension,
         cpPart.putFloat(AbilityDataSchema.CUR_CP, cp); cpPart.putFloat(AbilityDataSchema.MAX_CP, maxCp);
         cpPart.putFloat(AbilityDataSchema.CUR_OVERLOAD, overload); cpPart.putFloat(AbilityDataSchema.MAX_OVERLOAD, maxOverload);
         cpPart.putBoolean(AbilityDataSchema.ACTIVATED, active);
+        cpPart.putBoolean(AbilityDataSchema.DARK_BODY, darkBody);
         skills.writeToTag(tag);
         data.load(tag);
         // 妨害の印は保存される形には含まれない。保存せず、伝えるだけ。
         data.setInterfering(interfering);
+        // セーフティの明滅も同じく伝えるだけ。loadの後に置くので、次の同期まで値が残る。
+        data.setClientSafetyBlink(safetyBlink);
+        // 0はセーフティOFF。クライアントの事前判定が本人の設定で判断できるように渡す。
+        data.setCpSafety(safetyPercent > 0);
+        if (safetyPercent > 0) data.setCpSafetyPercent(safetyPercent);
     }
 }

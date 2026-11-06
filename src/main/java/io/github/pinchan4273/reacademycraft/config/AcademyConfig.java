@@ -87,7 +87,10 @@ public final class AcademyConfig {
             "mine_ray_expert", "mine_ray_luck", "electron_missile",
             "threatening_teleport", "dim_folding_theorem", "penetrate_teleport", "mark_teleport", "flesh_ripping", "location_teleport",
             "shift_tp", "space_fluct", "flashing",
-            "dir_shock", "ground_shock", "vec_accel", "vec_deviation", "dir_blast", "storm_wing", "blood_retro", "vec_reflection", "plasma_cannon");
+            "dir_shock", "ground_shock", "vec_accel", "vec_deviation", "dir_blast", "storm_wing", "blood_retro", "vec_reflection", "plasma_cannon",
+            // 1.5.0の未元物質。既存の41技能の設定と既定値は変えない（習得できるかはDarkMatter.learnableでも絞る）。
+            "white_wing_stab", "white_wing_flight", "dark_matter_ray", "white_wing_guard", "dark_matter_air_cannon",
+            "dark_matter_armor", "dark_matter_beetle", "heaven_manifest", "dark_matter_body");
     static final List<Double> LEGACY_INIT_CP = List.of(1800d, 1800d, 2800d, 4000d, 5800d, 8000d),
             LEGACY_ADD_CP = List.of(0d, 900d, 1000d, 1500d, 1700d, 12000d),
             LEGACY_INIT_OVERLOAD = List.of(100d, 100d, 150d, 240d, 350d, 500d),

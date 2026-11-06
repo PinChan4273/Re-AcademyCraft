@@ -79,7 +79,7 @@ public final class KeyHintHud {
             boolean inUse = AbilityControls.held(slot) || ClientSkillModes.active(skill)
                     || (io.github.pinchan4273.reacademycraft.skill.Flashing.ID.equals(skill) && ClientFlashing.active())
                     || (io.github.pinchan4273.reacademycraft.skill.StormWing.ID.equals(skill) && ClientStormWing.state() >= 0);
-            single(g, data, AbilityControls.SLOTS[slot], skill, icon, inUse, alpha, sin);
+            single(g, data, AbilityControls.SLOTS[slot], skill, icon, inUse, alpha, sin, AbilityControls.beetleHold(slot));
             pose.popPose();
             y += 92;
         }
@@ -111,7 +111,19 @@ public final class KeyHintHud {
         }
         columns = drawnColumns;
         pose.popPose();
+        holdBar(pose, width, height, AbilityControls.beetleHold(), alpha);
         frames++;
+    }
+    /**
+     * 甲虫生成のキーの長押しの進み（v1.5.1）: 照準の少し下に細い帯を出し、左から満ちる。満ちたら（回収の時）帯の全体を明るくする。
+     * キーの案内は画面の端で小さいので、押している間に目を離さずに読めるよう照準の近くにも出す。
+     */
+    private static void holdBar(PoseStack pose, int width, int height, float hold, float alpha) {
+        if (hold <= 0) return;
+        float w = 48, h = 3, x = width / 2f - w / 2, y = height / 2f + 12;
+        DeveloperScreen.rect(pose, x - 1, y - 1, w + 2, h + 2, 0, 0, 0, .45f * alpha);
+        DeveloperScreen.rect(pose, x, y, w * hold, h, .82f, .92f, 1f, .95f * alpha);
+        if (hold >= 1) DeveloperScreen.rect(pose, x - 1, y - 1, w + 2, h + 2, 1f, 1f, 1f, .35f * alpha);
     }
 
     /**
@@ -154,6 +166,14 @@ public final class KeyHintHud {
      */
     private static void single(GuiGraphics g, PlayerAbilityData data, KeyMapping mapping, @javax.annotation.Nullable ResourceLocation skill,
                                ResourceLocation icon, boolean inUse, float alpha, float sin) {
+        single(g, data, mapping, skill, icon, inUse, alpha, sin, 0);
+    }
+    /**
+     * holdは甲虫生成のキーの長押しの進み（0〜1、v1.5.1）。0より大きければ、アイコンの上へ下から白く満ちる帯を重ね、満ちたら（回収の時）
+     * 光の縁を明るくする。クールダウンの灰色の帯（上から減る）とは向きと色で分ける。
+     */
+    private static void single(GuiGraphics g, PlayerAbilityData data, KeyMapping mapping, @javax.annotation.Nullable ResourceLocation skill,
+                               ResourceLocation icon, boolean inUse, float alpha, float sin, float hold) {
         var pose = g.pose();
         DeveloperScreen.quad(pose, BACK, 122, 0, 185, 83, 1, 1, 1, alpha);
         int left = skill == null ? 0 : data.getCooldown(skill);
@@ -188,6 +208,13 @@ public final class KeyHintHud {
         draw(pose, icon, 221, 10, 62, 62, grey, iconAlpha * alpha);
         if (inUse) glow(pose, 221, 10, 62, 62, 5, ACTIVE_GLOW, pulse * alpha);
         if (progress != 0) DeveloperScreen.rect(pose, 221, 10 + 62 * (1 - progress), 62, 62 * progress, .6f, .6f, .6f, .3f * alpha);
+        if (hold > 0) {
+            // 白いアイコンの上でも見えるよう、淡い青で満たす。
+            DeveloperScreen.rect(pose, 221, 10 + 62 * (1 - hold), 62, 62 * hold, .45f, .75f, 1f, .55f * alpha);
+            // 満ちる先の線（どこまで来たかを読みやすくする）。
+            DeveloperScreen.rect(pose, 221, 10 + 62 * (1 - hold) - 2.5f, 62, 5, 1f, 1f, 1f, .95f * alpha);
+            if (hold >= 1) glow(pose, 221, 10, 62, 62, 8, 0xe6f0ff, alpha);
+        }
     }
     private static void draw(PoseStack pose, ResourceLocation texture, float x, float y, float w, float h, boolean grey, float alpha) {
         if (grey) DeveloperScreen.mono(pose, texture, x, y, w, h, alpha);
