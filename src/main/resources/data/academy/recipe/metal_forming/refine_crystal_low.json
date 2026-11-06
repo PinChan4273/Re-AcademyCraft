@@ -1,0 +1,10 @@
+{
+  "type": "academy:metal_forming",
+  "operation": "refine",
+  "ingredient": "academy:crystal_ore",
+  "amount": 1,
+  "result": {
+    "item": "academy:crystal_low",
+    "count": 4
+  }
+}

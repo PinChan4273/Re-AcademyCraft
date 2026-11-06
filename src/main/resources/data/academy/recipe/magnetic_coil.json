@@ -1,0 +1,18 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    "CRC",
+    "CRC",
+    "PDP"
+  ],
+  "key": {
+    "C": "academy:constraint_plate",
+    "R": "academy:reso_crystal",
+    "P": "#c:plates/iron",
+    "D": "minecraft:diamond"
+  },
+  "result": {
+    "id": "academy:magnetic_coil"
+  }
+}

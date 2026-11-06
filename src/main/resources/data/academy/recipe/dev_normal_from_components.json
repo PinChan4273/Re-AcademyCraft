@@ -1,0 +1,24 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    "AIE",
+    "MBS",
+    "CFR"
+  ],
+  "key": {
+    "A": "academy:brain_component",
+    "I": "academy:info_component",
+    "E": "academy:energy_convert_component",
+    "M": "academy:mat_core_0",
+    "B": "#minecraft:beds",
+    "S": "minecraft:piston",
+    "C": "academy:crystal_normal",
+    "F": "academy:machine_frame",
+    "R": "minecraft:redstone"
+  },
+  "result": {
+    "id": "academy:dev_normal",
+    "count": 1
+  }
+}

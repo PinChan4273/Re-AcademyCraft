@@ -1,0 +1,17 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    "CFC",
+    "M M"
+  ],
+  "key": {
+    "C": "academy:crystal_low",
+    "F": "academy:machine_frame",
+    "M": "academy:matter_unit"
+  },
+  "result": {
+    "id": "academy:phase_gen",
+    "count": 1
+  }
+}

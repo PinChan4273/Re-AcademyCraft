@@ -1,0 +1,14 @@
+{
+  "replace": false,
+  "values": [
+    "minecraft:minecart",
+    "minecraft:chest_minecart",
+    "minecraft:furnace_minecart",
+    "minecraft:tnt_minecart",
+    "minecraft:hopper_minecart",
+    "minecraft:spawner_minecart",
+    "minecraft:command_block_minecart",
+    "academy:mag_hook",
+    "minecraft:iron_golem"
+  ]
+}

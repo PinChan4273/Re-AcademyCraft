@@ -1,0 +1,38 @@
+name: Re:AcademyCraft 26.2 NeoForge build
+on:
+  # 手動実行と、releaseのtag（例: 26.2-neoforge-v1.5.1）で動く。tagのcommitからclean buildし、JARのSHA-256をログとStep Summaryに残す。
+  # tagで動くworkflowは、そのtagのcommitにあるもの（このブランチのもの）だけ。
+  # アドオンの開発者向けのSDKのJAR（API・API sources・Javadoc・サンプル）も作る。
+  # JARはArtifactとして保存しない（導入用のJARはCurseForge、SDKはGitHubのreleaseのファイルで配布する）。
+  workflow_dispatch:
+  push:
+    tags:
+      - '*-v*'
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: gradle
+      - name: ビルド（clean build）
+        run: |
+          chmod +x gradlew
+          ./gradlew clean build --no-daemon
+      - name: SDKのJAR（API・API sources・Javadoc。JavadocはTemurinのJDK 25）とサンプル
+        run: |
+          ./gradlew apiJar apiSourcesJar apiJavadocJar --no-daemon
+          ./gradlew -p samples/academy-api-example build --no-daemon
+      - name: SHA256SUMSを作る
+        working-directory: build/libs
+        run: |
+          sha256sum re-academycraft-neoforge-26.2-*.jar > SHA256SUMS
+          (cd ../../samples/academy-api-example/build/libs && sha256sum academy-api-example-neoforge-26.2-*.jar) >> SHA256SUMS
+          cat SHA256SUMS
+          { echo '```'; cat SHA256SUMS; echo '```'; } >> "$GITHUB_STEP_SUMMARY"

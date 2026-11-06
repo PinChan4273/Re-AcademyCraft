@@ -1,0 +1,60 @@
+package io.github.pinchan4273.reacademycraft.network;
+
+import io.github.pinchan4273.reacademycraft.capability.AbilityCapabilities;
+import net.minecraft.server.level.ServerPlayer;
+import net.neoforged.neoforge.event.tick.PlayerTickEvent;
+import net.neoforged.neoforge.event.entity.player.PlayerEvent;
+import net.neoforged.neoforge.event.server.ServerStoppedEvent;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.common.Mod;
+
+import java.util.Map;
+import java.util.WeakHashMap;
+
+@net.neoforged.fml.common.EventBusSubscriber(modid = "academy")
+public final class AbilitySyncEvents {
+    // このキャッシュに触れるのは論理サーバーのスレッドだけ。キーは去ったプレイヤーを保持しない。
+    private static final Map<ServerPlayer, AbilitySnapshot> LAST_SENT = new WeakHashMap<>();
+
+    private AbilitySyncEvents() {}
+
+    public static void sync(ServerPlayer player, boolean force) {
+        if (player.connection == null) return;
+        AbilityCapabilities.of(player).ifPresent(data -> {
+            var snapshot = AbilitySnapshot.capture(player.getUUID(), player.level().dimension().identifier(), data);
+            if (force || !snapshot.equals(LAST_SENT.get(player))) {
+                AcademyNetwork.send(player, snapshot);
+                LAST_SENT.put(player, snapshot);
+            }
+        });
+        // 能力設定の値（1.4.0のS1）は、変わったときだけ送る（技能のキーのたびの強制の同期では送り直さない）。
+        // ログイン・リスポーン・次元の移動では、下で前に送った値を忘れてから呼ぶので、必ず送る。
+        SkillSettingsSync.sync(player, false);
+    }
+
+    @SubscribeEvent public static void login(PlayerEvent.PlayerLoggedInEvent event) {
+        if (event.getEntity() instanceof ServerPlayer player) { SkillSettingsSync.forget(player); sync(player, true); }
+    }
+    @SubscribeEvent public static void respawn(PlayerEvent.PlayerRespawnEvent event) {
+        if (event.getEntity() instanceof ServerPlayer player) { SkillSettingsSync.forget(player); sync(player, true); }
+    }
+    @SubscribeEvent public static void dimension(PlayerEvent.PlayerChangedDimensionEvent event) {
+        if (event.getEntity() instanceof ServerPlayer player) { SkillSettingsSync.forget(player); sync(player, true); }
+    }
+    @SubscribeEvent public static void logout(PlayerEvent.PlayerLoggedOutEvent event) {
+        if (event.getEntity() instanceof ServerPlayer player) { LAST_SENT.remove(player); SkillSettingsSync.forget(player); }
+    }
+    @SubscribeEvent public static void stop(ServerStoppedEvent event) { LAST_SENT.clear(); SkillSettingsSync.clear(); }
+
+    @SubscribeEvent public static void tick(PlayerTickEvent.Post event) {
+        if (!(event.getEntity() instanceof ServerPlayer player)) return;
+        // 原作は毎tick妨害の発生源を確かめ、印が変わるとデータをdirtyにするので、クライアントは次の心拍を待たずにすぐ知る。
+        boolean moved = io.github.pinchan4273.reacademycraft.capability.AbilityCapabilities.of(player)
+                .map(io.github.pinchan4273.reacademycraft.skill.PlayerAbilityData::tickInterference).orElse(false);
+        if (moved) { sync(player, true); return; }
+        if (player.tickCount % 5 == 0) {
+            // ローカルのプレイヤーやワールドの準備前に届いたスナップショットは、心拍で取り戻す。
+            sync(player, player.tickCount % 100 == 0);
+        }
+    }
+}

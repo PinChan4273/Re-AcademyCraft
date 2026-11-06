@@ -1,0 +1,12 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "misc",
+  "ingredients": [
+    "minecraft:book",
+    "academy:crystal_low"
+  ],
+  "result": {
+    "id": "academy:tutorial",
+    "count": 1
+  }
+}

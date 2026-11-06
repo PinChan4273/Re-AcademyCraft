@@ -1,0 +1,10 @@
+{
+  "variants": {
+    "on=false": {
+      "model": "academy:block/ability_interferer_off"
+    },
+    "on=true": {
+      "model": "academy:block/ability_interferer_on"
+    }
+  }
+}

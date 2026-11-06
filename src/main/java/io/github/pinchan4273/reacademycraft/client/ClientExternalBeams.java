@@ -1,0 +1,267 @@
+package io.github.pinchan4273.reacademycraft.client;
+
+import com.mojang.math.Axis;
+import io.github.pinchan4273.reacademycraft.api.client.BeamRequest;
+import io.github.pinchan4273.reacademycraft.api.client.BeamResult;
+import io.github.pinchan4273.reacademycraft.api.client.ExternalPresentation;
+import io.github.pinchan4273.reacademycraft.visual.ExternalBeamBook;
+import io.github.pinchan4273.reacademycraft.visual.ExternalBeamRules;
+import io.github.pinchan4273.reacademycraft.visual.LegacyChargingArcPose;
+import io.github.pinchan4273.reacademycraft.visual.LegacyMdRayAnimation;
+import javax.annotation.Nullable;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.multiplayer.ClientLevel;
+import net.minecraft.server.packs.resources.ResourceManagerReloadListener;
+import net.minecraft.util.RandomSource;
+import net.minecraft.world.entity.player.Player;
+import net.neoforged.api.distmarker.Dist;
+import net.neoforged.neoforge.client.event.ClientPlayerNetworkEvent;
+import net.neoforged.neoforge.client.event.AddClientReloadListenersEvent;
+import net.neoforged.neoforge.client.event.ClientTickEvent;
+import net.neoforged.bus.api.EventPriority;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.ModList;
+import net.neoforged.fml.common.EventBusSubscriber;
+
+/**
+ * 外部の演出の光線（公開API{@link ExternalPresentation}の中身。演出API版1、Issue #5 AAA-RE-VFX-20261025-001）。
+ * 自然能力の{@link ClientMdEffects}の光線・球の一覧とは別の帳簿（{@link ExternalBeamBook}、持ち主ごと）で持ち、同じ描画の部品で、
+ * 同じ段階（{@code AFTER_BLOCK_ENTITIES}）の、自然能力の光線の後（イベントの優先度を最も低くする）に描く。自然能力のコードは変えない。
+ * 寿命と終わり方は自然能力のMeltdownerの光線と同じ（50tick、一時停止の間は進まない、ログアウト・世界の切り替え・資源の読み直し・
+ * オーバーレイの最中に終える）。術者がいなくなっても、受け付けた光線は寿命まで描く。
+ */
+@EventBusSubscriber(modid = "academy", value = Dist.CLIENT)
+public final class ClientExternalBeams {
+    private ClientExternalBeams() { }
+
+    /** 外部の光線の最大の長さ（{@link ExternalBeamRules#MAX_LENGTH}）。 */
+    public static final double MAX_LENGTH = ExternalBeamRules.MAX_LENGTH;
+    /** 持ち主ごとの上限の既定（既定の32は、クライアントごと・持ち主のMOD IDごとの同時32本として採用した値（2026-10-25のユーザーの決定、Issue #5 6399564392）。）と、設定で選べる範囲。 */
+    public static final int DEFAULT_LIMIT = 32, MIN_LIMIT = 1, MAX_LIMIT = 256;
+
+    /** 未元光線（{@link io.github.pinchan4273.reacademycraft.api.client.BeamStyle#DARK_MATTER_RAY}）の寿命（tick）。本体の当たりの間隔と同じ。 */
+    public static final int DARK_RAY_TICKS = io.github.pinchan4273.reacademycraft.skill.DarkMatterRay.HIT_INTERVAL;
+
+    private static final class Beam {
+        final BeamRequest request;
+        /** 原子崩し・電撃使いの光線のアニメーション。未元光線はnull（伸び・薄れが無く、{@link #age}で寿命を数える）。 */
+        @Nullable final LegacyMdRayAnimation animation;
+        final LegacyChargingArcPose.Orientation orientation;
+        final RandomSource random = RandomSource.create();
+        final float[][] scatter;
+        final java.util.List<ClientMdEffects.SubArc> arcs;
+        int age;
+        boolean small() { return request.style() == io.github.pinchan4273.reacademycraft.api.client.BeamStyle.MELTDOWNER_RAY_SMALL; }
+        boolean dark() { return request.style() == io.github.pinchan4273.reacademycraft.api.client.BeamStyle.DARK_MATTER_RAY; }
+        boolean finished() { return animation == null ? age >= DARK_RAY_TICKS : animation.snapshot().finished(); }
+        /** 自然能力と同じく、始点を術者の手元へずらす種類。 */
+        boolean handFixed() {
+            return switch (request.style()) {
+                case MELTDOWNER_BEAM, RAILGUN, BARRAGE_AIM -> true;
+                case MELTDOWNER_RAY_SMALL, BARRAGE_SCATTER, DARK_MATTER_RAY -> false;
+            };
+        }
+        @Nullable static LegacyMdRayAnimation.Profile profile(io.github.pinchan4273.reacademycraft.api.client.BeamStyle style) {
+            return switch (style) {
+                case MELTDOWNER_BEAM -> LegacyMdRayAnimation.Profile.MELTDOWNER;
+                case MELTDOWNER_RAY_SMALL -> LegacyMdRayAnimation.Profile.SMALL;
+                case RAILGUN -> LegacyMdRayAnimation.Profile.RAILGUN;
+                case BARRAGE_AIM -> LegacyMdRayAnimation.Profile.BARRAGE_PRE;
+                case BARRAGE_SCATTER -> LegacyMdRayAnimation.Profile.BARRAGE;
+                case DARK_MATTER_RAY -> null;
+            };
+        }
+        Beam(BeamRequest request) {
+            this.request = request;
+            var delta = request.to().subtract(request.from());
+            orientation = LegacyChargingArcPose.rayOrientation(delta.x, delta.y, delta.z);
+            var profile = profile(request.style());
+            animation = profile == null ? null : new LegacyMdRayAnimation(profile, delta.length(), MAX_LENGTH);
+            if (request.style() == io.github.pinchan4273.reacademycraft.api.client.BeamStyle.BARRAGE_SCATTER) {
+                float range = 50 + random.nextFloat() * 10;
+                scatter = new float[25 + random.nextInt(5)][];
+                for (int i = 0; i < scatter.length; i++)
+                    scatter[i] = new float[] {-range + random.nextFloat() * 2 * range, -range / 2 + random.nextFloat() * range};
+            } else scatter = new float[0][];
+            arcs = request.style() == io.github.pinchan4273.reacademycraft.api.client.BeamStyle.RAILGUN
+                    ? ClientMdEffects.railgunArcs(delta.length(), random) : new java.util.ArrayList<>();
+        }
+    }
+    private static final ExternalBeamBook<Beam> BOOK = new ExternalBeamBook<>();
+    private static ClientLevel world;
+    private static int lastFrameQuads, lastFrameBatches;
+    private static long lastFrameNanos, totalQuads;
+
+    public static int limit() { return ClientSettings.getInt(ClientSettings.EXTERNAL_BEAMS_PER_OWNER, DEFAULT_LIMIT, MIN_LIMIT, MAX_LIMIT); }
+
+    private static void onMainThread() {
+        if (!Minecraft.getInstance().isSameThread()) throw new IllegalStateException("ExternalPresentation must be called on the client main thread");
+    }
+    private static void currentWorld() {
+        var level = Minecraft.getInstance().level;
+        if (world != level) { BOOK.cancelAll(); world = level; }
+    }
+
+    public static BeamResult beam(BeamRequest request) {
+        onMainThread();
+        currentWorld();
+        var client = Minecraft.getInstance();
+        String owner = request == null || request.ownerModId() == null ? "" : request.ownerModId();
+        if (client.level == null || client.player == null || client.gui.overlay() != null) { BOOK.refuse(owner, BeamResult.NOT_READY); return BeamResult.NOT_READY; }
+        var refused = ExternalBeamRules.check(request, client.level.dimension().identifier(), id -> ModList.get().isLoaded(id));
+        if (refused != null) { BOOK.refuse(owner, refused); return refused; }
+        return BOOK.offer(owner, request.effectId(), limit(), () -> new Beam(request));
+    }
+    public static boolean end(String ownerModId, long effectId) { onMainThread(); return BOOK.end(ownerModId, effectId); }
+    public static int clear(String ownerModId) { onMainThread(); return BOOK.clear(ownerModId); }
+    public static int active(String ownerModId) { return BOOK.active(ownerModId); }
+    public static ExternalPresentation.Diagnostics diagnostics(String ownerModId) {
+        return new ExternalPresentation.Diagnostics(BOOK.active(ownerModId), BOOK.count(ownerModId, BeamResult.ACCEPTED),
+                BOOK.count(ownerModId, BeamResult.DUPLICATE), BOOK.count(ownerModId, BeamResult.FULL), BOOK.count(ownerModId, BeamResult.UNSUPPORTED),
+                BOOK.count(ownerModId, BeamResult.INVALID), BOOK.count(ownerModId, BeamResult.NOT_READY),
+                BOOK.totalActive(), lastFrameQuads, lastFrameBatches, lastFrameNanos, totalQuads);
+    }
+
+    @SubscribeEvent public static void tick(ClientTickEvent.Post event) {
+        currentWorld();
+        var client = Minecraft.getInstance();
+        if (client.player == null || client.level == null) return;
+        if (client.gui.overlay() != null) { BOOK.cancelAll(); return; }
+        if (client.isPaused()) return;
+        BOOK.advance();
+        for (var beam : BOOK.all()) {
+            beam.age++;
+            if (beam.animation == null) continue;
+            beam.animation.tick(beam.random);
+            // 自然能力のレールガンと同じ: 光線が30tick経つと弧を消す。
+            if (!beam.arcs.isEmpty()) {
+                if (beam.animation.elapsedTicks() >= 30) beam.arcs.clear();
+                else { for (var arc : beam.arcs) arc.tick(beam.random); beam.arcs.removeIf(arc -> arc.dead); }
+            }
+            // 自然能力の細い光線と同じ（原作EntityMdRaySmall.onUpdate）: 光線に沿って、1tickに1つmdの粒子を出す。
+            if (beam.small() && !beam.animation.snapshot().finished()) {
+                var delta = beam.request.to().subtract(beam.request.from());
+                var at = beam.request.from().add(delta.normalize().scale(beam.random.nextDouble() * Math.min(10, delta.length())));
+                client.level.addParticle(io.github.pinchan4273.reacademycraft.world.AcademyParticles.MD.get(), at.x, at.y, at.z,
+                        wiggle(beam.random), wiggle(beam.random), wiggle(beam.random));
+            }
+        }
+        BOOK.retire(Beam::finished);
+    }
+
+    private static double wiggle(RandomSource random) { return -.015 + random.nextDouble() * .03; }
+
+    /** 術者（番号とUUIDの両方が合う、この世界の生きたプレイヤー）。いなければnull。 */
+    private static @Nullable Player caster(BeamRequest request) {
+        var client = Minecraft.getInstance();
+        if (request.casterId() == null || request.casterEntityId() < 0 || client.level == null) return null;
+        var entity = client.level.getEntity(request.casterEntityId());
+        return entity instanceof Player player && player.getUUID().equals(request.casterId()) && player.isAlive() ? player : null;
+    }
+
+    /** 自然能力の光線（{@link ClientMdEffects#render}、普通の優先度）の後に描く。 */
+    @SubscribeEvent(priority = EventPriority.LOWEST)
+    public static void render(net.neoforged.neoforge.client.event.ExtractLevelRenderStateEvent extract) {
+        io.github.pinchan4273.reacademycraft.client.render.WorldSubmits.on(extract, ClientMdEffects.STAGE, ClientExternalBeams::renderFrame);
+        // 未元光線は、自然能力の未元光線と同じ段階（AFTER_PARTICLES）で描く。提出は登録した順に走るので、計数はrenderFrameで0に戻した後に足す。
+        io.github.pinchan4273.reacademycraft.client.render.WorldSubmits.on(extract, io.github.pinchan4273.reacademycraft.client.render.WorldSubmits.Stage.AFTER_PARTICLES,
+                ClientExternalBeams::renderDark);
+    }
+    private static void renderFrame(io.github.pinchan4273.reacademycraft.client.render.WorldFrame event) {
+        lastFrameQuads = lastFrameBatches = 0; lastFrameNanos = 0;
+        var client = Minecraft.getInstance();
+        if (client.level != world || client.player == null || client.gui.overlay() != null) return;
+        var beams = BOOK.all();
+        if (beams.isEmpty()) return;
+        long started = System.nanoTime();
+        var camera = event.getCamera().position();
+        var pose = event.getPoseStack();
+        for (var beam : beams) {
+            // 未元光線は、自然能力の未元光線と同じ段階（renderDark）で描く。
+            if (beam.dark() || beam.animation == null) continue;
+            var origin = beam.request.from();
+            var orientation = beam.orientation;
+            var caster = beam.handFixed() ? caster(beam.request) : null;
+            if (caster != null) {
+                // 自然能力のMeltdownerと同じく、始点を撃った者の手元へずらす（自分なら一人称・三人称に合わせる）。術者がいなければずらさない。
+                var hand = LegacyChargingArcPose.handOffset(client.options.getCameraType().isFirstPerson(), caster == client.player);
+                var shift = LegacyChargingArcPose.rayStartShift(hand, beam.orientation.yawDegrees());
+                origin = origin.add(shift[0], shift[1], shift[2]);
+                var delta = beam.request.to().subtract(origin);
+                orientation = LegacyChargingArcPose.rayOrientation(delta.x, delta.y, delta.z);
+            }
+            var sample = beam.animation.snapshot();
+            var clipped = new LegacyMdRayAnimation.Snapshot(Math.min(sample.length(), orientation.length()), sample.width(), sample.alpha(),
+                    sample.glow(), sample.finished());
+            var profile = beam.animation.profile();
+            var at = origin.subtract(camera);
+            pose.pushPose();
+            try {
+                pose.translate(at.x, at.y, at.z);
+                if (beam.scatter.length > 0) {
+                    lastFrameQuads += ClientMdEffects.drawExternalSubrays(io.github.pinchan4273.reacademycraft.client.render.WorldSubmits.current(), pose, clipped, profile, orientation.yawDegrees(), orientation.pitchDegrees(), beam.scatter, origin.subtract(camera));
+                    lastFrameBatches += beam.scatter.length * 3;
+                    continue;
+                }
+                var direction = beam.request.to().subtract(origin).normalize();
+                var broadside = direction.cross(origin.subtract(camera));
+                if (broadside.lengthSqr() > 1e-6) {
+                    broadside = broadside.normalize();
+                    int glow = LegacyMdRenderer.drawBeamGlow(io.github.pinchan4273.reacademycraft.client.render.WorldSubmits.current(), pose, clipped, profile,
+                            new org.joml.Vector3f((float) direction.x, (float) direction.y, (float) direction.z),
+                            new org.joml.Vector3f((float) broadside.x, (float) broadside.y, (float) broadside.z));
+                    lastFrameQuads += glow; lastFrameBatches += glow;
+                }
+                pose.mulPose(Axis.YP.rotationDegrees(-(orientation.yawDegrees() + 90)));
+                pose.mulPose(Axis.ZP.rotationDegrees(-orientation.pitchDegrees()));
+                int drawn = LegacyMdRenderer.drawBeam(io.github.pinchan4273.reacademycraft.client.render.WorldSubmits.current(), pose, clipped, profile, MAX_LENGTH);
+                lastFrameQuads += drawn + ClientMdEffects.drawSubArcs(io.github.pinchan4273.reacademycraft.client.render.WorldSubmits.current(), pose, beam.arcs);
+                // 円柱は内と外の2本で、それぞれ1回確定する。
+                if (drawn > 0) lastFrameBatches += 2;
+            } finally { pose.popPose(); }
+        }
+        totalQuads += lastFrameQuads;
+        lastFrameNanos = System.nanoTime() - started;
+    }
+    /**
+     * 未元光線（演出API版3。Forge 1.5.1 の 91f33867 の移植）: 自然能力の未元光線（{@link ClientDarkEffects}）と同じ段階（AFTER_PARTICLES）・同じ描き方で、受け付けた
+     * {@code from}から{@code to}へ描く。計数は同じフレームの原子崩しの光線の計数（{@link #renderFrame}で0に戻す）へ足す。
+     */
+    private static void renderDark(io.github.pinchan4273.reacademycraft.client.render.WorldFrame event) {
+        var client = Minecraft.getInstance();
+        if (client.level != world || client.player == null || client.gui.overlay() != null) return;
+        var rays = new java.util.ArrayList<net.minecraft.world.phys.Vec3[]>();
+        for (var beam : BOOK.all()) if (beam.dark() && !beam.finished()) rays.add(new net.minecraft.world.phys.Vec3[] {beam.request.from(), beam.request.to()});
+        if (rays.isEmpty()) return;
+        long started = System.nanoTime();
+        int quads = ClientDarkEffects.drawExternalRays(event.getPoseStack(), event.getCamera().position(), rays);
+        lastFrameQuads += quads; totalQuads += quads;
+        if (quads > 0) lastFrameBatches++;
+        lastFrameNanos += System.nanoTime() - started;
+    }
+
+    @EventBusSubscriber(modid = "academy", value = Dist.CLIENT)
+    public static final class ExternalBeamReloadRegistration {
+        @SubscribeEvent public static void registerExternalBeamReload(AddClientReloadListenersEvent event) {
+            event.addListener(net.minecraft.resources.Identifier.fromNamespaceAndPath("academy", "client_external_beams"), (ResourceManagerReloadListener) manager -> BOOK.cancelAll());
+        }
+    }
+
+    @SubscribeEvent public static void externalBeamLogout(ClientPlayerNetworkEvent.LoggingOut event) { BOOK.cancelAll(); world = null; }
+
+    /** 試験用の入口: 帳簿の数も含めて捨てる。 */
+    public static void resetForTest() { BOOK.reset(); world = null; lastFrameQuads = lastFrameBatches = 0; lastFrameNanos = totalQuads = 0; }
+    /** 試験用の入口: 持ち主の最新の光線のアニメーションの値（撮影の前に、伸び切るまで待つため）。 */
+    public static @Nullable LegacyMdRayAnimation.Snapshot newest(String ownerModId) {
+        var all = BOOK.all();
+        for (int i = all.size() - 1; i >= 0; i--) {
+            var beam = all.get(i);
+            if (beam.request.ownerModId().equals(ownerModId)) return beam.animation == null ? null : beam.animation.snapshot();
+        }
+        return null;
+    }
+    /** 試験用の入口: 描いているすべての外部の光線の長さ（足した順）。 */
+    public static java.util.List<Double> lengths() {
+        return BOOK.all().stream().map(beam -> beam.request.from().distanceTo(beam.request.to())).toList();
+    }
+}

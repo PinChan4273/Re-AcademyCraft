@@ -1,0 +1,11 @@
+{
+  "loader": "neoforge:obj",
+  "model": "academy:models/silbarn.obj",
+  "automatic_culling": false,
+  "shade_quads": true,
+  "flip_v": true,
+  "textures": {
+    "academy:models/silbarn": "academy:models/silbarn",
+    "particle": "academy:models/silbarn"
+  }
+}

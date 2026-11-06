@@ -1,0 +1,22 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    " P ",
+    "MBS",
+    "CFR"
+  ],
+  "key": {
+    "P": "academy:developer_portable",
+    "M": "academy:mat_core_0",
+    "B": "#minecraft:beds",
+    "S": "minecraft:piston",
+    "C": "academy:crystal_normal",
+    "F": "academy:machine_frame",
+    "R": "minecraft:redstone"
+  },
+  "result": {
+    "id": "academy:dev_normal",
+    "count": 1
+  }
+}

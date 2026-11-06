@@ -1,0 +1,23 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    "DGC",
+    "BIE",
+    "PLP"
+  ],
+  "key": {
+    "D": "academy:data_chip",
+    "G": "minecraft:glass_pane",
+    "C": "academy:calc_chip",
+    "B": "academy:brain_component",
+    "I": "academy:info_component",
+    "E": "academy:energy_convert_component",
+    "P": "academy:constraint_plate",
+    "L": "academy:crystal_low"
+  },
+  "result": {
+    "id": "academy:developer_portable",
+    "count": 1
+  }
+}

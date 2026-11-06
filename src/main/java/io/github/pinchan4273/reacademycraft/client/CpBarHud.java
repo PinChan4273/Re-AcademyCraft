@@ -1,0 +1,402 @@
+package io.github.pinchan4273.reacademycraft.client;
+
+import io.github.pinchan4273.reacademycraft.capability.AbilityCapabilities;
+import io.github.pinchan4273.reacademycraft.skill.PlayerAbilityData;
+import io.github.pinchan4273.reacademycraft.visual.LegacyCubicCurve;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
+import java.util.Random;
+import javax.annotation.Nullable;
+import net.minecraft.util.Util;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.network.chat.Component;
+import net.minecraft.resources.Identifier;
+import net.minecraft.util.Mth;
+import net.neoforged.api.distmarker.Dist;
+import net.neoforged.neoforge.client.event.RenderGuiEvent;
+import net.neoforged.bus.api.SubscribeEvent;
+
+/**
+ * 原作CPBar（AcademyCraft commit 7b1401c）: 右上の斜めのCPバー。964×147を0.2倍し、角から12内側に置く。
+ * 能力をONにすると0.2秒でフェードインし、OFFにすると0.2秒でフェードアウトする。CPバーの後ろで、過負荷が右から
+ * 灰色から赤への色で伸びる。過負荷状態になると、バーは原作の赤い背景（流れるテクスチャと脈打つ光）に変わる。
+ * CPバー自体は斜めに切られ、減り具合に応じて赤・橙・白へ色が変わり、系統のoverlayのアイコンの形に抜かれる。
+ * どちらのバーも、実際の値へ毎秒バーの長さの2倍の速さで追い付く。干渉されている間は、原作のkeyframeで
+ * バー全体が震えてちらつき、CPバーが暗くなる。プリセットを切り替えると、どのプリセットがONかを示す4つの番号付きの
+ * 四角を2秒表示する。activateのキーを押し続けると数値を表示する。特殊な技能のモードがONの間は、その下にキーの案内
+ * （End Special Skill Mode）を表示する。
+ *
+ * 発動前に充電する技能を押している間は、原作と同じく消費するCPを表示する: 今のバーを、消費後のバーの下で点滅させる
+ * （consumptionHint）。
+ *
+ * 原作のフォントは使わず、ゲームのフォントを原作の大きさで描く。原作と同じく、キーは0.3秒以内に離したときに能力を
+ * 切り替え（AbilityControls）、押している間は数値を表示する。
+ *
+ * v1.5.0 §14: セーフティが作動している間は、CPのゲージ（数値のみの形式なら数値）を低残量の赤で約1秒周期に明滅させる。
+ * CP表示の形式（{@link ClientSettings#cpDisplay()}）と、非使用時の大きさ（{@link ClientSettings#cpIdleScale()}）を持つ。
+ * 大きさは右上の角を動かさずに変える。VキーOFFでゲージがフェードアウトして消える原作の動きはそのままで、大きさはフェードと同じ
+ * 進み具合で動く。
+ */
+@net.neoforged.fml.common.EventBusSubscriber(modid = "academy", value = Dist.CLIENT)
+public final class CpBarHud {
+    static final float WIDTH = 964, HEIGHT = 147, SCALE = .2f;
+    static final float CP_BALANCE_SPEED = 2, O_BALANCE_SPEED = 2;
+    private static final double SIN41 = Math.sin(Math.toRadians(44.0));
+    private static final Identifier BACK_NORMAL = tex("back_normal"), BACK_OVERLOAD = tex("back_overload"), CP = tex("cp"),
+            FRONT_OVERLOAD = tex("front_overload"), HIGHLIGHT = tex("highlight_overload"), MASK = tex("mask");
+    /** テクスチャの大きさ。原作の「画素÷大きさ」のテクスチャ座標に使う。 */
+    private static final float TEX_W = 964, TEX_H = 147, FRONT_W = 974;
+    private static final double[][] CP_COLORS = {{0, 0xf0, 0x67, 0x67, 0xff}, {.35, 0xff, 0xae, 0x44, 0xff}, {1, 0xff, 0xff, 0xff, 0xff}};
+    private static final double[][] OVERLOAD_COLORS = {{0, 0xdf, 0xdf, 0xdf, 0x0a}, {.55, 0xf0, 0xd4, 0x9d, 0x23}, {1, 0xf5, 0x64, 0x64, 0x50}};
+
+    private static long presetChangeTime, lastPresetTime, lastDrawTime, showTime, lastShowValueChange;
+    private static int lastPreset = -1;
+    private static boolean lastFrameActive, showingNumbers;
+    private static float mAlpha, bufferedCp, bufferedOverload;
+    /** 今の大きさの倍率（既存の{@link #SCALE}に掛ける）。{@link #area}が前のフレームの値を読む。 */
+    private static float sizeScale = 1, idleFade;
+    private static long lastFrameTime;
+    /** このフレームのセーフティの明滅の濃さ。明滅していなければ負。 */
+    private static float blink = -1;
+    /** 文字の大きさ（1文字の画素がGUIの1画素に載る）と、数値を右揃えにする位置。ゲージと数値のときは、プリセットの四角（下端193）の下に置く。 */
+    private static final float NUMBER_SIZE = 5, NUMBER_RIGHT = WIDTH - 20, NUMBER_ONLY_Y = 55, NUMBER_BELOW_Y = 194;
+    private static long frames;
+    // 原作の干渉のkeyframe: 80〜400msおきの60個のずれと、それを通るalphaの曲線。
+    private static final long[] FRAME_TIME = new long[60];
+    private static final double[][] FRAME_OFFSET = new double[60][2];
+    private static final LegacyCubicCurve ALPHA_CURVE = new LegacyCubicCurve();
+    private static final long MAX_TIME;
+    static {
+        var random = new Random();
+        double aspect = WIDTH / HEIGHT, offsetMax = 9;
+        ALPHA_CURVE.add(0, .2 + random.nextDouble() * .6);
+        long sum = 0;
+        for (int i = 0; i < 60; i++) {
+            int time = 80 + random.nextInt(320);
+            float norm = random.nextFloat();
+            float theta = random.nextFloat() * Mth.TWO_PI;
+            norm = norm * norm * norm;
+            sum += time;
+            FRAME_TIME[i] = sum;
+            FRAME_OFFSET[i][0] = Math.sin(theta) * norm * offsetMax * aspect;
+            FRAME_OFFSET[i][1] = Math.cos(theta) * norm * offsetMax;
+            ALPHA_CURVE.add(sum, .4 + random.nextDouble() * .3);
+        }
+        MAX_TIME = sum;
+    }
+    private CpBarHud() { }
+    private static Identifier tex(String name) { return Identifier.fromNamespaceAndPath("academy", "textures/guis/cpbar/" + name + ".png"); }
+    /** 原作Category.getOverlayIcon。 */
+    static @javax.annotation.Nullable Identifier overlay(Identifier category) {
+        // 1.4.0のS4: 外部のカテゴリには、本体の重ね絵が無い（カテゴリの無いときと同じく描かない）。
+        if (!"academy".equals(category.getNamespace())) return null;
+        return Identifier.fromNamespaceAndPath("academy", "textures/abilities/" + category.getPath() + "/icon_overlay.png");
+    }
+    /** バーを表示して描いたフレーム数（テスト用）。実際の見え方は画像で判定する。 */
+    public static long frames() { return frames; }
+    public static float alpha() { return mAlpha; }
+    /** テスト用: 今の大きさの倍率。 */
+    public static float sizeScale() { return sizeScale; }
+
+    /** 原作ClientHandler: activateのキーを押し続けると数値を表示し、離すと隠す。 */
+    static void keyState(boolean down) {
+        long time = Util.getMillis();
+        if (down && !showingNumbers) { showingNumbers = true; lastShowValueChange = time; }
+        else if (!down && showingNumbers) {
+            showingNumbers = false;
+            lastShowValueChange = time - lastShowValueChange > 400 ? time : 0;
+        }
+    }
+
+    @SubscribeEvent public static void draw(RenderGuiEvent.Post event) {
+        var client = Minecraft.getInstance();
+        if (client.player == null || client.gui.hud.isHidden()) return;
+        var data = AbilityCapabilities.of(client.player).orElse(null);
+        if (data == null || !data.hasAbility()) return;
+        keyState(AbilityControls.TOGGLE.isDown());
+        long time = Util.getMillis();
+        if (lastPreset != data.getCurrentPreset()) {
+            // 原作のPresetSwitchEvent。最初に見たプリセットは切り替えとして扱わない。
+            if (lastPreset >= 0) { lastPresetTime = presetChangeTime; presetChangeTime = time; }
+            lastPreset = data.getCurrentPreset();
+        }
+        boolean active = data.isActive();
+        if (!lastFrameActive && active) showTime = time;
+        long deltaTime = Math.min(100L, time - lastFrameTime);
+        lastFrameTime = time;
+        mAlpha = time - showTime < 200 ? (time - showTime) / 200f : active ? 1 : Math.max(0, 1 - (time - lastDrawTime) / 200f);
+        // §14: 使用中の判定はVモードだけ。技能を撃っても変わらない。
+        sizeScale = CpHudStyle.sizeAt(ClientSettings.cpIdleScale(), mAlpha);
+        // 非使用時の表示の設定。大きさはVのON/OFFだけで決め、技能を使うたびに変えない（§14）。
+        // §14: 未元物質人間はCPが生命力なので、能力OFFでも必ず出す。
+        boolean idleShown = !active && (data.isDarkBody() || ClientSettings.cpIdleShow().visible(data.getCp(), data.getMaxCp()));
+        idleFade = balance(idleFade, idleShown ? 1 : 0, deltaTime * 1e-3f * CpHudStyle.IDLE_FADE_PER_SECOND);
+        mAlpha = Math.max(mAlpha, idleFade);
+        var display = ClientSettings.cpDisplay();
+        blink = data.safetyBlinking() ? CpHudStyle.blinkPulse(time) : -1;
+        var g = event.getGuiGraphics();
+        g.pose().pushMatrix();
+        // 原作ACHudの"cpbar": 右揃え、CustomizeUIで動かさなければ(-12, 12)。大きさの倍率は右上の角を動かさない。
+        g.pose().translate(HudLayout.left(HudLayout.Node.CPBAR, net.minecraft.client.Minecraft.getInstance().getWindow().getGuiScaledWidth()) + WIDTH * SCALE * (1 - sizeScale),
+                HudLayout.top(HudLayout.Node.CPBAR, net.minecraft.client.Minecraft.getInstance().getWindow().getGuiScaledHeight()));
+        g.pose().scale(SCALE * sizeScale, SCALE * sizeScale);
+        boolean interfering = data.isInterfering();
+        if (interfering) {
+            long input = time % MAX_TIME;
+            int frame = 0;
+            while (frame < 59 && FRAME_TIME[frame] <= input) frame++;
+            g.pose().translate((float) FRAME_OFFSET[frame][0], (float) FRAME_OFFSET[frame][1]);
+            // 精度を下げることで、ちらつきがぎざぎざに見える。
+            float wave = (float) ALPHA_CURVE.valueAt(input / 10 * 10);
+            // §14: 未元物質人間は干渉中もCPを読めるように、暗くしすぎない。
+            mAlpha *= data.isDarkBody() ? Math.max(.7f, wave) : wave;
+        }
+        float pOverload = mAlpha > 0 ? data.getOverload() / Math.max(1e-6f, data.getMaxOverload()) : 0;
+        bufferedOverload = balance(bufferedOverload, pOverload, deltaTime * 1e-3f * O_BALANCE_SPEED);
+        float pCp = mAlpha > 0 ? data.getCp() / Math.max(1e-6f, data.getMaxCp()) : 0;
+        bufferedCp = balance(bufferedCp, pCp, deltaTime * 1e-3f * CP_BALANCE_SPEED);
+        if (mAlpha > 0) {
+            var category = data.getAbility();
+            // 原作CPBar: 過負荷の絵は、isOverloaded（回復の待ち時間）の間だけ。
+            if (display.gauge()) { if (!data.isOverloaded()) drawNormal(g, bufferedOverload); else drawOverload(g, time); }
+            // 原作は、干渉されている間と過負荷の回復中にバーを暗くする。
+            boolean low = interfering || data.isOverloadLocked();
+            var icon = category == null ? null : overlay(category);
+            float estimate = consumptionHint(data);
+            if (!display.gauge()) {
+                // 数値のみ: 板・過負荷・CPのゲージを描かない（下で数値を描く）。
+            } else if (estimate != 0) {
+                // 原作: 今のCPを点滅させ、技能が消費した後のCPの下に描く。
+                float saved = mAlpha;
+                mAlpha *= (float) (.2f + .1f * (1 + Math.sin(time / 80.0)));
+                drawCpBar(g, pCp, low, icon);
+                mAlpha = saved;
+                drawCpBar(g, Math.max(0, data.getCp() - estimate) / Math.max(1e-6f, data.getMaxCp()), low, icon);
+            } else {
+                drawCpBar(g, bufferedCp, low, icon);
+            }
+            if (display.number()) drawCpNumber(g, client, data, display, pCp, low);
+            if (time - presetChangeTime < 2000L) drawPresetHint(g, client, data, (time - presetChangeTime) / 2000.0, time - lastPresetTime);
+            drawNumbers(g, client, data, time);
+            drawActivateKeyHint(g, client);
+            frames++;
+        }
+        if (active) lastDrawTime = time;
+        lastFrameActive = active;
+        g.pose().popMatrix();
+        io.github.pinchan4273.reacademycraft.client.render.GuiImmediate.setShaderColor(1, 1, 1, 1);
+    }
+    private static float balance(float from, float to, float max) {
+        float delta = to - from;
+        return from + Math.signum(delta) * Math.min(max, Math.abs(delta));
+    }
+    /** 原作autoLerp: 並べた色の間で、この進み具合の色を求める。最初の色は、原作と同じく直接使うので、全体のalphaを掛けない。 */
+    private static float[] lerp(double[][] colors, double progress) {
+        for (int i = 0; i < colors.length; i++) {
+            if (colors[i][0] >= progress) {
+                if (i == 0) return new float[]{(float) colors[0][1] / 255, (float) colors[0][2] / 255, (float) colors[0][3] / 255, (float) colors[0][4] / 255};
+                double[] a = colors[i - 1], b = colors[i];
+                double f = (progress - a[0]) / (b[0] - a[0]);
+                return new float[]{(float) (a[1] + (b[1] - a[1]) * f) / 255, (float) (a[2] + (b[2] - a[2]) * f) / 255,
+                        (float) (a[3] + (b[3] - a[3]) * f) / 255, (float) ((a[4] + (b[4] - a[4]) * f) / 255 * mAlpha)};
+            }
+        }
+        return new float[]{1, 1, 1, mAlpha};
+    }
+    /** 既存の低残量の赤（{@link #CP_COLORS}の最初の色）。 */
+    private static float[] lowColor(float alpha) {
+        return new float[]{(float) CP_COLORS[0][1] / 255, (float) CP_COLORS[0][2] / 255, (float) CP_COLORS[0][3] / 255, alpha};
+    }
+    private static void drawNormal(GuiGraphicsExtractor graphics, float overload) {
+        DeveloperScreen.quad(graphics, BACK_NORMAL, 0, 0, WIDTH, HEIGHT, 1, 1, 1, .8f * mAlpha);
+        // 過負荷。マスクの上で右から伸びる。
+        float x0 = 0, y0 = 21, w = 943, h = 104;
+        var c = lerp(OVERLOAD_COLORS, overload);
+        float len = overload * w;
+        if (len > 0) texel(graphics, MASK, x0 + w - len, y0, len, h, TEX_W, TEX_H, c);
+    }
+    private static void drawOverload(GuiGraphicsExtractor graphics, long time) {
+        DeveloperScreen.quad(graphics, BACK_OVERLOAD, 0, 0, WIDTH, HEIGHT, 1, 1, 1, .8f * mAlpha);
+        float x0 = 30, width2 = WIDTH - x0 - 20;
+        {
+            // 原作: ((float) GameTimer.getTime() % 10) / 10000。単位が秒なので、ほとんど動かない。
+            io.github.pinchan4273.reacademycraft.client.render.GuiImmediate.setExtra((float) ((time / 1000.0) % 10) / 10000f);
+            io.github.pinchan4273.reacademycraft.client.render.GuiImmediate.setShaderTexture(1, MASK);
+            io.github.pinchan4273.reacademycraft.client.render.GuiImmediate.setShader(io.github.pinchan4273.reacademycraft.client.render.GuiImmediate.Shader.CPBAR_OVERLOAD);
+        }
+        // HudUtils.rect(x0, 0, 0, 0, width2, H, width2, H): 前面のテクスチャ自身の大きさに対する画素。
+        rawQuad(graphics, FRONT_OVERLOAD, x0, 0, width2, HEIGHT, 0, 0, width2 / FRONT_W, 1, new float[]{1, 1, 1, mAlpha});
+        float highlight = (float) (.3 + .35 * (Math.sin(time / 1000.0 / 200.0) + 1));
+        DeveloperScreen.quad(graphics, HIGHLIGHT, 0, 0, WIDTH, HEIGHT, 1, 1, 1, highlight * mAlpha);
+    }
+    /**
+     * 原作getConsumptionHint: このclientでcontextが生きている技能のCP。原作では、発動前に充電するVector Manipulationの
+     * 3つの技能（Vector Acceleration・Groundshock・Directed Blastwave）の、キーを押している間。これらのcontextは、
+     * ここでのサーバーと同じく、技能の経験から消費量を決める。
+     */
+    public static float consumptionHint(io.github.pinchan4273.reacademycraft.skill.PlayerAbilityData data) {
+        for (int i = 0; i < 4; i++) {
+            if (!AbilityControls.held(i)) continue;
+            var skill = data.getSlot(data.getCurrentPreset(), i);
+            if (skill == null || data.getCooldown(skill) > 0) continue;
+            float exp = data.getProficiency(skill);
+            if (skill.equals(io.github.pinchan4273.reacademycraft.skill.VecAccel.ID)) return io.github.pinchan4273.reacademycraft.skill.VecAccel.consumption(exp);
+            if (skill.equals(io.github.pinchan4273.reacademycraft.skill.Groundshock.ID)) return io.github.pinchan4273.reacademycraft.skill.Groundshock.consumption(exp);
+            if (skill.equals(io.github.pinchan4273.reacademycraft.skill.DirectedBlastwave.ID)) return io.github.pinchan4273.reacademycraft.skill.DirectedBlastwave.consumption(exp);
+        }
+        return 0;
+    }
+    private static void drawCpBar(GuiGraphicsExtractor graphics, float progress, boolean cantUse, @Nullable Identifier icon) {
+        float saved = mAlpha;
+        if (cantUse && blink < 0) mAlpha *= .3f;
+        // セーフティの明滅は、暗くする代わりに赤の濃さを動かす（過負荷・干渉の.3を重ねると読めなくなる）。
+        var c = blink < 0 ? lerp(CP_COLORS, progress) : lowColor(mAlpha * blink);
+        progress = .16f + progress * .8f;
+        double off = 103 * SIN41;
+        float x0 = 47, y0 = 30, w = 883, h = 84;
+        float len = w * progress, len2 = (float) (len - off);
+        if (icon != null) {
+            io.github.pinchan4273.reacademycraft.client.render.GuiImmediate.setShaderTexture(1, icon);
+            io.github.pinchan4273.reacademycraft.client.render.GuiImmediate.setShader(io.github.pinchan4273.reacademycraft.client.render.GuiImmediate.Shader.CPBAR_CP);
+        } else {
+            io.github.pinchan4273.reacademycraft.client.render.GuiImmediate.setShader(io.github.pinchan4273.reacademycraft.client.render.GuiImmediate.Shader.TEX_COLOR_CUT);
+        }
+        io.github.pinchan4273.reacademycraft.client.render.GuiImmediate.setShaderTexture(0, CP);
+        
+        var m = graphics.pose();
+        var buffer = io.github.pinchan4273.reacademycraft.client.render.GuiImmediate.begin(graphics);
+        vertex(buffer, m, x0 + (w - len), y0, c);
+        vertex(buffer, m, x0 + (w - len2), y0 + h, c);
+        vertex(buffer, m, x0 + w, y0 + h, c);
+        vertex(buffer, m, x0 + w, y0, c);
+        buffer.end();
+        mAlpha = saved;
+    }
+    private static void vertex(io.github.pinchan4273.reacademycraft.client.render.GuiImmediate.Vertices buffer, org.joml.Matrix3x2fc m, float x, float y, float[] c) {
+        buffer.addVertex(m, x, y, 0).setUv(x / TEX_W, y / TEX_H).setColor(c[0], c[1], c[2], c[3]);
+    }
+    /** 原作subHud: テクスチャ座標が「自身の位置÷テクスチャの大きさ」になる四角。 */
+    private static void texel(GuiGraphicsExtractor graphics, Identifier texture, float x, float y, float w, float h, float texW, float texH, float[] c) {
+        io.github.pinchan4273.reacademycraft.client.render.GuiImmediate.setShader(io.github.pinchan4273.reacademycraft.client.render.GuiImmediate.Shader.TEX_COLOR_CUT);
+        rawQuad(graphics, texture, x, y, w, h, x / texW, y / texH, (x + w) / texW, (y + h) / texH, c);
+    }
+    private static void rawQuad(GuiGraphicsExtractor graphics, Identifier texture, float x, float y, float w, float h,
+                                float u0, float v0, float u1, float v1, float[] c) {
+        io.github.pinchan4273.reacademycraft.client.render.GuiImmediate.setShaderTexture(0, texture);
+        
+        var m = graphics.pose();
+        var buffer = io.github.pinchan4273.reacademycraft.client.render.GuiImmediate.begin(graphics);
+        buffer.addVertex(m, x, y, 0).setUv(u0, v0).setColor(c[0], c[1], c[2], c[3]);
+        buffer.addVertex(m, x, y + h, 0).setUv(u0, v1).setColor(c[0], c[1], c[2], c[3]);
+        buffer.addVertex(m, x + w, y + h, 0).setUv(u1, v1).setColor(c[0], c[1], c[2], c[3]);
+        buffer.addVertex(m, x + w, y, 0).setUv(u1, v0).setColor(c[0], c[1], c[2], c[3]);
+        buffer.end();
+    }
+    /** 原作drawPresetHint: 幅52の四角4つ。現在のものが光る。 */
+    private static void drawPresetHint(GuiGraphicsExtractor g, Minecraft client, PlayerAbilityData data, double progress, long untilLast) {
+        double alpha = untilLast > 3000 && progress < .2 ? progress / .2 : progress > .8 ? (1 - progress) / .2 : 1;
+        alpha *= .75;
+        float x = 580, y = 136, size = 52, step = size + 10;
+        for (int i = 0; i < 4; i++) {
+            DeveloperScreen.rect(g, x, y, size, size, 48 / 255f, 48 / 255f, 48 / 255f, (float) alpha);
+            TerminalHud.text(g, client.font, String.valueOf(i + 1), x, y + 5, size, 46, 46, 1, 0, (int) (Math.max(.05, alpha * .8) * 255));
+            if (i == data.getCurrentPreset()) KeyHintHud.glow(g, x, y, size, size, 5, 0xffffff, 200 / 255f);
+            x += step;
+        }
+    }
+    /** 原作のCPと過負荷の数値。activateのキーを押している間に表示する。 */
+    private static void drawNumbers(GuiGraphicsExtractor g, Minecraft client, PlayerAbilityData data, long time) {
+        long dt = lastShowValueChange == 0 ? Long.MAX_VALUE : time - lastShowValueChange;
+        float alpha;
+        if (data.isOverloaded()) alpha = 0;
+        else if (showingNumbers) alpha = Mth.clamp((dt - 200) / 400f, 0, 1);
+        else if (dt < 300) alpha = 1 - dt / 300f;
+        else alpha = 0;
+        if (alpha <= 0) return;
+        var font = client.font; float x0 = 110, s = 40 / 9f;
+        int argb = (int) (.6f * mAlpha * alpha * 255);
+        String s10 = "CP ", s11 = String.format(Locale.ROOT, "%.0f", data.getCp()), s12 = String.format(Locale.ROOT, "/%.0f", data.getMaxCp());
+        String s20 = "OL ", s21 = String.format(Locale.ROOT, "%.0f", data.getOverload()), s22 = String.format(Locale.ROOT, "/%.0f", data.getMaxOverload());
+        float len0 = Math.max(font.width(s10), font.width(s20)) * s;
+        float len1 = len0 + Math.max(font.width(s11), font.width(s21)) * s;
+        drawAt(g, font, s10, x0, 55, s, argb); drawAt(g, font, s12, x0 + len1, 55, s, argb);
+        drawAt(g, font, s20, x0, 85, s, argb); drawAt(g, font, s22, x0 + len1, 85, s, argb);
+        drawAt(g, font, s11, x0 + len1 - font.width(s11) * s, 55, s, argb);
+        drawAt(g, font, s21, x0 + len1 - font.width(s21) * s, 85, s, argb);
+    }
+    private static void drawAt(GuiGraphicsExtractor g, net.minecraft.client.gui.Font font, String text, float x, float y, float s, int alpha) {
+        g.pose().pushMatrix(); g.pose().translate(x, y); g.pose().scale(s, s);
+        g.text(font, text, 0, 0, Math.max(4, Math.min(255, alpha)) << 24 | 0xffffff, false);
+        g.pose().popMatrix();
+    }
+    /**
+     * §14: 常に出す数値（現在CP/最大CP）。数値のみなら、ゲージの残量色とセーフティの明滅を数値へ移す。ゲージと数値なら、色と明滅はゲージが持つ。
+     * 過負荷・干渉の間も読めるように、ゲージの.3より明るい.6までしか暗くしない。
+     */
+    private static void drawCpNumber(GuiGraphicsExtractor g, Minecraft client, PlayerAbilityData data, CpHudStyle.Display display, float progress, boolean low) {
+        var font = client.font;
+        String text = CpHudStyle.number(data.getCp(), data.getMaxCp());
+        float alpha = mAlpha * (low && blink < 0 ? .6f : 1);
+        int rgb = 0xffffff;
+        if (!display.gauge()) {
+            float[] c = blink < 0 ? lerp(CP_COLORS, progress) : lowColor(1);
+            rgb = (int) (c[0] * 255) << 16 | (int) (c[1] * 255) << 8 | (int) (c[2] * 255);
+            if (blink >= 0) alpha *= blink;
+        }
+        g.pose().pushMatrix();
+        g.pose().translate(NUMBER_RIGHT - font.width(text) * NUMBER_SIZE, display.gauge() ? NUMBER_BELOW_Y : NUMBER_ONLY_Y);
+        g.pose().scale(NUMBER_SIZE, NUMBER_SIZE);
+        // 板のない形式では背景が世界そのものなので、影を付ける。
+        g.text(font, text, 0, 0, Math.max(4, Math.min(255, (int) (alpha * 255))) << 24 | rgb, true);
+        g.pose().popMatrix();
+    }
+    /** 原作drawActivateKeyHint: "[キー]: 今キーがすること"を、(500, 140)に右揃えで描く。 */
+    private static void drawActivateKeyHint(GuiGraphicsExtractor g, Minecraft client) {
+        String hint = AbilityControls.activateHint(client);
+        if (hint == null) return;
+        String text = "[" + AbilityControls.TOGGLE.getTranslatedKeyMessage().getString() + "]: "
+                + Component.translatable("academy.activate_key." + hint + ".desc").getString();
+        var font = client.font; float s = 44 / 9f, margin = 8, x0 = 500, y0 = 140;
+        float len = font.width(text) * s;
+        DeveloperScreen.rect(g, x0 - margin - len, y0 - margin, len + margin * 2, 44 + margin * 2, 65 / 255f, 65 / 255f, 65 / 255f, 70 / 255f);
+        KeyHintHud.glow(g, x0 - margin - len, y0 - margin, len + margin * 2, 44 + margin * 2, 5, 0xffffff, 40 / 255f);
+        drawAt(g, font, text, x0 - len, y0, s, 0xa0);
+    }
+    /**
+     * F4（DebugConsole）が避ける、このフレームでCPバーが描く範囲（GUI座標、WORK-045のFQ-03）。描き方は変えず、上のdrawと同じ数で
+     * 囲む: バー（964x147）、drawPresetHintの四角4つ（(580, 136)から幅52、間隔10）、drawActivateKeyHintの案内（(500, 140)に右揃え、
+     * 余白8、高さ44）、どちらも光の縁5。干渉の間は揺れ（FRAME_OFFSETの最大: 横9×縦横比、縦9）も含む。いずれも0.2倍。
+     * F4はRenderGuiEvent.Pre、バーはPostで描くので、前のフレームのalphaでフェードアウトの途中も含める。能力が無いか、描かないならnull。
+     */
+    @Nullable public static DebugConsoleLayout.Area area(Minecraft client, PlayerAbilityData data, int guiWidth, int guiHeight) {
+        if (data == null || !data.hasAbility() || (!data.isActive() && mAlpha <= 0)) return null;
+        float left = 0, top = 0, right = WIDTH, bottom = HEIGHT, glow = 5;
+        right = Math.max(right, 580 + 4 * (52 + 10) - 10 + glow);
+        bottom = Math.max(bottom, 136 + 52 + glow);
+        if (ClientSettings.cpDisplay() == CpHudStyle.Display.BOTH) bottom = Math.max(bottom, NUMBER_BELOW_Y + 9 * NUMBER_SIZE);
+        String hint = AbilityControls.activateHint(client);
+        if (hint != null) {
+            String text = "[" + AbilityControls.TOGGLE.getTranslatedKeyMessage().getString() + "]: "
+                    + Component.translatable("academy.activate_key." + hint + ".desc").getString();
+            float len = client.font.width(text) * 44 / 9f, margin = 8;
+            left = Math.min(left, 500 - margin - len - glow);
+            right = Math.max(right, 500 + margin + glow);
+            top = Math.min(top, 140 - margin - glow);
+            bottom = Math.max(bottom, 140 + 44 + margin + glow);
+        }
+        if (data.isInterfering()) {
+            float shakeX = 9 * WIDTH / HEIGHT, shakeY = 9;
+            left -= shakeX; right += shakeX; top -= shakeY; bottom += shakeY;
+        }
+        // 大きさの倍率は右上の角を動かさない（drawと同じ）。
+        float s = SCALE * sizeScale;
+        float x = HudLayout.left(HudLayout.Node.CPBAR, guiWidth) + WIDTH * SCALE * (1 - sizeScale), y = HudLayout.top(HudLayout.Node.CPBAR, guiHeight);
+        return new DebugConsoleLayout.Area(x + left * s, y + top * s, x + right * s, y + bottom * s);
+    }
+    /** テスト用の入口: バーが追い付こうとしている値。 */
+    public static float bufferedCp() { return bufferedCp; }
+    public static float bufferedOverload() { return bufferedOverload; }
+}

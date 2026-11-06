@@ -1,0 +1,9 @@
+{
+  "type": "academy:imag_fusion",
+  "ingredient": "academy:crystal_normal",
+  "phase_liquid": 8000,
+  "result": {
+    "item": "academy:crystal_pure",
+    "count": 1
+  }
+}

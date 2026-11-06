@@ -1,0 +1,8 @@
+{
+  "replace": false,
+  "values": [
+    "minecraft:dispenser",
+    "minecraft:hopper",
+    "minecraft:iron_ore"
+  ]
+}

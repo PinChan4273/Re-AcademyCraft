@@ -1,0 +1,16 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    "RRR",
+    " S "
+  ],
+  "key": {
+    "R": "minecraft:redstone",
+    "S": "academy:imag_silicon_piece"
+  },
+  "result": {
+    "id": "academy:data_chip",
+    "count": 1
+  }
+}

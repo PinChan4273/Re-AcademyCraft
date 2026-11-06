@@ -1,0 +1,10 @@
+{
+  "type": "academy:metal_forming",
+  "operation": "refine",
+  "ingredient": "#c:ores/coal",
+  "amount": 1,
+  "result": {
+    "item": "minecraft:coal",
+    "count": 2
+  }
+}

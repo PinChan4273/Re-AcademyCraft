@@ -1,0 +1,18 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    " P ",
+    "PCP",
+    " D "
+  ],
+  "key": {
+    "P": "academy:constraint_plate",
+    "C": "academy:crystal_low",
+    "D": "academy:data_chip"
+  },
+  "result": {
+    "id": "academy:energy_unit",
+    "count": 1
+  }
+}

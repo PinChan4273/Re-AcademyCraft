@@ -1,0 +1,232 @@
+package io.github.pinchan4273.reacademycraft.client;
+
+import io.github.pinchan4273.reacademycraft.capability.AbilityCapabilities;
+import io.github.pinchan4273.reacademycraft.skill.PlayerAbilityData;
+import io.github.pinchan4273.reacademycraft.skill.SkillTreeLayout;
+import com.mojang.blaze3d.platform.InputConstants;
+import java.util.HashMap;
+import java.util.Map;
+import net.minecraft.util.Util;
+import net.minecraft.client.KeyMapping;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.resources.Identifier;
+import net.minecraft.util.Mth;
+import net.neoforged.api.distmarker.Dist;
+import net.neoforged.neoforge.client.event.RenderGuiEvent;
+import net.neoforged.bus.api.SubscribeEvent;
+
+/**
+ * 原作KeyHintUI（AcademyCraft commit 7b1401c）: 能力がONの間、画面の右端の列に、プリセットの各技能のキーとアイコンを表示する。
+ * 能力を使えない間や技能のクールダウン中は灰色、アイコンの上をクールダウンが埋め、技能の使用中は光が脈打つ。
+ * 位置・大きさ・色は原作のもので、部品の0.23倍の下での部品の単位。部品は右揃え、高さの中央から30下。
+ *
+ * 原作のDelegateStateは技能の生きているcontextから来る: IDLE（alpha 0.7、光なし）、ACTIVE（青い光が脈打つ）、
+ * そして充電を報告する4つの技能ではCHARGE（橙）。このclientは、押し続け型の技能が押されていることと、モードの技能が
+ * ONであることを知っていて、それらをACTIVEとして表示する。CHARGEの色は区別しない。
+ */
+@net.neoforged.fml.common.EventBusSubscriber(modid = "academy", value = Dist.CLIENT)
+public final class KeyHintHud {
+    static final float SCALE = .23f, WIDTH = 140, HEIGHT = 210;
+    private static final Identifier BACK = tex("back"), ICON_BACK = tex("icon_back"), KEY_LONG = tex("key_long"),
+            KEY_SHORT = tex("key_short"), MOUSE_L = tex("mouse_left"), MOUSE_R = tex("mouse_right"), MOUSE_GENERIC = tex("mouse_generic");
+    private static final Identifier[] GLOW = {glow("left"), glow("right"), glow("up"), glow("down"),
+            glow("ru"), glow("rd"), glow("lu"), glow("ld")};
+    /** DelegateStateの光の色: ACTIVEは0xff46b3ff。IDLEは完全に透明。 */
+    private static final int ACTIVE_GLOW = 0x46b3ff;
+    private static double lastFrame, shown;
+    private static long frames;
+    /** SkillCooldown.getMaxTick: クールダウンが始まったときの長さ。このclientが保つ。 */
+    private static final Map<Identifier, Integer> COOLDOWN_MAX = new HashMap<>();
+    private KeyHintHud() { }
+    private static Identifier tex(String name) { return Identifier.fromNamespaceAndPath("academy", "textures/guis/key_hint/" + name + ".png"); }
+    private static Identifier glow(String name) { return Identifier.fromNamespaceAndPath("academy", "textures/guis/glow_" + name + ".png"); }
+    /** 描いたフレーム数（テスト用）。実際の見え方は画像で判定する。 */
+    public static long frames() { return frames; }
+    private static int columns;
+    /** テスト用: 直前のフレームで描いたキーの列の数。 */
+    public static int columns() { return columns; }
+
+    @SubscribeEvent public static void draw(RenderGuiEvent.Post event) {
+        var client = Minecraft.getInstance();
+        // 原作のHUDは、どの画面の下でもゲームのHUDと一緒に描かれ、半透明の開発機の画面から透けて見える。
+        if (client.player == null || client.gui.hud.isHidden()) return;
+        var data = AbilityCapabilities.of(client.player).orElse(null);
+        if (data == null || !data.hasAbility() || !data.isActive()) return;
+        double time = Util.getMillis() / 1000.0;
+        // 原作: 0.3秒描かれなかった後は、0.3秒でフェードインする。
+        if (time - lastFrame > .3) shown = time;
+        float alpha = (float) Math.min(1, (time - shown) / .3);
+        lastFrame = time;
+        float sin = .6f + (1 + Mth.sin((float) (time % 100) / 50f)) * .2f;
+        var g = event.getGuiGraphics(); 
+        int width = net.minecraft.client.Minecraft.getInstance().getWindow().getGuiScaledWidth(), height = net.minecraft.client.Minecraft.getInstance().getWindow().getGuiScaledHeight();
+        g.pose().pushMatrix();
+        // 原作ACHudのnode"keyhint"、CGui: x = W - width * scale（RIGHT）、y = (H - height * scale) / 2 + 30（CENTER）。
+        // CustomizeUIで動かした場合を除く。
+        g.pose().translate(HudLayout.left(HudLayout.Node.KEYHINT, width), HudLayout.top(HudLayout.Node.KEYHINT, height));
+        g.pose().scale(SCALE, SCALE);
+        float y = 0;
+        for (int slot = 0; slot < 4; slot++) {
+            var skill = data.getSlot(data.getCurrentPreset(), slot);
+            var icon = SkillTreeLayout.icon(skill);
+            if (icon == null) continue;
+            g.pose().pushMatrix();
+            // 原作の既定のグループ: x = -200、行の間隔92。
+            g.pose().translate(-200, y);
+            boolean inUse = AbilityControls.held(slot) || ClientSkillModes.active(skill)
+                    || (io.github.pinchan4273.reacademycraft.skill.Flashing.ID.equals(skill) && ClientFlashing.active())
+                    || (io.github.pinchan4273.reacademycraft.skill.StormWing.ID.equals(skill) && ClientStormWing.state() >= 0);
+            single(g, data, AbilityControls.SLOTS[slot], skill, icon, inUse, alpha, sin, AbilityControls.beetleHold(slot));
+            g.pose().popMatrix();
+            y += 92;
+        }
+        // 原作の他のキーのグループ。既定のグループの後、名前の順に、1列ずつ左へ: Flashingの"TP_Flashing"（ONの間）、
+        // Storm Wingの"vm_storm_wing"（飛び始めてから）。
+        int column = y > 0 ? 1 : 0;
+        int drawnColumns = column;
+        var options = client.options;
+        if (ClientFlashing.active()) {
+            KeyMapping[] keys = { options.keyLeft, options.keyRight, options.keyUp, options.keyDown };
+            String[] icons = { "a", "d", "w", "s" };
+            for (int i = 0; i < 4; i++) {
+                g.pose().pushMatrix(); g.pose().translate(-200 - column * 200, i * 92);
+                single(g, data, keys[i], null, Identifier.fromNamespaceAndPath("academy", "textures/abilities/teleporter/flashing/" + icons[i] + ".png"), false, alpha, sin);
+                g.pose().popMatrix();
+            }
+            column++; drawnColumns++;
+        }
+        var wing = SkillTreeLayout.node(io.github.pinchan4273.reacademycraft.skill.StormWing.ID);
+        if (ClientStormWing.state() == io.github.pinchan4273.reacademycraft.skill.StormWing.ACTIVE_STATE && wing != null) {
+            KeyMapping[] keys = { options.keyUp, options.keyDown, options.keyLeft, options.keyRight };
+            for (int i = 0; i < 4; i++) {
+                g.pose().pushMatrix(); g.pose().translate(-200 - column * 200, i * 92);
+                // 飛んでいる方向のキーを、原作DelegateState.ACTIVEにする。
+                single(g, data, keys[i], null, wing.icon(), ClientStormWing.held() == keys[i], alpha, sin);
+                g.pose().popMatrix();
+            }
+            drawnColumns++;
+        }
+        columns = drawnColumns;
+        g.pose().popMatrix();
+        holdBar(g, width, height, AbilityControls.beetleHold(), alpha);
+        frames++;
+    }
+    /**
+     * 甲虫生成のキーの長押しの進み（v1.5.1、Forge c0b3c070 の試作）: 照準の少し下に細い帯を出し、左から満ちる。満ちたら（回収の時）帯の全体を明るくする。
+     * キーの案内は画面の端で小さいので、押している間に目を離さずに読めるよう照準の近くにも出す。
+     */
+    private static void holdBar(GuiGraphicsExtractor g, int width, int height, float hold, float alpha) {
+        if (hold <= 0) return;
+        float w = 48, h = 3, x = width / 2f - w / 2, y = height / 2f + 12;
+        DeveloperScreen.rect(g, x - 1, y - 1, w + 2, h + 2, 0, 0, 0, .45f * alpha);
+        DeveloperScreen.rect(g, x, y, w * hold, h, .82f, .92f, 1f, .95f * alpha);
+        if (hold >= 1) DeveloperScreen.rect(g, x - 1, y - 1, w + 2, h + 2, 1f, 1f, 1f, .35f * alpha);
+    }
+
+    /**
+     * F4（DebugConsole）が避ける、キーのヒントの範囲（GUI座標、WORK-045のFQ-03）。上のdrawと同じ並べ方で囲む: 各キーは(-200 - 列×200,
+     * 行×92)から、背景(122〜307, 0〜83)と、(180, 27)に中央揃えで描くキーの名前（32/9倍）。列は既定のグループ、Flashing、Storm Wing。
+     * 名前は、描きうるキーのうち最も幅の広いもので見積もる。描き方は変えない。能力がOFFか、描くキーが無ければnull。
+     */
+    @javax.annotation.Nullable
+    public static DebugConsoleLayout.Area area(Minecraft client, PlayerAbilityData data, int guiWidth, int guiHeight) {
+        if (data == null || !data.hasAbility() || !data.isActive()) return null;
+        int rows = 0;
+        float name = 0;
+        var font = client.font;
+        for (int slot = 0; slot < 4; slot++) {
+            var skill = data.getSlot(data.getCurrentPreset(), slot);
+            if (SkillTreeLayout.icon(skill) == null) continue;
+            rows++;
+            name = Math.max(name, font.width(AbilityControls.SLOTS[slot].getTranslatedKeyMessage().getString()));
+        }
+        int columns = rows > 0 ? 1 : 0;
+        boolean flashing = ClientFlashing.active(), wing = ClientStormWing.state() == io.github.pinchan4273.reacademycraft.skill.StormWing.ACTIVE_STATE
+                && SkillTreeLayout.node(io.github.pinchan4273.reacademycraft.skill.StormWing.ID) != null;
+        if (flashing || wing) {
+            var o = client.options;
+            for (var key : new KeyMapping[] {o.keyLeft, o.keyRight, o.keyUp, o.keyDown}) name = Math.max(name, font.width(key.getTranslatedKeyMessage().getString()));
+            rows = Math.max(rows, 4);
+            if (flashing) columns++;
+            if (wing) columns++;
+        }
+        if (columns == 0) return null;
+        float s = 32f / font.lineHeight;
+        float left = -200 - (columns - 1) * 200 + Math.min(122, 180 - name * s / 2), right = -200 + 307, bottom = (rows - 1) * 92 + 83;
+        float x = HudLayout.left(HudLayout.Node.KEYHINT, guiWidth), y = HudLayout.top(HudLayout.Node.KEYHINT, guiHeight);
+        return new DebugConsoleLayout.Area(x + left * SCALE, y, x + right * SCALE, y + bottom * SCALE);
+    }
+
+    /**
+     * 1つのキーの原作drawSingle: 背景、キー、アイコン、状態。自身の技能を持たないキー（他のグループのもの）には、
+     * ここでは自身のクールダウンが無い。
+     */
+    private static void single(GuiGraphicsExtractor g, PlayerAbilityData data, KeyMapping mapping, @javax.annotation.Nullable Identifier skill,
+                               Identifier icon, boolean inUse, float alpha, float sin) {
+        single(g, data, mapping, skill, icon, inUse, alpha, sin, 0);
+    }
+    /**
+     * holdは甲虫生成のキーの長押しの進み（0〜1、v1.5.1、Forge 17561eb5 の試作）。0より大きければ、アイコンの上へ下から白く満ちる帯を重ね、満ちたら（回収の時）
+     * 光の縁を明るくする。クールダウンの灰色の帯（上から減る）とは向きと色で分ける。
+     */
+    private static void single(GuiGraphicsExtractor g, PlayerAbilityData data, KeyMapping mapping, @javax.annotation.Nullable Identifier skill,
+                               Identifier icon, boolean inUse, float alpha, float sin, float hold) {
+        DeveloperScreen.quad(g, BACK, 122, 0, 185, 83, 1, 1, 1, alpha);
+        int left = skill == null ? 0 : data.getCooldown(skill);
+        if (skill != null) { if (left <= 0) COOLDOWN_MAX.remove(skill); else COOLDOWN_MAX.merge(skill, left, Math::max); }
+        boolean grey = !data.canUseAbility() || left > 0;
+        // キー: 原作の短いキー・長いキー・マウス。使えないときはShaderMonoで灰色にする。
+        var key = mapping.getKey();
+        String name = null; Identifier back;
+        if (key.getType() == InputConstants.Type.MOUSE) {
+            back = key.getValue() == 0 ? MOUSE_L : key.getValue() == 1 ? MOUSE_R : MOUSE_GENERIC;
+            if (back == MOUSE_GENERIC) name = String.valueOf(key.getValue());
+        } else {
+            name = mapping.getTranslatedKeyMessage().getString();
+            back = name.length() <= 2 ? KEY_SHORT : KEY_LONG;
+        }
+        draw(g, back, 146, 10, 70, 70, grey, alpha);
+        if (name != null) {
+            var font = Minecraft.getInstance().font;
+            float s = 32f / font.lineHeight;
+            g.pose().pushMatrix();
+            g.pose().translate(180, 27); g.pose().scale(s, s); g.pose().translate(-font.width(name) / 2f, 0);
+            int a = Math.max(4, (int) (255 * alpha));
+            // FontOption(32, CENTER, 0xff194246)。原作は灰色のときもこの色で名前を描く。
+            g.text(font, name, 0, 0, a << 24 | 0x194246, false);
+            g.pose().popMatrix();
+        }
+        draw(g, ICON_BACK, 216, 5, 72, 72, grey, alpha);
+        int max = skill == null ? 0 : COOLDOWN_MAX.getOrDefault(skill, 0);
+        float progress = left > 0 && max > 0 ? (float) left / max : 0;
+        float pulse = inUse ? sin : 1;
+        float iconAlpha = progress == 0 ? (inUse ? 1f : .7f) * (.4f + pulse * .6f) : .4f;
+        draw(g, icon, 221, 10, 62, 62, grey, iconAlpha * alpha);
+        if (inUse) glow(g, 221, 10, 62, 62, 5, ACTIVE_GLOW, pulse * alpha);
+        if (progress != 0) DeveloperScreen.rect(g, 221, 10 + 62 * (1 - progress), 62, 62 * progress, .6f, .6f, .6f, .3f * alpha);
+        if (hold > 0) {
+            // 白いアイコンの上でも見えるよう、淡い青で満たす。
+            DeveloperScreen.rect(g, 221, 10 + 62 * (1 - hold), 62, 62 * hold, .45f, .75f, 1f, .55f * alpha);
+            // 満ちる先の線（どこまで来たかを読みやすくする）。
+            DeveloperScreen.rect(g, 221, 10 + 62 * (1 - hold) - 2.5f, 62, 5, 1f, 1f, 1f, .95f * alpha);
+            if (hold >= 1) glow(g, 221, 10, 62, 62, 8, 0xe6f0ff, alpha);
+        }
+    }
+    private static void draw(GuiGraphicsExtractor graphics, Identifier texture, float x, float y, float w, float h, boolean grey, float alpha) {
+        if (grey) DeveloperScreen.mono(graphics, texture, x, y, w, h, alpha);
+        else DeveloperScreen.quad(graphics, texture, x, y, w, h, 1, 1, 1, alpha);
+    }
+    /** ACRenderingHelper.drawGlow: 四角の周りの8つの光の部品。 */
+    static void glow(GuiGraphicsExtractor graphics, float x, float y, float w, float h, float s, int rgb, float alpha) {
+        float r = (rgb >> 16 & 255) / 255f, gr = (rgb >> 8 & 255) / 255f, b = (rgb & 255) / 255f;
+        DeveloperScreen.quad(graphics, GLOW[0], x - s, y, s, h, r, gr, b, alpha);
+        DeveloperScreen.quad(graphics, GLOW[1], x + w, y, s, h, r, gr, b, alpha);
+        DeveloperScreen.quad(graphics, GLOW[2], x, y - s, w, s, r, gr, b, alpha);
+        DeveloperScreen.quad(graphics, GLOW[3], x, y + h, w, s, r, gr, b, alpha);
+        DeveloperScreen.quad(graphics, GLOW[4], x + w, y - s, s, s, r, gr, b, alpha);
+        DeveloperScreen.quad(graphics, GLOW[5], x + w, y + h, s, s, r, gr, b, alpha);
+        DeveloperScreen.quad(graphics, GLOW[6], x - s, y - s, s, s, r, gr, b, alpha);
+        DeveloperScreen.quad(graphics, GLOW[7], x - s, y + h, s, s, r, gr, b, alpha);
+    }
+}

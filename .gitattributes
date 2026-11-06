@@ -1,0 +1,7 @@
+# このモデルはLFのblobのSHA-256で照合される。core.autocrlf=trueのチェックアウトでは作業ツリーがCRLFになり、
+# processResourcesがバイトの一致しないファイルを配置してしまうので、作業ツリーでもLFに保つ。
+# gitには元からLFで保存されている。
+src/main/resources/assets/academy/models/item/coin.json eol=lf
+
+# 原作のREADMEの原文は、改行（CRLF）を含めてバイトのまま保持する。
+licenses/AcademyCraft-original-README.md -text

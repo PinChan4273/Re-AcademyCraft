@@ -1,0 +1,161 @@
+package io.github.pinchan4273.reacademycraft.skill;
+
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
+import javax.annotation.Nullable;
+import net.minecraft.resources.Identifier;
+
+/**
+ * 原作の開発機の技能の木が各技能を置く場所: CategoryのコンストラクタのsetPosition(guiX, guiY)（257x139の木の領域内）、線を引く親
+ * （setParentのみ。addSkillDepは線を引かない）、Skill.getHintIcon（textures/abilities/<category>/skills/<name>.png）。
+ * 汎用コース（VanillaCategories.addGenericSkills）はすべてのカテゴリの木に入る。
+ */
+public final class SkillTreeLayout {
+    public record Node(Identifier skill, float x, float y, @Nullable Identifier parent, Identifier icon) { }
+
+    private static Node node(Identifier skill, String category, float x, float y, @Nullable Identifier parent) {
+        return new Node(skill, x, y, parent, Identifier.fromNamespaceAndPath("academy",
+                "textures/abilities/" + category + "/skills/" + skill.getPath() + ".png"));
+    }
+    private static final List<Node> GENERIC = List.of(
+            node(GenericSkills.BRAIN, "generic", 30, 110, null),
+            node(GenericSkills.ADVANCED_BRAIN, "generic", 115, 110, GenericSkills.BRAIN),
+            node(GenericSkills.MIND, "generic", 205, 110, GenericSkills.ADVANCED_BRAIN));
+    private static final Map<Identifier, List<Node>> TREES = Map.of(
+            ArcGen.CATEGORY, List.of(
+                    node(ArcGen.ID, "electromaster", 24, 46, null),
+                    node(CurrentCharging.ID, "electromaster", 55, 18, ArcGen.ID),
+                    node(BodyIntensify.ID, "electromaster", 97, 15, ArcGen.ID),
+                    node(MineDetect.ID, "electromaster", 225, 12, MagneticManipulation.ID),
+                    node(MagneticMovement.ID, "electromaster", 137, 35, ArcGen.ID),
+                    node(ThunderBolt.ID, "electromaster", 86, 67, ArcGen.ID),
+                    node(Railgun.ID, "electromaster", 164, 59, ThunderBolt.ID),
+                    node(ThunderClap.ID, "electromaster", 204, 80, ThunderBolt.ID),
+                    node(MagneticManipulation.ID, "electromaster", 204, 33, MagneticMovement.ID)),
+            AbilityCategory.MELTDOWNER.id(), List.of(
+                    node(ElectronBomb.ID, "meltdowner", 15, 45, null),
+                    node(RadiationIntensify.ID, "meltdowner", 35, 75, ElectronBomb.ID),
+                    node(ScatterBomb.ID, "meltdowner", 70, 50, ElectronBomb.ID),
+                    node(LightShield.ID, "meltdowner", 55, 15, ElectronBomb.ID),
+                    node(Meltdowner.ID, "meltdowner", 115, 40, ScatterBomb.ID),
+                    node(MineRay.BASIC.id(), "meltdowner", 140, 70, Meltdowner.ID),
+                    node(RayBarrage.ID, "meltdowner", 140, 10, Meltdowner.ID),
+                    node(JetEngine.ID, "meltdowner", 170, 32, Meltdowner.ID),
+                    node(MineRay.EXPERT.id(), "meltdowner", 172, 70, MineRay.BASIC.id()),
+                    node(MineRay.LUCK.id(), "meltdowner", 205, 82, MineRay.EXPERT.id()),
+                    node(ElectronMissile.ID, "meltdowner", 210, 35, JetEngine.ID)),
+            AbilityCategory.TELEPORTER.id(), List.of(
+                    node(ThreateningTeleport.ID, "teleporter", 14, 42, null),
+                    node(DimFoldingTheorem.ID, "teleporter", 50, 75, ThreateningTeleport.ID),
+                    node(PenetrateTeleport.ID, "teleporter", 60, 46, ThreateningTeleport.ID),
+                    node(MarkTeleport.ID, "teleporter", 70, 16, ThreateningTeleport.ID),
+                    node(FleshRipping.ID, "teleporter", 130, 12, MarkTeleport.ID),
+                    node(LocationTeleport.ID, "teleporter", 118, 50, PenetrateTeleport.ID),
+                    node(ShiftTeleport.ID, "teleporter", 175, 47, LocationTeleport.ID),
+                    node(SpaceFluctuation.ID, "teleporter", 160, 80, ShiftTeleport.ID),
+                    node(Flashing.ID, "teleporter", 220, 20, ShiftTeleport.ID)),
+            AbilityCategory.VECMANIP.id(), List.of(
+                    node(DirectedShock.ID, "vecmanip", 16, 45, null),
+                    node(Groundshock.ID, "vecmanip", 64, 85, DirectedShock.ID),
+                    node(VecAccel.ID, "vecmanip", 76, 40, DirectedShock.ID),
+                    node(VecDeviation.ID, "vecmanip", 145, 53, VecAccel.ID),
+                    node(DirectedBlastwave.ID, "vecmanip", 136, 80, Groundshock.ID),
+                    node(StormWing.ID, "vecmanip", 130, 20, VecAccel.ID),
+                    node(BloodRetrograde.ID, "vecmanip", 204, 83, DirectedBlastwave.ID),
+                    node(VecReflection.ID, "vecmanip", 210, 50, VecDeviation.ID),
+                    node(PlasmaCannon.ID, "vecmanip", 175, 14, StormWing.ID)),
+            // v1.5.0の未元物質（採用仕様・版41の§1）。線は§1の前提の技能から引く。汎用コースの段（y = 110）には重ねない。
+            DarkMatter.CATEGORY, List.of(
+                    node(DarkMatter.STAB, "dark_matter", 16, 25, null),
+                    node(DarkMatter.FLIGHT, "dark_matter", 16, 75, null),
+                    node(DarkMatter.RAY, "dark_matter", 68, 20, DarkMatter.STAB),
+                    node(DarkMatter.GUARD, "dark_matter", 68, 80, DarkMatter.FLIGHT),
+                    node(DarkMatter.AIR_CANNON, "dark_matter", 120, 15, DarkMatter.RAY),
+                    node(DarkMatter.ARMOR, "dark_matter", 120, 85, DarkMatter.GUARD),
+                    node(DarkMatter.BEETLE, "dark_matter", 172, 35, DarkMatter.AIR_CANNON),
+                    node(DarkMatter.HEAVEN, "dark_matter", 220, 15, DarkMatter.BEETLE),
+                    node(DarkMatter.BODY, "dark_matter", 220, 65, DarkMatter.BEETLE)));
+
+    private SkillTreeLayout() { }
+
+    /**
+     * その技能の印: 木の場所の印、木に出ない外部の技能なら表示の情報の画像（無ければ{@link #DEFAULT_ICON}）。登録されていなければnull
+     * （1.4.0のS4。プリセットの画面とキーの案内が使う）。
+     */
+    public static @Nullable Identifier icon(@Nullable Identifier skill) {
+        if (skill == null) return null;
+        var node = node(skill);
+        if (node != null) return node.icon();
+        if ("academy".equals(skill.getNamespace())) return null;
+        io.github.pinchan4273.reacademycraft.api.SkillDefinition definition = null;
+        try {
+            definition = io.github.pinchan4273.reacademycraft.ability.AbilityRegistry.INSTANCE.skill(io.github.pinchan4273.reacademycraft.ability.RegistryViews.id(skill));
+        } catch (IllegalArgumentException ignored) { }
+        if (definition == null) return null;
+        var icon = definition.presentation().icon();
+        return icon == null ? DEFAULT_ICON : io.github.pinchan4273.reacademycraft.ability.RegistryViews.location(icon);
+    }
+    /** 場所を持たない外部の技能・カテゴリの印（1.4.0のS4）。 */
+    public static final Identifier DEFAULT_ICON = Identifier.fromNamespaceAndPath("academy", "textures/guis/icons/icon_nocategory.png");
+    /**
+     * 外部の技能の場所（1.4.0のS4）。技能の定義の木の場所（{@code SkillDefinition.tree}）から作り、無い技能は木に出ない。
+     * 印は表示の情報の画像（無ければ{@link #DEFAULT_ICON}）。登録の順。
+     */
+    private static List<Node> addons() {
+        var out = new java.util.ArrayList<Node>();
+        for (var skill : io.github.pinchan4273.reacademycraft.ability.AbilityRegistry.INSTANCE.skills()) {
+            if (skill.id().isAcademy() || skill.tree() == null) continue;
+            var tree = skill.tree();
+            var icon = skill.presentation().icon();
+            out.add(new Node(io.github.pinchan4273.reacademycraft.ability.RegistryViews.location(skill.id()), tree.x(), tree.y(),
+                    tree.parent() == null ? null : io.github.pinchan4273.reacademycraft.ability.RegistryViews.location(tree.parent()),
+                    icon == null ? DEFAULT_ICON : io.github.pinchan4273.reacademycraft.ability.RegistryViews.location(icon)));
+        }
+        return out;
+    }
+    /** その外部の技能のカテゴリ（汎用ならnull）。 */
+    private static @Nullable Identifier category(Node node) {
+        var definition = SkillCatalog.find(node.skill());
+        return definition == null ? null : definition.category();
+    }
+
+    /**
+     * カテゴリの木と、その後の汎用コース。原作のaddSkillの順。1.4.0のS4から、本体のカテゴリの木の後ろ（汎用コースの前）に、そのカテゴリの
+     * 外部の技能（と、どのカテゴリにも出る外部の技能）が登録の順で続く。外部のカテゴリの木は、その外部の技能と汎用コース。
+     * 登録されていないカテゴリなら空。
+     */
+    public static List<Node> tree(@Nullable Identifier category) {
+        if (category == null) return List.of();
+        var own = TREES.get(category);
+        if (own == null && AbilityCategory.find(category) == null) return List.of();
+        var addons = addons().stream().filter(n -> category(n) == null || category.equals(category(n))).toList();
+        return java.util.stream.Stream.of(own == null ? List.<Node>of() : own, addons, GENERIC).flatMap(List::stream).toList();
+    }
+    @Nullable public static Node node(Identifier skill) {
+        for (var tree : TREES.values()) for (var n : tree) if (n.skill().equals(skill)) return n;
+        for (var n : GENERIC) if (n.skill().equals(skill)) return n;
+        for (var n : addons()) if (n.skill().equals(skill)) return n;
+        return null;
+    }
+    /** いずれかの木に場所を持つすべての技能。 */
+    public static Map<Identifier, Node> all() {
+        return java.util.stream.Stream.of(TREES.values().stream().flatMap(List::stream), GENERIC.stream(), addons().stream()).flatMap(s -> s)
+                .collect(Collectors.toMap(Node::skill, n -> n));
+    }
+    /** 原作Category.getDeveloperIcon: textures/guis/icons/icon_<category>.png。 */
+    public static Identifier categoryIcon(@Nullable Identifier category) {
+        // 1.4.0のS4: 外部のカテゴリは、表示の情報の画像（無ければ既定の印）。
+        if (category != null && !"academy".equals(category.getNamespace())) {
+            io.github.pinchan4273.reacademycraft.api.CategoryDefinition definition = null;
+            try {
+                definition = io.github.pinchan4273.reacademycraft.ability.AbilityRegistry.INSTANCE.category(
+                        io.github.pinchan4273.reacademycraft.ability.RegistryViews.id(category));
+            } catch (IllegalArgumentException ignored) { } // 公開のIDの書式に合わない保存データの名前は、登録されていない
+            return definition == null || definition.presentation().icon() == null ? DEFAULT_ICON
+                    : io.github.pinchan4273.reacademycraft.ability.RegistryViews.location(definition.presentation().icon());
+        }
+        return Identifier.fromNamespaceAndPath("academy", "textures/guis/icons/icon_"
+                + (category == null ? "nocategory" : category.getPath()) + ".png");
+    }
+}

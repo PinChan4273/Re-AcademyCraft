@@ -1,0 +1,3 @@
+# Not in the original, which binds textures/models/solar.png itself.
+newmtl Material01
+map_Kd academy:models/solar

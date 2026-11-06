@@ -1,0 +1,18 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    "R",
+    "C",
+    "M"
+  ],
+  "key": {
+    "R": "academy:reso_crystal",
+    "C": "academy:crystal_normal",
+    "M": "academy:mat_core_0"
+  },
+  "result": {
+    "id": "academy:mat_core_1",
+    "count": 1
+  }
+}

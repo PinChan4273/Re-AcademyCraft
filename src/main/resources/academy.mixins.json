@@ -1,0 +1,22 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "io.github.pinchan4273.reacademycraft.mixin",
+  "compatibilityLevel": "JAVA_25",
+  "mixins": [
+    "ChunkMapUnloadLivelockMixin",
+    "ConsumableMixin",
+    "FoodDataAccessor",
+    "LivingEntityDamageMixin",
+    "PlayerDamageMixin",
+    "ProjectileTargetMixin"
+  ],
+  "client": [
+    "client.AvatarWhitenMixin",
+    "client.HudPortalOverlayMixin",
+    "client.MouseHandlerTerminalMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

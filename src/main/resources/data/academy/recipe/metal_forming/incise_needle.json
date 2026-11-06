@@ -1,0 +1,10 @@
+{
+  "type": "academy:metal_forming",
+  "operation": "incise",
+  "ingredient": "academy:reinforced_iron_plate",
+  "amount": 1,
+  "result": {
+    "item": "academy:needle",
+    "count": 6
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    "PRP",
+    " r "
+  ],
+  "key": {
+    "P": "academy:constraint_plate",
+    "R": "academy:reso_crystal",
+    "r": "minecraft:redstone"
+  },
+  "result": {
+    "id": "academy:resonance_component",
+    "count": 1
+  }
+}

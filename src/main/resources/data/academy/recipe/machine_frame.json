@@ -1,0 +1,16 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    " P ",
+    "PRP",
+    " P "
+  ],
+  "key": {
+    "P": "#c:plates/iron",
+    "R": "minecraft:redstone"
+  },
+  "result": {
+    "id": "academy:machine_frame"
+  }
+}

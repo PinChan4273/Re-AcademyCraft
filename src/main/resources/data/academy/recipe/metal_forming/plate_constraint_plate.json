@@ -1,0 +1,10 @@
+{
+  "type": "academy:metal_forming",
+  "operation": "plate",
+  "ingredient": "academy:constraint_ingot",
+  "amount": 1,
+  "result": {
+    "item": "academy:constraint_plate",
+    "count": 1
+  }
+}

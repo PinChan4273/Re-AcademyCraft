@@ -1,0 +1,34 @@
+package io.github.pinchan4273.reacademycraft.skill;
+
+import io.github.pinchan4273.reacademycraft.network.AcademyNetwork;
+import io.github.pinchan4273.reacademycraft.network.OreSurveyStart;
+import net.minecraft.resources.Identifier;
+import net.minecraft.server.level.ServerPlayer;
+
+/**
+ * 原作MineDetect（MDContext、WeAthFolD・KSkun）のサーバー側。コストと成長を払い、探査そのものは原作と同じく
+ * 使った者のクライアントだけで行う。
+ */
+public final class MineDetect {
+    public static final Identifier ID = Identifier.fromNamespaceAndPath("academy","mine_detect");
+    public static final int DURATION = 100;
+    private MineDetect() { }
+    public static String cast(ServerPlayer player,PlayerAbilityData data) {
+        if (!player.isAlive() || data.isReadOnly()
+                || !ArcGen.CATEGORY.equals(data.getAbility()) || !data.hasLearned(ID)) return "academy.cast.unlearned";
+        if (!data.isActive()) return "academy.cast.inactive";
+        if (data.isOverloadLocked()) return "academy.cast.overload";
+        if (data.getCooldown(ID)>0) return "academy.cast.cooldown";
+        float exp=data.getProficiency(ID);
+        var grant=new OreSurveyStart(player.getUUID(),player.level().dimension().identifier(),ArcGen.lerp(15,30,exp),exp>.5f&&data.getLevel()>=4);
+        if (!data.consume(ID, ArcGen.lerp(1500,1000,exp),ArcGen.lerp(200,180,exp),player.getAbilities().instabuild)) return "academy.cast.cp";
+        // v1.5.0: 術者だけの視界の制限を、技能由来の直接効果で（バニラの盲目は付けない。牛乳で消えず、/effect clearで外れる）。
+        DirectEffects.add(player,DirectEffects.Kind.BLINDNESS,0,DURATION,ID,player);
+        data.addProficiency(ID,.008f);
+        data.setCooldown(ID,(int)ArcGen.lerp(900,400,data.getProficiency(ID)));
+        AcademyNetwork.send(player,grant);
+        // 原作MDContextC: 術者自身のクライアントだけで、音量0.5のem.minedetect。
+        io.github.pinchan4273.reacademycraft.world.VanillaCompat.playNotifySound(player, io.github.pinchan4273.reacademycraft.world.AcademySounds.EM_MINEDETECT.get(), net.minecraft.sounds.SoundSource.AMBIENT, .5f, 1f);
+        return "";
+    }
+}

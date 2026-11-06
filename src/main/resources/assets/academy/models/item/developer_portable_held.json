@@ -1,0 +1,6 @@
+{
+  "gui_light": "front",
+  "textures": {
+    "particle": "academy:item/developer_portable_empty"
+  }
+}

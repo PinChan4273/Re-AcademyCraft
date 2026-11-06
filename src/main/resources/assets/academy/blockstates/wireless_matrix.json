@@ -1,0 +1,100 @@
+{
+  "variants": {
+    "facing=north,part=0": {
+      "model": "academy:block/wireless_matrix"
+    },
+    "facing=north,part=1": {
+      "model": "academy:block/wireless_matrix"
+    },
+    "facing=north,part=2": {
+      "model": "academy:block/wireless_matrix"
+    },
+    "facing=north,part=3": {
+      "model": "academy:block/wireless_matrix"
+    },
+    "facing=north,part=4": {
+      "model": "academy:block/wireless_matrix"
+    },
+    "facing=north,part=5": {
+      "model": "academy:block/wireless_matrix"
+    },
+    "facing=north,part=6": {
+      "model": "academy:block/wireless_matrix"
+    },
+    "facing=north,part=7": {
+      "model": "academy:block/wireless_matrix"
+    },
+    "facing=east,part=0": {
+      "model": "academy:block/wireless_matrix"
+    },
+    "facing=east,part=1": {
+      "model": "academy:block/wireless_matrix"
+    },
+    "facing=east,part=2": {
+      "model": "academy:block/wireless_matrix"
+    },
+    "facing=east,part=3": {
+      "model": "academy:block/wireless_matrix"
+    },
+    "facing=east,part=4": {
+      "model": "academy:block/wireless_matrix"
+    },
+    "facing=east,part=5": {
+      "model": "academy:block/wireless_matrix"
+    },
+    "facing=east,part=6": {
+      "model": "academy:block/wireless_matrix"
+    },
+    "facing=east,part=7": {
+      "model": "academy:block/wireless_matrix"
+    },
+    "facing=south,part=0": {
+      "model": "academy:block/wireless_matrix"
+    },
+    "facing=south,part=1": {
+      "model": "academy:block/wireless_matrix"
+    },
+    "facing=south,part=2": {
+      "model": "academy:block/wireless_matrix"
+    },
+    "facing=south,part=3": {
+      "model": "academy:block/wireless_matrix"
+    },
+    "facing=south,part=4": {
+      "model": "academy:block/wireless_matrix"
+    },
+    "facing=south,part=5": {
+      "model": "academy:block/wireless_matrix"
+    },
+    "facing=south,part=6": {
+      "model": "academy:block/wireless_matrix"
+    },
+    "facing=south,part=7": {
+      "model": "academy:block/wireless_matrix"
+    },
+    "facing=west,part=0": {
+      "model": "academy:block/wireless_matrix"
+    },
+    "facing=west,part=1": {
+      "model": "academy:block/wireless_matrix"
+    },
+    "facing=west,part=2": {
+      "model": "academy:block/wireless_matrix"
+    },
+    "facing=west,part=3": {
+      "model": "academy:block/wireless_matrix"
+    },
+    "facing=west,part=4": {
+      "model": "academy:block/wireless_matrix"
+    },
+    "facing=west,part=5": {
+      "model": "academy:block/wireless_matrix"
+    },
+    "facing=west,part=6": {
+      "model": "academy:block/wireless_matrix"
+    },
+    "facing=west,part=7": {
+      "model": "academy:block/wireless_matrix"
+    }
+  }
+}

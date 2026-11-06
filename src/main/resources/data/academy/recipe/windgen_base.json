@@ -1,0 +1,18 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    "I",
+    "M",
+    "C"
+  ],
+  "key": {
+    "I": "academy:constraint_ingot",
+    "M": "academy:machine_frame",
+    "C": "academy:energy_convert_component"
+  },
+  "result": {
+    "id": "academy:windgen_base",
+    "count": 1
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "type": "academy:metal_forming",
+  "operation": "incise",
+  "ingredient": "minecraft:rail",
+  "amount": 1,
+  "result": {
+    "item": "academy:needle",
+    "count": 2
+  }
+}

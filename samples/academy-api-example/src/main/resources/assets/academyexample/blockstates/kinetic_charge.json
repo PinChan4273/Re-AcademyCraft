@@ -1,0 +1,10 @@
+{
+  "variants": {
+    "powered=false": {
+      "model": "academyexample:block/kinetic_charge"
+    },
+    "powered=true": {
+      "model": "academyexample:block/kinetic_charge"
+    }
+  }
+}

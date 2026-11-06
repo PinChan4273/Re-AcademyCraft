@@ -1,0 +1,26 @@
+{
+  "type": "academy:metal_forming",
+  "neoforge:conditions": [
+    {
+      "type": "neoforge:not",
+      "value": {
+        "type": "neoforge:tag_empty",
+        "tag": "c:ores/iridium"
+      }
+    },
+    {
+      "type": "neoforge:not",
+      "value": {
+        "type": "neoforge:tag_empty",
+        "tag": "c:ingots/iridium"
+      }
+    }
+  ],
+  "operation": "refine",
+  "ingredient": "#c:ores/iridium",
+  "amount": 1,
+  "result": {
+    "tag": "c:ingots/iridium",
+    "count": 2
+  }
+}

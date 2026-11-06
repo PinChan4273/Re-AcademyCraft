@@ -1,0 +1,3 @@
+# Not in the original, which binds textures/models/silbarn.png itself; silbarn.obj names this file.
+newmtl initialShadingGroup
+map_Kd academy:models/silbarn

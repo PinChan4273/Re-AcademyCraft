@@ -1,0 +1,13 @@
+{
+  "replace": false,
+  "values": [
+    "academy:dev_normal",
+    "academy:dev_advanced",
+    "academy:crystal_ore",
+    "academy:imagsil_ore",
+    "academy:reso_ore",
+    "academy:windgen_base",
+    "academy:windgen_pillar",
+    "academy:windgen_main"
+  ]
+}

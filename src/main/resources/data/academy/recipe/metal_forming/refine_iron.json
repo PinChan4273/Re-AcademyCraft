@@ -1,0 +1,10 @@
+{
+  "type": "academy:metal_forming",
+  "operation": "refine",
+  "ingredient": "#c:ores/iron",
+  "amount": 1,
+  "result": {
+    "item": "minecraft:iron_ingot",
+    "count": 2
+  }
+}

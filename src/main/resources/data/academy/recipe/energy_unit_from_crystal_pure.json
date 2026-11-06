@@ -1,0 +1,18 @@
+{
+  "type": "academy:crafting_shaped_yield",
+  "category": "misc",
+  "pattern": [
+    " P ",
+    "PCP",
+    " D "
+  ],
+  "key": {
+    "P": "academy:constraint_plate",
+    "C": "academy:crystal_pure",
+    "D": "academy:data_chip"
+  },
+  "result": {
+    "id": "academy:energy_unit"
+  },
+  "yield": 4
+}

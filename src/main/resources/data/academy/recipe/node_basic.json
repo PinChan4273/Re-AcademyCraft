@@ -1,0 +1,20 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    " C ",
+    "IFI",
+    "LRL"
+  ],
+  "key": {
+    "C": "academy:calc_chip",
+    "I": "academy:constraint_ingot",
+    "F": "academy:machine_frame",
+    "L": "academy:crystal_low",
+    "R": "academy:reso_crystal"
+  },
+  "result": {
+    "id": "academy:node_basic",
+    "count": 1
+  }
+}
