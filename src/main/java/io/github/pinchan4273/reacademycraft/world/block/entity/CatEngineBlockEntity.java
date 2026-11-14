@@ -14,7 +14,7 @@ import org.jetbrains.annotations.Nullable;
 
 /**
  * 原作TileCatEngine。原作は無限発電機と呼ぶ。TileGeneratorBaseとして2000 IFのバッファを持ち、毎tick min(空き, 500) IF（そのgetGeneration）
- * で満たし、1回の引き出しで最大200 IFの帯域を渡す。このtickに満たした量がthisTickGenで、絵を回す。
+ * で満たし、1回の引き出しで最大200 IFの帯域を渡す。このtickに満たした量がthisTickGenで、スプライトを回す。
  * 原作は右クリックで手動でnodeに繋ぎ、ここでも同じ。
  */
 public final class CatEngineBlockEntity extends BlockEntity {
@@ -24,7 +24,7 @@ public final class CatEngineBlockEntity extends BlockEntity {
     private boolean readOnly;
     private CompoundTag preserved = new CompoundTag();
     private LazyOptional<IEnergyStorage> energyCap = LazyOptional.of(this::storage);
-    /** 原作thisTickGen（IF）: このtickに満たした量。絵がこれで回るので、サーバーはTileGeneratorBaseと同じく20tickごとに送る。 */
+    /** 原作thisTickGen（IF）: このtickに満たした量。スプライトがこれで回るので、サーバーはTileGeneratorBaseと同じく20tickごとに送る。 */
     private double generationIf, sentIf = -1;
     private int syncTicker = SYNC_TICKS;
     private static final int SYNC_TICKS = 20;

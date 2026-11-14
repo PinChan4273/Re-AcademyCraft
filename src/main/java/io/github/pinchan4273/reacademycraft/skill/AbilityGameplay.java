@@ -20,7 +20,17 @@ public final class AbilityGameplay {
     private AbilityGameplay() {}
     @SubscribeEvent public static void tick(TickEvent.PlayerTickEvent event) {
         if (event.phase == TickEvent.Phase.START && event.player instanceof ServerPlayer player && player.isAlive())
-            player.getCapability(AbilityCapabilities.PLAYER_ABILITY).ifPresent(PlayerAbilityData::tick);
+            player.getCapability(AbilityCapabilities.PLAYER_ABILITY).ifPresent(data -> {
+                // 1.5.2: クリエイティブの未元物質人間は、形態の維持を払わない（技能の維持の免除と同じ）。
+                if (!data.isReadOnly()) {
+                    data.setFormExempt(player.getAbilities().instabuild);
+                    // 1.5.2: 能力の飛行で空中にいる間は、過負荷の回復が遅い。
+                    data.setAirborneFlight(!player.onGround() && (WhiteWingFlight.active(player) || StormWing.active(player) || JetEngine.holding(player)));
+                    // 1.5.2: 能力の飛行が動いている間は、形態の維持を払わない。
+                    data.setAbilityFlight(WhiteWingFlight.active(player) || StormWing.flying(player) || JetEngine.holding(player));
+                }
+                data.tick();
+            });
     }
     @SubscribeEvent public static void commands(RegisterCommandsEvent event) {
         // 素材のレシピ・発電機・因子の戦利品で、通常のサバイバルでの取得を支える。

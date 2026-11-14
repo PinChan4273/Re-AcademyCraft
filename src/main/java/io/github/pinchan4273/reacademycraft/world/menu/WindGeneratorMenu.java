@@ -20,7 +20,7 @@ import net.minecraft.world.item.ItemStack;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * 原作の土台・本体のスロットの役割を分け、明示的なサーバーの取引で扱う。
+ * 原作の土台・本体のスロットの役割を分け、明示的なサーバーのトランザクションで扱う。
  * 見えるスロットはスナップショット。バニラはクライアントでそれを予測してよいが、コールバックの失敗後にSlot.setでサーバーのcapabilityへ
  * 黙って書いてはならない。
  * TODO: 同じ所有権の保証を持つ、機械のスロットへのドラッグ配分を加える。

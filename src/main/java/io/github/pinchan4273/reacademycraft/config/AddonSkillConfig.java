@@ -10,11 +10,11 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraftforge.common.ForgeConfigSpec;
 
 /**
- * 外部の技能の設定（1.4.0のS4、司令室11の裁定D12）。名前空間ごとに別のファイル（インスタンスの{@code config/academy-addon-<名前空間>.toml}）で、
+ * 外部の技能の設定（1.4.0）。名前空間ごとに別のファイル（インスタンスの{@code config/academy-addon-<名前空間>.toml}）で、
  * 本体の設定ファイルには混ぜない。本体の設定と同じく、ワールドごとではなくインスタンスの設定（docs/CONFIG_SCOPE_AUDIT_JA.md）。
  * 項目は本体の技能と同じ（{@code skill.<技能>}の下に、有効・ダメージの倍率・CPと過負荷の消費の速さ・熟練度の伸び・ブロックの破壊）。
  * <p>
- * Forgeは登録の窓より前にmodの設定を読み終えるので、このファイルは登録簿の凍結の時に、ここで読む（無ければ既定の値で作る）。
+ * Forgeは登録の受付期間より前にmodの設定を読み終えるので、このファイルはレジストリの凍結の時に、ここで読む（無ければ既定の値で作る）。
  * Forgeの再読込の監視は付けないので、ファイルの変更はゲームの次の起動で効く。値の範囲を外れた値は、読むときに既定の値へ直して書き戻す。
  * アドオンを外した後も、ファイルはそのまま残る（読まれないだけ）。
  */
@@ -29,7 +29,7 @@ public final class AddonSkillConfig {
     /** その名前空間の設定ファイルの名前（インスタンスの{@code config}の中）。 */
     public static String fileName(String namespace) { return "academy-addon-" + namespace + ".toml"; }
 
-    /** 登録簿の外部の技能から設定を作り、本体のmodの設定として足す（凍結の時に1回）。 */
+    /** レジストリの外部の技能から設定を作り、本体のmodの設定として足す（凍結の時に1回）。 */
     public static synchronized void register(AbilityRegistry registry) {
         if (!SPECS.isEmpty()) return;
         var byNamespace = new LinkedHashMap<String, List<ResourceLocation>>();
@@ -72,8 +72,8 @@ public final class AddonSkillConfig {
     }
     /** 設定のある名前空間（登録の順）。 */
     public static synchronized List<String> namespaces() { return List.copyOf(SPECS.keySet()); }
-    /** その名前空間の設定の仕様（無ければnull。試験のため）。 */
+    /** その名前空間の設定の仕様（無ければnull。テストのため）。 */
     public static @Nullable ForgeConfigSpec spec(String namespace) { return SPECS.get(namespace); }
-    /** その名前空間の、読み込んだ設定ファイル（無ければnull。試験のため）。 */
+    /** その名前空間の、読み込んだ設定ファイル（無ければnull。テストのため）。 */
     public static @Nullable com.electronwill.nightconfig.core.file.CommentedFileConfig file(String namespace) { return FILES.get(namespace); }
 }

@@ -125,7 +125,7 @@ public final class MatterUnit extends Item {
         return raw > 0 ? raw + .5 : 0; // Forgeの明示的な射程0での無効化の取り決めを守る。
     }
     // Forgeのリスナーはプレイヤーを動かし、ディメンションや射程を変え、編集の権限を取り消せる。
-    // 取り消し可能・外部のコールバックの後には毎回、操作の文脈全体を検証し直す。
+    // 取り消し可能・外部のコールバックの後には毎回、操作のコンテキスト全体を検証し直す。
     private static boolean contextValid(ServerPlayer p, Level originalLevel, BlockHitResult hit, BlockPos destination, ItemStack stack) {
         return p.serverLevel() == originalLevel && itemReach(p) > 0
                 && p.getEyePosition().distanceToSqr(hit.getLocation()) <= itemReach(p) * itemReach(p)

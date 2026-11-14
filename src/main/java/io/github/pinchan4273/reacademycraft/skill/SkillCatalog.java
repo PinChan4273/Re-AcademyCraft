@@ -9,7 +9,7 @@ public final class SkillCatalog {
     /** カテゴリがnullなら原作の汎用コースで、1つのカテゴリに属さずすべてのカテゴリで提供される。 */
     public record Definition(ResourceLocation id, ResourceLocation category, int level, List<Requirement> prerequisites) {
         public Definition { prerequisites = List.copyOf(prerequisites); }
-        /** 名前の翻訳キー（1.4.0のS2から登録簿の表示の情報。本体の技能は1.3.0と同じ{@code academy.skill.<path>}）。 */
+        /** 名前の翻訳キー（1.4.0からレジストリの表示の情報。本体の技能は1.3.0と同じ{@code academy.skill.<path>}）。 */
         public String translation() { return io.github.pinchan4273.reacademycraft.ability.RegistryViews.skillNameKey(id); }
         /** 説明の翻訳キー（開発機の画面。本体の技能は1.3.0と同じ{@code academy.developer.desc.<path>}）。 */
         public String descriptionKey() { return io.github.pinchan4273.reacademycraft.ability.RegistryViews.skillDescriptionKey(id); }
@@ -22,16 +22,16 @@ public final class SkillCatalog {
             // v1.5.0: 未元物質のまだ実装していない技能は習得できない（DarkMatter.learnable。ほかの技能は常に通る）。
             return !data.isReadOnly() && io.github.pinchan4273.reacademycraft.config.AcademyConfig.skillEnabled(id) && DarkMatter.learnable(id) && offeredTo(data.getAbility()) && data.getLevel() >= level
                     && !data.hasLearned(id) && data.learnedSkills().size() < PlayerAbilityData.MAX_SKILLS
-                    // §16: 人体生成は天界発現の習得を要らない採用の木なので、受動技能の「同じレベルの技能」の条件を掛けない。
-                    // 白翼飛行も受動になったが、Lv1の最初の技能のまま習得できるよう同じ扱いにする（2026-11-03）。
+                    // 人体生成は天界発現の習得を要らない採用の木なので、パッシブ技能の「同じレベルの技能」の条件を掛けない。
+                    // 白翼飛行もパッシブになったが、Lv1の最初の技能のまま習得できるよう同じ扱いにする。
                     && (!passive() || DarkMatter.unconditionalPassive(id) || IMPLEMENTED.stream().anyMatch(s -> s.level() == level && data.hasLearned(s.id())))
                     && prerequisites.stream().allMatch(r -> data.hasLearned(r.skill()) && data.getProficiency(r.skill()) >= r.proficiency());
         }
     }
     /**
-     * 技能の一覧（1.4.0のS2から、登録簿{@link io.github.pinchan4273.reacademycraft.ability.AbilityRegistry}の読み取りの窓）。本体の41技能の並び・
+     * 技能の一覧（1.4.0から、レジストリ{@link io.github.pinchan4273.reacademycraft.ability.AbilityRegistry}の読み取りのビュー）。本体の41技能の並び・
      * レベル・前提・カテゴリは1.3.0のまま（{@code ability/BuiltinAbilities}、CatalogGoldenGameTestsが照らす）。外部のアドオンの技能は、
-     * 登録の窓で足された順に、本体の後ろに並ぶ。原作の各カテゴリ（Cat*.java）の登録の由来の説明は、移す前のこのクラス（03f1f238）にある。
+     * レジストラで足された順に、本体の後ろに並ぶ。
      */
     public static final List<Definition> IMPLEMENTED = io.github.pinchan4273.reacademycraft.ability.RegistryViews.list(
             io.github.pinchan4273.reacademycraft.ability.AbilityRegistry.INSTANCE::skills, SkillCatalog::definition);
@@ -42,7 +42,7 @@ public final class SkillCatalog {
                 skill.category() == null ? null : io.github.pinchan4273.reacademycraft.ability.RegistryViews.location(skill.category()),
                 skill.level(), prerequisites);
     }
-    /** 操作できる（受動でない）技能。{@link #IMPLEMENTED}と同じく読み取りの窓。 */
+    /** 操作できる（パッシブでない）技能。{@link #IMPLEMENTED}と同じくビュー。 */
     public static final List<Definition> CONTROLLABLE = io.github.pinchan4273.reacademycraft.ability.RegistryViews.list(
             () -> io.github.pinchan4273.reacademycraft.ability.AbilityRegistry.INSTANCE.skills().stream()
                     .filter(s -> s.kind() != io.github.pinchan4273.reacademycraft.api.ActivationKind.PASSIVE).toList(), SkillCatalog::definition);

@@ -23,8 +23,8 @@ import net.minecraftforge.fml.common.Mod;
 
 /**
  * 原作RailgunHandEffect（LambdaLib2のDummyRenderDataでプレイヤーに付けるもの）: arc_burstの40フレームを、
- * 各40msで、原作のRenderDummyと同じ位置に描く。術者自身の目から見ると、右手の小さな絵（目から右0.26、下0.15、
- * 前0.24、大きさ0.4）。それ以外から見ると、胸の前の2ブロックの絵（ViewOptimizeの三人称のずれと、原作の1.8上・1前）で、
+ * 各40msで、原作のRenderDummyと同じ位置に描く。術者自身の目から見ると、右手の小さなスプライト（目から右0.26、下0.15、
+ * 前0.24、大きさ0.4）。それ以外から見ると、胸の前の2ブロックのスプライト（ViewOptimizeの三人称のオフセットと、原作の1.8上・1前）で、
  * ピッチに合わせて傾ける。原作はこの傾きに見る人自身のピッチ（Minecraft.player）を使うので、見る人が術者のときだけ合う。
  * ここでは常に術者のピッチを使う。
  */
@@ -41,7 +41,7 @@ public final class ClientRailgunHand {
     private static long received, drawn;
     private ClientRailgunHand() { }
 
-    /** 外部の演出を足し、取り除くときに渡す印を返す（自然能力の数には入れない）。 */
+    /** 外部の演出を足し、取り除くときに渡すハンドルを返す（自然能力の数には入れない）。 */
     static Object startExternal(int player) {
         var burst = new Burst(player, Util.getMillis());
         BURSTS.add(burst);
@@ -49,7 +49,7 @@ public final class ClientRailgunHand {
     }
     /** その外部の演出が、まだ描く一覧にあるか。 */
     static boolean hasExternal(Object burst) { return BURSTS.stream().anyMatch(other -> other == burst); }
-    /** 外部の演出をすぐ取り除く。同じ値の自然能力の演出を消さないよう、印そのもので探す。 */
+    /** 外部の演出をすぐ取り除く。同じ値の自然能力の演出を消さないよう、ハンドルそのもので探す。 */
     static void endExternal(Object burst) { BURSTS.removeIf(other -> other == burst); }
     public static void receive(RailgunHandEffect effect) {
         received++;

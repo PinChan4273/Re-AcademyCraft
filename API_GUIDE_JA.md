@@ -21,7 +21,7 @@
 
 `ability` や `skill` など、上記以外のパッケージは内部実装です。予告なく変更される場合があるため、アドオンの連携には公開APIを使用してください。
 
-`AcademyApi.VERSION` は公開APIのバージョンを表し、1.4.1では `2` です（1.4.0では `1`）。通信プロトコルのバージョンとは別に管理します。演出APIの実行時の対応確認については「8. 演出API」を参照してください。
+`AcademyApi.VERSION` は公開APIのバージョンを表し、1.4.1では `2` です（1.4.0では `1`、1.5.2では `3`）。通信プロトコルのバージョンとは別に管理します。演出APIの実行時の対応確認については「8. 演出API」を参照してください。
 
 ### このガイドで使う用語
 
@@ -52,6 +52,8 @@ bus.addListener((RegisterAbilitiesEvent event) -> {
     event.behaviors("mymod").behavior(AbilityId.parse("mymod:pulse"), context -> { /* 効果 */ return ActivationOutcome.PERFORMED; });
 });
 ```
+
+1.5.2（公開APIバージョン3）からは、`CategoryDefinition` の5番目の値 `randomAcquire` に `true` を渡すと、その系統が、誘導因子なしの初回の取得と磁気コイルでの系統の変更のランダムの抽選の対象になります。上の4つの値の形では `false`（対象外）です。
 
 ### 登録時の制約
 
@@ -164,7 +166,7 @@ bus.addListener((RegisterAbilitiesEvent event) -> {
 
 `AcademySafety.skillOf(DamageSource)` は、Re:AcademyCraftの技能によるダメージであれば技能IDを返し、それ以外の場合は `null` を返します。`AcademySafety.isBeam(DamageSource)` は、本体の技能のうち、光線として扱う6技能（`railgun`、`meltdowner`、`ray_barrage`、`electron_bomb`、`scatter_bomb`、`electron_missile`）によるダメージであれば `true` を返します。
 
-1.5.1からは、`isBeam` は未元光線（`academy:dark_matter_ray`）によるダメージも光線として扱います。`skillOf` は、未元物質の技能（白翼刺突・未元光線・未元空気砲・甲虫・天界発現）によるダメージにも技能IDを返し、天界発現の領域の状態異常（燃焼・毒・衰弱）によるダメージでは `academy:heaven_manifest` を返します。公開APIのバージョン（`AcademyApi.VERSION`）は2のままです。
+1.5.1からは、`isBeam` は未元光線（`academy:dark_matter_ray`）によるダメージも光線として扱います。`skillOf` は、未元物質の技能（白翼刺突・未元光線・未元空気砲・甲虫・天界発現）によるダメージにも技能IDを返し、天界発現の領域の状態異常（燃焼・毒・衰弱）によるダメージでは `academy:heaven_manifest` を返します。1.5.1時点の公開APIは2、1.5.2では3です。
 
 いずれも状態を変更しない参照用メソッドです。サーバースレッド上で呼び出してください。`AcademyApi.VERSION` はコンパイル時に値が埋め込まれる定数のため、実行中のバージョンの判定には使用できません。古いバージョンにも対応する場合は、これらのメソッドの呼び出し時に発生する `LinkageError` を捕捉し、対応していない場合の処理を用意してください。
 
@@ -423,6 +425,9 @@ Minecraft・Forge本体、および原作の画像・音声・モデルは、SDK
 
 ## 10. 変更履歴
 
+- **1.5.2／公開APIバージョン3（実験的）**：`api.mc.AbilityStatus` を追加。`activationKind(ServerPlayer, AbilityId)` は、プレイヤーごとの今の発動方式を返します。本体の風の翼・ベクトル偏向・ベクトル反射・ジェット・エンジン・ライト・シールド・白翼自動防御・身体強化・エレクトロン・ミサイル・フラッシング・未元光線・天界発現は、熟練度100%で能力設定からパッシブ（能力使用モードの間、防御と切り替え型は自動で起動し、飛行は離陸の操作で起動）に切り替えられ、切り替えている間は `PASSIVE` を返します。それ以外は登録の既定の発動方式（`SkillDefinition` の `ActivationKind`）を返します。未登録の技能IDでは `null` を返します。このメソッドで技能の習得有無は判定できません。`ActivationKind` の値は既定の発動方式として変わりません。`analysis(ServerPlayer, DamageSource)` は、そのダメージに対するベクトル操作の解析度（0〜1）を返す読み取り専用の参照です（解析度を変えるAPIはありません）。どちらもサーバースレッドで呼び出してください。古いバージョンにも対応する場合は `LinkageError` を捕捉してください。
+- **1.5.2／ダメージの種類（公開APIバージョン3）**：本体の技能のダメージの種類を能力ごとに分けました。種類は `academy:<系統>` と `academy:<系統>_<当たり方>` （系統は `electromaster`・`meltdowner`・`teleporter`・`vecmanip`・`dark_matter`、当たり方は `contact`・`stab`・`pierce`・`ignore_armor`）で、どの種類にも能力のタグ `#academy:ability/<系統>` が、当たり方のある種類には `#academy:hit/<当たり方>` が付きます。Re:AcademyCraftの技能のダメージはすべて `#academy:skill_damage` に入ります。**本体の技能のダメージの種類のIDが変わりました**（1.5.1までの `academy:skill`・`skill_contact`・`skill_stab`・`skill_pierce`・`skill_ignore_armor` は登録したまま、アドオンの系統の技能などに使います）。種類のIDで判定していたアドオンやデータパックは、タグで判定してください。`AcademySafety.skillOf`・`isBeam` の答えは変わりません。`AcademySafety.attack` は技能の系統で種類を選びます（アドオンの系統は `academy:skill`）。
+- **1.5.2／能力系統のランダムの取得（公開APIバージョン3）**：`CategoryDefinition` に5番目の値 `randomAcquire`（boolean）を追加。`true` の系統は、プレイヤーが誘導因子を持たずに開発機で初回の取得をしたとき、または磁気コイルで系統を変更したとき（今の系統は除く）の、ランダムの抽選の対象になります。対象の系統はどれも同じ確率で選ばれ、抽選は開発の完了のときにサーバーで1回だけ行います。本体の5系統は対象です。因子のアイテム（`factorItem`）の有無とは別に指定でき、因子の無い系統も対象にできます。1.5.1までの4つの値のコンストラクタは残っており、`randomAcquire` は `false`（対象外）になるので、既存のアドオンの動作は変わりません。誘導因子は、メインハンド → オフハンド → 残りのホットバー → インベントリの順に探します。
 - **1.5.1／演出APIバージョン3（実験的）**：未元物質の演出 `DARK_WINGS`・`DARK_WING_STAB`・`DARK_FEATHER_BALL`・`DARK_HALO`・`DARK_AIR_CANNON`・`DARK_EMERGE_RING`・`HEAVEN_RING` と、光線 `DARK_MATTER_RAY` を追加。`EffectStyle.lasting()` を値の並び順に依存しない判定に変更。演出APIは通信を行いません。
 - **1.5.1／公開APIバージョン2のまま**：`AcademySafety.isBeam` が `academy:dark_matter_ray` を光線として扱い、`skillOf` が天界発現の領域の状態異常に `academy:heaven_manifest` を返すように変更。また、本体の技能 `academy:dark_matter_beetle`（未元物質・甲虫生成）の発動方式（`SkillDefinition` の `ActivationKind`）を、1.5.0の `INSTANT`（単発型）から `HELD`（押し続け型）に変更。発動方式で処理を分けるアドオンは確かめてください。
 - **1.4.1／公開APIバージョン2（実験的）**：`AcademySafety.reflection`・`skillOf`・`isBeam`、`ReflectionState`、`AcademySoundIds` を追加。

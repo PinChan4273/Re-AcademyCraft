@@ -4,7 +4,7 @@ import java.util.Locale;
 import javax.annotation.Nullable;
 
 /**
- * v1.5.0 §14: CP表示の形式、非使用時の大きさ、セーフティの明滅の計算。Minecraftのクライアントに依存しないので、GameTestのサーバーでも確かめられる
+ * v1.5.0: CP表示の形式、非使用時の大きさ、セーフティの明滅の計算。Minecraftのクライアントに依存しないので、GameTestのサーバーでも確かめられる
  * （{@link DebugConsoleLayout}と同じ）。値の保存は{@link ClientSettings}、描画は{@link CpBarHud}。
  */
 public final class CpHudStyle {
@@ -61,7 +61,7 @@ public final class CpHudStyle {
     public static final int SMALL_PERCENT = 70, CUSTOM_MIN = 50, CUSTOM_MAX = 150, CUSTOM_STEP = 10;
     /** 任意倍率の初めの値。「縮小」から切り替えたときに大きさが跳ねないよう、同じ70%にする。 */
     public static final int CUSTOM_DEFAULT = SMALL_PERCENT;
-    /** 明滅の周期（ミリ秒）と、いちばん暗いときの濃さ。完全に消さず、読める明るさを保つ（§14）。 */
+    /** 明滅の周期（ミリ秒）と、いちばん暗いときの濃さ。完全に消さず、読める明るさを保つ。 */
     public static final long BLINK_PERIOD = 1000;
     public static final float BLINK_MIN = .45f;
 

@@ -4,8 +4,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * TOGGLE-GUI-001: 能力のキー（技能の4つの枠、能力・プリセット・編集・端末のキー）の、Minecraftの型を使わない純粋な判断。
- * {@link AbilityControls}が使い、オフライン試験でも同じクラスを確かめる。
+ * 能力のキー（技能の4つの枠、能力・プリセット・編集・端末のキー）の、Minecraftの型を使わない純粋な判断。
+ * {@link AbilityControls}が使い、オフラインテストでも同じクラスを確かめる。
  *
  * <p>画面（インベントリ・ESC・コンテナ等）を閉じると、ゲームは物理的なキーの状態を読み直して押下にする
  * （{@code MouseHandler.grabMouse}→{@code KeyMapping.setAll}）。さらに、押したままのキーボードのキーにはOSのキーリピートが
@@ -25,7 +25,7 @@ public final class SkillKeyGate {
     /**
      * 1つのキーの「離されるまで数えない」状態。
      *
-     * <p>QA 3回目（TOGGLE-QA3-F01）: 古いキーが離されたtickには、離される前に届いたリピートのクリックが溜まっていることがある。
+     * <p>古いキーが離されたtickには、離される前に届いたリピートのクリックが溜まっていることがある。
      * tickの初めの状態（押下・クリックの有無）だけでは、「リピートの後に離した」のか「離してから押し直した」のか区別できない。
      * そのため、GLFWのイベント（{@link #event}）で、古くなった後に本当に離され（ウィンドウにフォーカスがある間の離し）、
      * その後に押された（リピートでない押下）ことを数える。離されたtickに溜まっていたクリックは捨て（{@link #usable()}がfalse）、
@@ -33,7 +33,7 @@ public final class SkillKeyGate {
      */
     public static final class Latch {
         private boolean stale, released, pressed, usable = true, newPress;
-        /** F03: フォーカスの喪失の印（{@link SteeringGate.FocusMark}）。印がある間は、離されて見えても古いまま。 */
+        /** フォーカスの喪失のマーカー（{@link SteeringGate.FocusMark}）。マーカーがある間は、離されて見えても古いまま。 */
         private final SteeringGate.FocusMark mark = new SteeringGate.FocusMark();
         /**
          * GLFWのイベントを、届いた順に知らせる。古くない間は何もしない。フォーカスが無い間に届く離しは、GLFWが
@@ -42,10 +42,10 @@ public final class SkillKeyGate {
          */
         public void event(int action, boolean windowActive) { event(action, windowActive, true); }
         /**
-         * QA 4回目（TOGGLE-QA4-F01-R1）: {@code operable}は、そのイベントが届いた時点で操作できたか（画面・ポーズ・フォーカス。
+         * {@code operable}は、そのイベントが届いた時点で操作できたか（画面・ポーズ・フォーカス。
          * 技能の枠はデータ端末も）。操作できない間の押下は、その後に画面・端末が閉じても新しい押下にしない（キーは押されたので、
          * それまでに見た離しも無効にする）。操作できない間の離しは、本当の離しとして数える。
-         * F03: 先に印へ知らせる。印が付いた（戻すクリック・合成の離し等）キーは、その時点から古い。印のある間の押下は新しい押下にしない。
+         * 先にマーカーへ知らせる。マーカーが付いた（戻すクリック・合成の離し等）キーは、その時点から古い。マーカーのある間の押下は新しい押下にしない。
          */
         public void event(int action, boolean windowActive, boolean operable) {
             mark.event(action, windowActive);
@@ -58,16 +58,16 @@ public final class SkillKeyGate {
             }
         }
         /**
-         * F03: 各tickに1回、そのtickのフォーカスで呼ぶ（{@link #update}の後）。キーボードのキーか（{@code keyboard}、マウスのボタンはfalse）で、
-         * 印の付け方が変わる（{@link SteeringGate.FocusMark}）。
+         * 各tickに1回、そのtickのフォーカスで呼ぶ（{@link #update}の後）。キーボードのキーか（{@code keyboard}、マウスのボタンはfalse）で、
+         * マーカーの付け方が変わる（{@link SteeringGate.FocusMark}）。
          */
         public void focusTick(boolean windowActive, boolean keyboard) { mark.tick(windowActive, keyboard); }
-        /** フォーカスの喪失の印があるか。 */
+        /** フォーカスの喪失のマーカーがあるか。 */
         public boolean focusMarked() { return mark.marked(); }
         /**
          * 各tickの初めに呼ぶ。物理的なキーが離されていれば古くない。操作できない間は、押していてもいなくても古い
          * （その間に押し始めたキーも、戻った後に離されるまで数えない）。戻ったtickに離されていれば、すぐ使える。
-         * F03: フォーカスの喪失の印がある間は、離されて見えても古いまま（本当の離しのイベントで印が解けるまで）。
+         * フォーカスの喪失のマーカーがある間は、離されて見えても古いまま（本当の離しのイベントでマーカーが解けるまで）。
          */
         public boolean update(boolean suspended, boolean physicalDown) {
             boolean wasStale = stale;
@@ -80,7 +80,7 @@ public final class SkillKeyGate {
             usable = !stale && (!wasStale || newPress);
             if (suspended) {
                 stale = true; usable = false; newPress = false; pressed = false;
-                // 操作できない間（印のあるキーを除く）に離されているキーは、戻った後の最初の押下を新しい押下とする。
+                // 操作できない間（マーカーのあるキーを除く）に離されているキーは、戻った後の最初の押下を新しい押下とする。
                 // 操作できない間の押し直し（データ端末の中等）は、戻った後へ持ち越さない。
                 released = !physicalDown && !mark.marked();
             } else if (!stale) { released = false; pressed = false; }
@@ -110,7 +110,7 @@ public final class SkillKeyGate {
      * @param active       能力がON（データが無ければfalse）
      * @param blocked      能力を使えない・クールダウン中・端末を開いている（原作shouldAbort）
      * @param player       プレイヤーがいる
-     * @param heartbeat    押し続けの心拍を送るtick
+     * @param heartbeat    押し続けのハートビートを送るtick
      * @param held         押し続けを送っている（前のtickまで）
      * @param aborted      中断されたキー（離されるまで何もしない、原作realState）
      */
@@ -122,9 +122,9 @@ public final class SkillKeyGate {
     public record Result(List<Send> sends, boolean held, boolean aborted) { }
 
     /**
-     * {@code AbilityControls}の枠ごとの処理（`39c06e21`と同じ順序と条件）に、古いキーの扱いだけを足したもの。
-     * `a5a5a298`で足した「送れない間は中断の印を立てる」は、この古いキーの扱いに置き換えた（あの印はHELDしか止めなかった）。
-     * 古いキーは、CASTも押し続けの開始も送らない。中断・離し・心拍は従来どおり。
+     * {@code AbilityControls}の枠ごとの処理（以前と同じ順序と条件）に、古いキーの扱いだけを足したもの。
+     * 以前に足した「送れない間は中断のフラグを立てる」は、この古いキーの扱いに置き換えた（あのフラグはHELDしか止めなかった）。
+     * 古いキーは、CASTも押し続けの開始も送らない。中断・離し・ハートビートは従来どおり。
      */
     public static Result slot(Input in) {
         var sends = new ArrayList<Send>(2);

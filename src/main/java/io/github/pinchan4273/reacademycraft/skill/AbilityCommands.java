@@ -25,7 +25,7 @@ import net.minecraftforge.fml.common.Mod;
  * 下げていない。ここではそれを/giveや/gamemodeと同じゲームのレベル2とする（違いが出るのはレベル2・3のオペレーターだけ）。
  *
  * 原作は引数の文字列を自分で解析する。ここではゲーム自身のコマンドツリーを使うので、サブコマンドは同じ語で同じことをし、
- * 引数の確認と補完はゲームが行う。これが原作独自の"help"、"?"、"catlist"、「番号による技能指定」を置き換える。
+ * 引数の確認と補完はゲームが行う。これが原作独自の"help"、"?"、"catlist"、「インデックスによる技能指定」を置き換える。
  */
 @Mod.EventBusSubscriber(modid = "academy")
 public final class AbilityCommands {
@@ -209,7 +209,7 @@ public final class AbilityCommands {
                 });
     }
 
-    /** 原作は技能をカテゴリ内の名前か番号で受け取る。ここではidで受け取り、それはカテゴリが提供する技能でなければならない。 */
+    /** 原作は技能をカテゴリ内の名前かインデックスで受け取る。ここではidで受け取り、それはカテゴリが提供する技能でなければならない。 */
     private static ResourceLocation skill(CommandContext<CommandSourceStack> context, PlayerAbilityData data) {
         var found = SkillCatalog.find(ResourceLocationArgument.getId(context, "skill"));
         return found != null && found.offeredTo(data.getAbility()) ? found.id() : null;

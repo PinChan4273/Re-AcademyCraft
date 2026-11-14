@@ -14,7 +14,7 @@ public final class SkillSessions {
      * __onCategoryChangeと同じく、オーバーロードや新しいカテゴリもこれを行う。
      */
     public static void stopAll(ServerPlayer player) {
-        // 1.4.0のS3から、振り分けの表の停止の順（1.3.0のこの一覧と同じ順。SkillDispatchGameTests）。
+        // 1.4.0から、ディスパッチテーブルの停止の順（1.3.0のこの一覧と同じ順。SkillDispatchGameTests）。
         io.github.pinchan4273.reacademycraft.ability.SkillDispatch.stopAll(player);
     }
     @SubscribeEvent public static void skillSessionsOnOverload(io.github.pinchan4273.reacademycraft.event.AbilityEvent.Overload event) {

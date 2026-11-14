@@ -31,7 +31,7 @@ import net.minecraftforge.event.level.BlockEvent;
  */
 public final class RailgunTerrain {
     private static final Set<UUID> ACTIVE = new HashSet<>();
-    /** 1回の射撃が出す破壊音の数。どれだけ壊しても変わらない（原作ではなく、試遊での判断）。 */
+    /** 1回の射撃が出す破壊音の数。どれだけ壊しても変わらない（原作の値ではない）。 */
     public static final int SOUNDS_PER_SHOT = 4;
     /** 壊したブロックごとに送る破壊の粒子。 */
     static final int PARTICLES_PER_BLOCK = 6;

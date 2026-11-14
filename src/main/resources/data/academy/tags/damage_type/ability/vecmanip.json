@@ -1,0 +1,10 @@
+{
+  "replace": false,
+  "values": [
+    "academy:vecmanip",
+    "academy:vecmanip_contact",
+    "academy:vecmanip_stab",
+    "academy:vecmanip_pierce",
+    "academy:vecmanip_ignore_armor"
+  ]
+}

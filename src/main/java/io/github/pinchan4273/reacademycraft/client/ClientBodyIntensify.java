@@ -21,7 +21,7 @@ public final class ClientBodyIntensify {
     private static void current() { if (Minecraft.getInstance().level != world) reset(); }
     public static boolean warmingUp() { current(); return phase == BodyIntensifyState.WARMUP; }
     public static boolean running() { current(); return phase == BodyIntensifyState.ACTIVE; }
-    /** キーでONにした枠。OFFのときは-1。 */
+    /** キーでONにした枠。OFFのときは-1。1.5.2: パッシブの自動の起動もPassiveSkills.SLOT（-1）なので、段階（{@link #warmingUp}・{@link #running}）と一緒に見る。 */
     public static int slot() { current(); return slot; }
     public static void reset() { phase = BodyIntensifyState.OFF; slot = -1; world = null; }
     @SubscribeEvent public static void loggedOut(ClientPlayerNetworkEvent.LoggingOut event) { reset(); }

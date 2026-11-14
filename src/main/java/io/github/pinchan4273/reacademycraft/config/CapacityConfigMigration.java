@@ -15,7 +15,7 @@ import net.minecraftforge.fml.common.Mod;
 import org.slf4j.Logger;
 
 /**
- * 1.0.0の後に承認したCPの容量・回復（docs/CP_RECOVERY_TOGGLE_SPEC_JA.md）の設定の移し方。
+ * 1.0.0の後のCPの容量・回復の設定の移し方。
  *
  * <p>Forgeは、ファイルに無い新しい項目を既定値で足してファイルを書き直すが、そのときバックアップは取らない（ForgeConfigSpec.setConfigは
  * "Correcting"のログを出して保存するだけ）。そこで新しい項目（[ability.capacity]）がまだ無いファイルを、Forgeが読む前に一度だけ

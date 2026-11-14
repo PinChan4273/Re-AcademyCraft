@@ -10,7 +10,7 @@ import net.minecraft.world.level.Level;
 import net.minecraftforge.network.PacketDistributor;
 
 /**
- * 天界発現の演出の通知（§12）。効果と費用はここに依存しない。怪現象の演出は、使用者・対象本人・周囲で対象が見えているプレイヤーへだけ送り（遮られた人には送らない）、
+ * 天界発現の演出の通知。効果と費用はここに依存しない。怪現象の演出は、使用者・対象本人・周囲で対象が見えているプレイヤーへだけ送り（遮られた人には送らない）、
  * 描画も深度の判定があるので壁越しには見えない。
  */
 final class HeavenVisuals {
@@ -24,19 +24,27 @@ final class HeavenVisuals {
     private static void send(ServerPlayer player, Object message) {
         if (player.connection != null) AcademyNetwork.CHANNEL.send(PacketDistributor.PLAYER.with(() -> player), message);
     }
-    /** 領域の状態を周囲へ送る。forceでなければ1秒ごとか範囲が変わった時だけ。 */
+    /**
+     * 中心がこれだけ動いたら、1秒を待たずに送り直す（ブロック）。1.5.2 から範囲は使用者の位置について連続に動くが、使用者のエンティティが見えている
+     * クライアントはエンティティの位置から描くので、少し動くたびには送らない（以前のチャンクの境目と同じ 16 ブロック）。
+     */
+    private static final double RESEND_DISTANCE = 16;
+    /** 領域の状態を周囲へ送る。forceでなければ1秒ごとか、広さが変わった・中心が {@link #RESEND_DISTANCE} 以上動いた時だけ。 */
     static void region(HeavenManifest.Session session, boolean force) {
         var area = session.area();
         var sent = session.sentArea;
-        boolean changed = sent == null || sent.chunkX() != area.chunkX() || sent.chunkZ() != area.chunkZ() || sent.shape() != area.shape();
+        boolean changed = sent == null || sent.shape() != area.shape()
+                || Math.abs(sent.centerX() - area.centerX()) >= RESEND_DISTANCE || Math.abs(sent.centerZ() - area.centerZ()) >= RESEND_DISTANCE;
         if (!force && !changed && session.age % 20 != 0) return;
         session.sentArea = area;
-        broadcast(session.level, session.player(), new HeavenRegionState(session.player().getId(), area.chunkX(), area.chunkZ(), area.shape(), (float) area.centerY(), true));
+        broadcast(session.level, session.player(), state(session, area, true));
     }
     /** 領域の解除を周囲へ送る（描画は薄れて消える）。 */
     static void regionOff(HeavenManifest.Session session) {
-        var area = session.area();
-        broadcast(session.level, session.player(), new HeavenRegionState(session.player().getId(), area.chunkX(), area.chunkZ(), area.shape(), (float) area.centerY(), false));
+        broadcast(session.level, session.player(), state(session, session.area(), false));
+    }
+    private static HeavenRegionState state(HeavenManifest.Session session, HeavenManifest.Area area, boolean on) {
+        return new HeavenRegionState(session.player().getId(), (float) area.centerX(), (float) area.centerZ(), area.shape(), (float) area.centerY(), on);
     }
     private static void broadcast(Level level, ServerPlayer owner, HeavenRegionState state) {
         if (!(level instanceof ServerLevel server)) return;
@@ -55,7 +63,7 @@ final class HeavenVisuals {
     static void telegraph(HeavenManifest.Session session, LivingEntity target) {
         mark(session.player(), target, new HeavenMark(target.getId(), HeavenMark.TELEGRAPH, HeavenPhenomena.TELEGRAPH));
     }
-    /** 現象の発生の瞬間。変異は{@link #mutated}が新しい実体で送る。 */
+    /** 現象の発生の瞬間。変異は{@link #mutated}が新しいエンティティで送る。 */
     static void occurred(HeavenManifest.Session session, LivingEntity target, HeavenSettings.Phenomenon phenomenon) {
         if (phenomenon == HeavenSettings.Phenomenon.MUTATION) return;
         if (phenomenon == HeavenSettings.Phenomenon.GLOW) { mark(session.player(), target, new HeavenMark(target.getId(), HeavenMark.GLOW, GLOW_TICKS)); return; }

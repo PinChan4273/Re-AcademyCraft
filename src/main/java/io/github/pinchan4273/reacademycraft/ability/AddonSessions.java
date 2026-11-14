@@ -30,23 +30,23 @@ import net.minecraftforge.fml.common.Mod;
 import org.slf4j.Logger;
 
 /**
- * 外部の技能の自然能力者による発動とセッション（1.4.0のS4、内部の実装）。振り分けの表から呼ばれ、資格を判定してから振る舞い
+ * 外部の技能の自然能力者による発動とセッション（1.4.0、内部の実装）。ディスパッチテーブルから呼ばれ、資格を判定してから振る舞い
  * （{@link SkillBehavior}）を呼ぶ。セッションはプレイヤーと技能ごとに1つで、サーバーのスレッドでだけ扱う。
  * <p>
  * 資格（発動の前、この順）: 生きていて観戦者でない → 能力があり、データが書き込めて、習得していて、カテゴリが提供する → 設定で有効 →
- * 能力がオン → 過負荷の錠が無い → 妨害の外 → クールダウンが無い → インベントリ以外の画面を開いていない → 同じ技能が動作中でない。
- * 新しい公開APIなので、妨害は、始めた後のセッションも止める（司令室11の裁定D4。本体の技能の今の挙動とは別）。
+ * 能力がオン → 過負荷のロックが無い → 妨害の外 → クールダウンが無い → インベントリ以外の画面を開いていない → 同じ技能が動作中でない。
+ * 新しい公開APIなので、妨害は、始めた後のセッションも止める（本体の技能の今の挙動とは別）。
  */
 @Mod.EventBusSubscriber(modid = "academy")
 public final class AddonSessions {
     private AddonSessions() { }
 
     private static final Logger LOGGER = LogUtils.getLogger();
-    /** 押し続け型の心拍が、これより長く途切れたら止める（tick。本体の押し続け型の多くと同じ）。 */
+    /** 押し続け型のハートビートが、これより長く途切れたら止める（tick。本体の押し続け型の多くと同じ）。 */
     public static final int HEARTBEAT_TIMEOUT = 10;
     private static final Map<UUID, Map<ResourceLocation, Session>> SESSIONS = new HashMap<>();
 
-    /** 振り分けの表へ、その技能を足す（振る舞いの登録簿の凍結の時）。 */
+    /** ディスパッチテーブルへ、その技能を足す（振る舞いのレジストリの凍結の時）。 */
     static void addToDispatch(ResourceLocation skill, ActivationKind kind) {
         String name = skill.toString();
         Owner owner = null, toggleOwner = null;
@@ -56,7 +56,7 @@ public final class AddonSessions {
             Named<SkillDispatch.SlotAction> renew = kind == ActivationKind.HELD ? new Named<>(name + ".renew", (p, s) -> renew(p, s, skill)) : null;
             Named<SkillDispatch.Age> age = kind == ActivationKind.TOGGLE ? new Named<>(name + ".ageOn", (p, s) -> ageOn(p, s, skill)) : null;
             owner = new Owner(name, release, cancel, renew, new Named<>(name + ".stop", p -> stop(p, skill, StopReason.ALL_STOPPED)), age);
-            // 切り替え型の2回目の押下の停止は、理由だけが違う（振り分けの表は、発動の持ち主のstopを呼ぶ）。
+            // 切り替え型の2回目の押下の停止は、理由だけが違う（ディスパッチテーブルは、発動の持ち主のstopを呼ぶ）。
             toggleOwner = new Owner(name, release, cancel, renew, new Named<>(name + ".stop", p -> stop(p, skill, StopReason.SWITCHED_OFF)), age);
         }
         SkillDispatch.addAddon(skill, owner, new Cast(new Named<>(name + ".start", (p, d, s) -> {
@@ -104,7 +104,7 @@ public final class AddonSessions {
         var sessions = SESSIONS.get(player.getUUID());
         return sessions == null ? null : sessions.get(skill);
     }
-    /** 動作中のセッションの数（試験と診断のため）。 */
+    /** 動作中のセッションの数（テストと診断のため）。 */
     public static int count(ServerPlayer player) {
         var sessions = SESSIONS.get(player.getUUID());
         return sessions == null ? 0 : sessions.size();
@@ -168,7 +168,7 @@ public final class AddonSessions {
     @SubscribeEvent public static void addonSessionsOnPlayerTick(TickEvent.PlayerTickEvent event) {
         if (event.phase == TickEvent.Phase.END && event.player instanceof ServerPlayer player) tick(player);
     }
-    /** 試験の治具のプレイヤー（サーバーがtickしない）のため、プレイヤーのtickの終わりと同じ処理を呼ぶ。 */
+    /** テスト用のFakePlayer（サーバーがtickしない）のため、プレイヤーのtickの終わりと同じ処理を呼ぶ。 */
     public static void tickForTest(ServerPlayer player) { tick(player); }
     private static void tick(ServerPlayer player) {
         var sessions = SESSIONS.get(player.getUUID());
@@ -192,15 +192,25 @@ public final class AddonSessions {
     @SubscribeEvent public static void addonSessionsOnLogout(PlayerEvent.PlayerLoggedOutEvent event) {
         if (event.getEntity() instanceof ServerPlayer player) stopAll(player, StopReason.LOGGED_OUT);
     }
-    /** 真の死亡で止める。取り消された死亡（§15の人体生成・他MODの救済）では止めないよう、{@link io.github.pinchan4273.reacademycraft.skill.DeathOrder}が最後に呼ぶ。 */
+    /** 真の死亡で止める。取り消された死亡（人体生成・他MODの救済）では止めないよう、{@link io.github.pinchan4273.reacademycraft.skill.DeathOrder}が最後に呼ぶ。 */
     public static void addonSessionsOnDeath(LivingDeathEvent event) {
         if (event.getEntity() instanceof ServerPlayer player) stopAll(player, StopReason.INELIGIBLE);
     }
     @SubscribeEvent public static void addonSessionsOnDimensionChange(PlayerEvent.PlayerChangedDimensionEvent event) {
         if (event.getEntity() instanceof ServerPlayer player) stopAll(player, StopReason.INELIGIBLE);
     }
+    /**
+     * プレイヤーの作り直し（死亡・エンドからの帰還）: 古いプレイヤーのセッションを、作り直しの時点で終える（1.5.2）。すぐの作り直しでは
+     * 死亡の後の処理が動かず、次のtickに新しいプレイヤーの側で後片付けしていた。理由は公開APIの互換を保つため、既存の{@link StopReason#INELIGIBLE}を使う。
+     */
+    @SubscribeEvent public static void addonSessionsOnClone(PlayerEvent.Clone event) {
+        if (!(event.getOriginal() instanceof ServerPlayer old)) return;
+        var sessions = SESSIONS.get(old.getUUID());
+        if (sessions == null) return;
+        for (var session : List.copyOf(sessions.values())) if (session.player == old) end(session, StopReason.INELIGIBLE);
+    }
 
-    /** 1回の発動とそのセッションの文脈。 */
+    /** 1回の発動とそのセッションのコンテキスト。 */
     private static final class Session implements ActivationContext {
         final ServerPlayer player;
         final AbilityId id;

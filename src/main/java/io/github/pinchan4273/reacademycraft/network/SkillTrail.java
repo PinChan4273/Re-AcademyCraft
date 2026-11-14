@@ -41,7 +41,7 @@ public record SkillTrail(ResourceLocation dimension, Vec3 from, Vec3 to, Resourc
                 new Vec3(b.readDouble(), b.readDouble(), b.readDouble()), b.readResourceLocation());
     }
 
-    /** 術者と範囲内の全員へ伝える。テストの治具プレイヤーにも伝わるよう、術者には明示的に送る。 */
+    /** 術者と範囲内の全員へ伝える。テストのFakePlayerにも伝わるよう、術者には明示的に送る。 */
     public static void show(ServerPlayer caster, Vec3 from, Vec3 to, ResourceLocation kind) {
         if (from.distanceToSqr(to) > 64 * 64) return;
         var trail = new SkillTrail(caster.level().dimension().location(), from, to, kind);

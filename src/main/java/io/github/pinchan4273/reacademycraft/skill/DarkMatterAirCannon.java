@@ -23,9 +23,10 @@ import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 
 /**
- * v1.5.0 未元物質Lv3 未元空気砲（§7）。単発。発動で費用を払い（空振りでも）、予備動作4tickの終わりに起点と照準軸を固定し、放出から連続4tickで判定する。
+ * v1.5.0 未元物質Lv3 未元空気砲。単発。発動で費用を払い（空振りでも）、予備動作4tickの終わりに起点と照準軸を固定し、放出から連続4tickで判定する。
  * 照準軸との角度が0〜15度で4段/tick、30度まで3段、45度まで2段（1対象あたり最大16段）。1段は全段命中の合計の1/16。距離減衰なし。壁は越えない。
- * ベクトルの防御幕は実際に受け止めた段ごとに、防御側の熟練度で16→12CPを払わせ、払えない段から残りの段は幕を通る（§7）。
+ * 1.5.1までのベクトルの防御幕の段ごとの精算（受け止めた段ごとに16→12CP）は、1.5.2で無くした: 未元空気砲は未元物質で変化した物の
+ * 攻撃なので、最後の1回の損傷を、ほかの攻撃と同じくベクトル偏向・反射が解析度に応じて軽減する（解析度100%なら反射で無効）。
  * 損傷は段の端数を保持して最後に1回だけ反映し、吹き飛ばしもその時に1回だけ。熟練度は有効に命中した対象ごとに＋0.2%、1発で最大＋0.6%。
  */
 @Mod.EventBusSubscriber(modid = "academy")
@@ -35,10 +36,10 @@ public final class DarkMatterAirCannon {
     public static final float GAIN_PER_TARGET = .002f, GAIN_MAX = .006f;
     private static final Map<UUID, Session> ACTIVE = new HashMap<>();
 
-    private static final class Tally { float damage; boolean membraneBroken; int hits; }
+    private static final class Tally { float damage; int hits; }
     private static final class Session {
         final Level level; final float p; int age; Vec3 origin, axis; final Map<LivingEntity, Tally> tallies = new LinkedHashMap<>();
-        /** §13: 放出の完了の後に移る攻撃と、そのキーのスロット。無ければnull。 */
+        /** 放出の完了の後に移る攻撃と、そのキーのスロット。無ければnull。 */
         ResourceLocation next; int nextSlot;
         Session(ServerPlayer player, float p) { level = player.level(); this.p = p; }
     }
@@ -51,8 +52,6 @@ public final class DarkMatterAirCannon {
     public static float overload(float p) { return ArcGen.lerp(24, 12, p); }
     public static int cooldown(float p) { return Math.round(ArcGen.lerp(80, 40, p)); }
     public static double knockback(float p) { return ArcGen.lerp(12, 24, p); }
-    /** 防御幕が1段を受け止める費用（防御側の熟練度）。 */
-    public static float membraneCost(float defenderProficiency) { return ArcGen.lerp(16, 12, defenderProficiency); }
     /** 照準軸からの角度（度）での、1tickの段数。 */
     public static int hitsPerTick(double degrees) { return degrees <= 15 ? 4 : degrees <= 30 ? 3 : degrees <= 45 ? 2 : 0; }
     public static boolean active(ServerPlayer player) { return ACTIVE.containsKey(player.getUUID()); }
@@ -66,7 +65,7 @@ public final class DarkMatterAirCannon {
         if (data.getCooldown(ID) > 0 || ACTIVE.containsKey(player.getUUID())) return "academy.cast.cooldown";
         float p = data.getProficiency(ID);
         if (!data.consume(ID, cp(p), overload(p), player.getAbilities().instabuild)) return "academy.cast.cp";
-        // §13: 光線は止め、刺突は新しい打撃を止める。
+        // 光線は止め、刺突は新しい打撃を止める。
         DarkMatterRay.stop(player);
         WhiteWingStab.stop(player);
         data.setCooldown(ID, cooldown(p));
@@ -76,7 +75,7 @@ public final class DarkMatterAirCannon {
         return "";
     }
     /**
-     * §13: 放出の途中で押された次の攻撃（光線か刺突）を受け付ける。費用・クールダウン・セーフティを今確かめ、使えなければ理由を返して空気砲だけを続ける。
+     * 放出の途中で押された次の攻撃（光線か刺突）を受け付ける。費用・クールダウン・セーフティを今確かめ、使えなければ理由を返して空気砲だけを続ける。
      * 使えるなら完了の後に1回だけ移す（完了の時点でもう一度その技能自身が確かめる）。光線の再入力は待ちを取り消す。中断（翼防御など）では移らない。
      */
     public static String queueNext(ServerPlayer player, PlayerAbilityData data, ResourceLocation skill, int slot, float cost) {
@@ -93,7 +92,7 @@ public final class DarkMatterAirCannon {
         session.next = skill; session.nextSlot = slot;
         return "";
     }
-    /** 待っている次の攻撃（試験用）。無ければnull。 */
+    /** 待っている次の攻撃（テスト用）。無ければnull。 */
     public static ResourceLocation queued(ServerPlayer player) { var session = ACTIVE.get(player.getUUID()); return session == null ? null : session.next; }
     /** そのスロットのキーが離されたら、待ちを取り消す（押し続けの刺突）。 */
     public static void dropQueued(ServerPlayer player, ResourceLocation skill, int slot) {
@@ -136,23 +135,9 @@ public final class DarkMatterAirCannon {
             var tally = session.tallies.computeIfAbsent(target, t -> new Tally());
             for (int i = 0; i < hits; i++) {
                 tally.hits++;
-                if (membraneBlocks(target, tally)) continue;
                 tally.damage += each;
             }
         }
-    }
-    /** ベクトルの防御幕がこの段を受け止めるか。受け止めるなら防御側が払う。実CPで判定し、将来の回復を先取りしない。 */
-    private static boolean membraneBlocks(LivingEntity target, Tally tally) {
-        if (tally.membraneBroken || !(target instanceof ServerPlayer defender)) return false;
-        ResourceLocation skill = VecDeviation.active(defender) ? VecDeviation.ID : VecReflection.active(defender) ? VecReflection.ID : null;
-        if (skill == null) return false;
-        var data = data(defender);
-        if (data == null) return false;
-        boolean creative = defender.getAbilities().instabuild;
-        float cost = membraneCost(data.getProficiency(skill));
-        if (!creative && (data.getCp() < cost || !data.safetyPermits(skill, cost, false))) { tally.membraneBroken = true; return false; }
-        data.payWithoutWait(creative ? 0 : cost);
-        return true;
     }
     private static void settle(ServerPlayer player, Session session) {
         var data = data(player);

@@ -1,4 +1,4 @@
-// Re:AcademyCraftの公開API（実験的）だけを使う、小さなサンプルのアドオン（1.4.0のS6）。本体とは別のビルドで、本体の
+// Re:AcademyCraftの公開API（実験的）だけを使う、小さなサンプルのアドオン（1.4.0）。本体とは別のビルドで、本体の
 // リポジトリの直下から次のように作る（先に本体のJARを作っておく）:
 //   bash gradlew jar
 //   bash gradlew -p samples/academy-api-example build

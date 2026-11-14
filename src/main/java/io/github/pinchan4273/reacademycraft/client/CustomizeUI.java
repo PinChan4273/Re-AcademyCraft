@@ -11,7 +11,7 @@ import org.lwjgl.glfw.GLFW;
 
 /**
  * 原作CustomizeUI（guis/ui_edit.xml）。設定アプリの"Customize UI"から開く: 原作ACHudのすべてのHUDを、それぞれの位置に
- * プレビューとして表示し、その上の窓に一覧を出す。1つをクリックすると、そのプレビューを枠で囲み、横にXとYの入力欄を開く。
+ * プレビューとして表示し、その上のウィンドウに一覧を出す。1つをクリックすると、そのプレビューを枠で囲み、横にXとYの入力欄を開く。
  * 値はEnterで確定し、欄が灰色に戻る。-512〜512の数でなければ受け付けず、欄が赤になる。
  * 位置はHudLayoutのもので、各HUDがそれを読む。原作の設定と同じく、すぐに保存する。
  */
@@ -39,7 +39,7 @@ public final class CustomizeUI extends Screen {
     private static boolean in(double x, double y, float bx, float by, float bw, float bh) { return x >= bx && x < bx + bw && y >= by && y < by + bh; }
 
     @Override public void render(GuiGraphics g, int mx, int my, float partial) {
-        // 原作のプレビューは窓より先にguiへ加えるので、窓の下になる。
+        // 原作のプレビューはウィンドウより先にguiへ加えるので、ウィンドウの下になる。
         for (var node : nodes) preview(g, node);
         var pose = g.pose();
         pose.pushPose();

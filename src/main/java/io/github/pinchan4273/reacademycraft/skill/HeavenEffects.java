@@ -35,15 +35,15 @@ import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.util.ObfuscationReflectionHelper;
 
 /**
- * 天界発現の常時効果の解決と反映（§10、R07）。走査のたびに全領域から「対象ごと・効果ごとの最強の値と、その発生元」を作り直すので、強い領域が外れれば残りの最強へ自動で切り替わり、
- * 解除では外れた領域の分だけが消える。補正はすべて保存されない一時的なものなので、ログアウトや再起動の後に残らない。ポーションとは別の補正なので両方が効く（R03）。
+ * 天界発現の常時効果の解決と反映。走査のたびに全領域から「対象ごと・効果ごとの最強の値と、その発生元」を作り直すので、強い領域が外れれば残りの最強へ自動で切り替わり、
+ * 解除では外れた領域の分だけが消える。補正はすべて保存されない一時的なものなので、ログアウトや再起動の後に残らない。ポーションとは別の補正なので両方が効く。
  * <ul>
  * <li>移動: 移動速度と飛行速度の属性の乗算の補正（強化と阻害は別の補正）。</li>
- * <li>攻撃間隔: プレイヤーと属性を持つ実体は攻撃速度の属性（間隔×(1∓率)の逆数）。一般のモブは走っている{@link MeleeAttackGoal}・{@link RangedAttackGoal}・
- * {@link RangedBowAttackGoal}の待ちを進める・戻す（R07の「安全に識別できる通常攻撃」。脳で動くモブと他MODの独自の攻撃は対象外）。甲虫は{@link #scaledInterval}。</li>
- * <li>与ダメージ: 通常攻撃（飛び道具を含む、棘の反撃を除く）と甲虫の3攻撃。能力の攻撃には掛けない（D03）。{@link LivingHurtEvent}で防具の前に掛ける。</li>
- * <li>被ダメージ: {@link LivingDamageEvent}の高い優先度（防具・耐性の後で、未元装甲・白翼自動防御より前。§14の共通の順）。防御無視の刺突には軽減を掛けない。</li>
- * <li>再生・継続損傷: 1秒ごと。再生は実回復1HPにつき2CPを回復させた領域の使用者だけが払い、払えない領域は飛ばす（§14の修復の停止）。継続損傷は防御無視なし。</li>
+ * <li>攻撃間隔: プレイヤーと属性を持つエンティティは攻撃速度の属性（間隔×(1∓率)の逆数）。一般のモブは走っている{@link MeleeAttackGoal}・{@link RangedAttackGoal}・
+ * {@link RangedBowAttackGoal}の待ちを進める・戻す（「安全に識別できる通常攻撃」。脳で動くモブと他MODの独自の攻撃は対象外）。甲虫は{@link #scaledInterval}。</li>
+ * <li>与ダメージ: 通常攻撃（飛び道具を含む、棘の反撃を除く）と甲虫の3攻撃。能力の攻撃には掛けない。{@link LivingHurtEvent}で防具の前に掛ける。</li>
+ * <li>被ダメージ: {@link LivingDamageEvent}の高い優先度（防具・耐性の後で、白翼自動防御より前。共通の順。1.5.2 で未元装甲は廃止）。防御無視の刺突には軽減を掛けない。</li>
+ * <li>再生・継続損傷: 1秒ごと。再生は実回復1HPにつき2CPを回復させた領域の使用者だけが払い、払えない領域は飛ばす（修復の停止）。継続損傷は防御無視なし。</li>
  * </ul>
  */
 @Mod.EventBusSubscriber(modid = "academy")
@@ -76,6 +76,28 @@ public final class HeavenEffects {
 
     // ---- 解決 ----
 
+    /**
+     * 1.5.2: この領域が今、効果をかけているマス（対象の区分 × 組）の数。最後の走査の結果で数え、
+     * 相手の人数は数えない（同じマスに何体いても1）。{@link #resolve}がその相手へ効果を出す条件と同じ条件で数える。
+     */
+    public static int cells(HeavenManifest.Session session) {
+        var settings = session.settings();
+        var cells = new HashSet<Integer>();
+        for (var entity : session.inside) {
+            if (!entity.isAlive() || !session.area().contains(entity)) continue;
+            var target = HeavenManifest.classify(session.player(), settings, entity);
+            if (target == null) continue;
+            for (var pair : Pair.values()) {
+                var choice = settings.choice(target, pair);
+                if (choice == Choice.OFF) continue;
+                var effect = Effect.of(pair, choice);
+                if (effect.harmful() ? !HeavenManifest.mayHarm(session, entity) : effect == Effect.REGEN && regenRefused(entity)) continue;
+                cells.add(target.ordinal() * Pair.values().length + pair.ordinal());
+            }
+        }
+        return cells.size();
+    }
+
     /** 全領域から作り直し、補正を今の値へ合わせる。 */
     static void resolve() {
         var previous = applied;
@@ -90,7 +112,7 @@ public final class HeavenEffects {
                     var choice = settings.choice(target, pair);
                     if (choice == Choice.OFF) continue;
                     var effect = Effect.of(pair, choice);
-                    if (effect.harmful() ? !HeavenManifest.mayHarm(session, entity) : effect == Effect.REGEN && HeavenManifest.harmImmune.test(entity)) continue;
+                    if (effect.harmful() ? !HeavenManifest.mayHarm(session, entity) : effect == Effect.REGEN && regenRefused(entity)) continue;
                     next.computeIfAbsent(entity, e -> new Applied()).offer(effect, effect.value(p), session);
                 }
             }
@@ -106,7 +128,7 @@ public final class HeavenEffects {
         touched.addAll(next.keySet());
         for (var entity : touched) refresh(entity);
     }
-    /** 走査で分かる「役立った」: 他者への弱体化と損傷が届いていること、味方が移動の強化で実際に動いたこと（§2。放置のONは数えない）。 */
+    /** 走査で分かる「役立った」: 他者への弱体化と損傷が届いていること、味方が移動の強化で実際に動いたこと（放置のONは数えない）。 */
     private static void creditScan(LivingEntity entity, Applied now) {
         for (var effect : Effect.values()) {
             var session = now.by[effect.ordinal()];
@@ -147,21 +169,21 @@ public final class HeavenEffects {
         float down = Math.max(value(attacker, Effect.ATTACK_DOWN), HeavenPhenomena.value(attacker, HeavenSettings.Phenomenon.WEAK));
         return (1 + value(attacker, Effect.ATTACK_UP)) * (1 - down);
     }
-    /** この損傷に掛ける被ダメージの倍率。管理の強制と奈落には掛けず、防御無視の刺突には軽減を掛けない。 */
+    /** この損傷に掛ける被ダメージの倍率。管理の強制と奈落には掛けず、白翼刺突（Re の防御も通る貫通。1.5.2）には軽減を掛けない。 */
     public static float takenFactor(LivingEntity victim, DamageSource source) {
         if (source.is(DamageTypeTags.BYPASSES_INVULNERABILITY)) return 1;
-        float reduce = SkillDamageSource.ignoresDefenses(source) ? 0 : value(victim, Effect.DEFENSE_UP);
+        float reduce = SkillDamageSource.bypassesReDefenses(source) ? 0 : value(victim, Effect.DEFENSE_UP);
         return (1 - reduce) * (1 + value(victim, Effect.DEFENSE_DOWN));
     }
     /**
-     * R07の攻撃間隔の式: 加速は元の間隔×(1−率)、遅延は元の間隔×(1＋率)、小数は切り上げ、最低1tick。甲虫の担当はここを通して間隔を決める（{@code DarkMatterBeetle}の
-     * 近接・突進・砲撃の待ちを設定する所。他担当のファイルなのでまだ呼ばれていない）。
+     * 攻撃間隔の式: 加速は元の間隔×(1−率)、遅延は元の間隔×(1＋率)、小数は切り上げ、最低1tick。甲虫はここを通して間隔を決める（{@code DarkMatterBeetle}の
+     * 近接・突進・砲撃の待ちを設定する所）。
      */
     public static int scaledInterval(LivingEntity attacker, int base) {
         float factor = (1 - value(attacker, Effect.HASTE)) * (1 + value(attacker, Effect.DELAY));
         return factor == 1 ? base : Math.max(1, (int) Math.ceil(base * factor - 1e-4f));
     }
-    /** 領域の倍率を掛ける攻撃者か: 通常攻撃（飛び道具を含む）と甲虫の攻撃。能力の攻撃・領域自身の損傷・棘は対象外（D03）。 */
+    /** 領域の倍率を掛ける攻撃者か: 通常攻撃（飛び道具を含む）と甲虫の攻撃。能力の攻撃・領域自身の損傷・棘は対象外。 */
     public static @Nullable LivingEntity dealer(DamageSource source) {
         if (source instanceof HeavenPhenomena.StatusSource || source.is(DamageTypes.THORNS)) return null;
         if (source instanceof SkillDamageSource skill)
@@ -171,17 +193,25 @@ public final class HeavenEffects {
 
     // ---- 損傷の補正 ----
 
-    @SubscribeEvent(priority = EventPriority.HIGH) public static void attack(LivingHurtEvent event) {
+    @SubscribeEvent(priority = EventPriority.HIGH, receiveCanceled = true) public static void attack(LivingHurtEvent event) {
+        PierceHits.hurtStage(event, HeavenEffects::attackBody);
+    }
+    /** 与ダメージの補正の本体（1.5.2: 貫通の打撃では、他の Mod の取り消しの後も {@link PierceHits} を通して動く）。 */
+    private static void attackBody(LivingHurtEvent event) {
         if (event.getEntity().level().isClientSide) return;
         var attacker = dealer(event.getSource());
         if (attacker == null) return;
         var now = applied.get(attacker);
-        // 味方が戦闘で強化を使った（§2）。
+        // 味方が戦闘で強化を使った。
         if (now != null) { now.credit(Effect.ATTACK_UP); now.credit(Effect.HASTE); }
         float factor = attackFactor(attacker);
         if (factor != 1) event.setAmount(event.getAmount() * factor);
     }
-    @SubscribeEvent(priority = EventPriority.HIGH) public static void damage(LivingDamageEvent event) {
+    @SubscribeEvent(priority = EventPriority.HIGH, receiveCanceled = true) public static void damage(LivingDamageEvent event) {
+        PierceHits.damageStage(event, HeavenEffects::damageBody);
+    }
+    /** 被ダメージの補正の本体（1.5.2: 貫通の打撃では、他の Mod の取り消しの後も {@link PierceHits} を通して動く）。 */
+    private static void damageBody(LivingDamageEvent event) {
         var victim = event.getEntity();
         if (victim.level().isClientSide) return;
         var now = applied.get(victim);
@@ -203,7 +233,7 @@ public final class HeavenEffects {
             if (second) pulse(entity, now);
         }
     }
-    /** 再生と継続損傷の1秒分（試験からも呼ぶ）。 */
+    /** 再生と継続損傷の1秒分（テストからも呼ぶ）。 */
     public static void pulseForTest(LivingEntity entity) { var now = applied.get(entity); if (now != null) pulse(entity, now); }
     private static void pulse(LivingEntity entity, Applied now) {
         regen(entity, now);
@@ -213,9 +243,36 @@ public final class HeavenEffects {
             if (pulseDamage(entity, () -> SkillCombat.attackContact(hurter.player(), entity, HeavenManifest.ID, amount))) hurter.useful = true;
         }
     }
+    /**
+     * 再生を受け付けないか。有害な効果を弾く相手（{@link HeavenManifest#harmImmune}）は再生も受けないが、未元物質人間は
+     * HP の代わりに CP の回復として受ける（{@link #bodyRegen}）。
+     */
+    private static boolean regenRefused(LivingEntity entity) { return HeavenManifest.harmImmune.test(entity) && !DarkBody.isBody(entity); }
+    /** 未元物質人間が受ける CP の回復の、基準の回復に対する割合（使用者の熟練度0% → 100%）。 */
+    public static final float BODY_CP_SHARE_AT_ZERO = .1f, BODY_CP_SHARE_AT_FULL = .3f;
+    public static float bodyCpShare(float proficiency) {
+        return ArcGen.lerp(BODY_CP_SHARE_AT_ZERO, BODY_CP_SHARE_AT_FULL, Math.max(0, Math.min(1, proficiency)));
+    }
+    /** 再生の1回（1秒）の CP の回復が続く長さ。次の1秒の当て直しまで切れないよう、1秒より長くする。 */
+    public static final int BODY_CP_TICKS = 21;
+    /**
+     * 未元物質人間への再生: HP は形態が満タンに保つので、基準の回復 × {@link #bodyCpShare} を CP の回復として足す（G0 とは別枠）。
+     * 重なる領域は強い1つだけ。CP の請求はしない（CP を払って CP を回復させない）。過負荷はマスとして稼働の払いに入る。
+     */
+    private static void bodyRegen(LivingEntity entity, Applied now) {
+        var data = entity.getCapability(AbilityCapabilities.PLAYER_ABILITY).orElse(null);
+        if (data == null || data.isReadOnly()) return;
+        Session best = null;
+        for (var session : now.regen) if (session.alive() && (best == null || session.proficiency() > best.proficiency())) best = session;
+        if (best == null) return;
+        data.giveHeavenCpRegen(bodyCpShare(best.proficiency()), BODY_CP_TICKS);
+        if (data.getCp() < data.getMaxCp() - data.getBodyDamage()) best.useful = true;
+    }
     /** 強い領域から順に、払える領域だけが回復させる（同じ回復を複数の使用者へ請求しない）。 */
     private static void regen(LivingEntity entity, Applied now) {
-        if (now.regen.isEmpty() || entity.getHealth() >= entity.getMaxHealth()) return;
+        if (now.regen.isEmpty()) return;
+        if (DarkBody.isBody(entity)) { bodyRegen(entity, now); return; }
+        if (entity.getHealth() >= entity.getMaxHealth()) return;
         var order = new ArrayList<>(now.regen);
         order.sort((a, b) -> Float.compare(Effect.REGEN.value(b.proficiency()), Effect.REGEN.value(a.proficiency())));
         for (var session : order) {
@@ -231,7 +288,7 @@ public final class HeavenEffects {
             return;
         }
     }
-    /** 自動修復が今この甲虫へ戻している毎秒のHP。再生はこれを超える分だけを足す（§10: 速い方を適用）。 */
+    /** 自動修復が今この甲虫へ戻している毎秒のHP。再生はこれを超える分だけを足す（速い方を適用）。 */
     private static float beetleRepairRate(LivingEntity entity) {
         if (!(entity instanceof DarkMatterBeetle beetle) || beetle.ownerId() == null || entity.getServer() == null) return 0;
         var owner = entity.getServer().getPlayerList().getPlayer(beetle.ownerId());
@@ -254,7 +311,7 @@ public final class HeavenEffects {
         return done;
     }
 
-    // ---- 一般のモブの攻撃間隔（R07） ----
+    // ---- 一般のモブの攻撃間隔 ----
 
     /** 待ちのフィールド。名前はSRG（開発環境でも本番でも解決される）。見つからなければその経路だけ何もしない。 */
     private static final class Goals {

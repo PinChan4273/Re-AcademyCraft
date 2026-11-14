@@ -30,14 +30,14 @@ import net.minecraftforge.network.NetworkHooks;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * 原作EntityBlockの空の保存・読み込み時の破棄を置き換える、永続的な積荷の所有者。
+ * 原作EntityBlockの空の保存・読み込み時の破棄を置き換える、永続的なペイロードの所有者。
  * サーバーの動きは原作MagManipEntityBlockに従う。回転と電弧はクライアントが描く。
  */
 public final class MagneticBlockEntity extends Entity {
     private static final EntityDataAccessor<Integer> STATE = SynchedEntityData.defineId(MagneticBlockEntity.class, EntityDataSerializers.INT);
     private @Nullable UUID owner;
     private @Nullable BlockCargo cargo;
-    // 将来の、または壊れたcompoundでない包みは、空にせず不透明で不活性のまま保つ。
+    // 将来の、または壊れたcompoundでないCargoのタグは、空にせず不透明で不活性のまま保つ。
     private @Nullable Tag opaqueCargo;
     private static final int REST = 0, HELD = 1, FLIGHT = 2, DROPPED = 3;
     private int motionMode;
@@ -55,7 +55,7 @@ public final class MagneticBlockEntity extends Entity {
                 || player.getEyePosition().distanceToSqr(net.minecraft.world.phys.Vec3.atCenterOf(pos)) > 100) return Optional.empty();
         var entity = new MagneticBlockEntity(AcademyContent.MAGNETIC_BLOCK.get(), player.level());
         entity.owner = player.getUUID(); entity.setPos(pos.getX() + .5, pos.getY(), pos.getZ() + .5);
-        // スポーンの許可は元がまだある間に解決する。取り消されたスポーンが、永続するエンティティの所有者の無い切り離された積荷を残してはならない。
+        // スポーンの許可は元がまだある間に解決する。取り消されたスポーンが、永続するエンティティの所有者の無い切り離されたペイロードを残してはならない。
         if (!player.serverLevel().addFreshEntity(entity)) return Optional.empty();
         if (entity.isRemoved()) return Optional.empty();
         var transfer = BlockCargo.take(player, pos);
@@ -110,13 +110,13 @@ public final class MagneticBlockEntity extends Entity {
     @Override public boolean isPickable() { return !isRemoved(); }
     @Override public void tick() {
         super.tick();
-        // 外部から召喚した空のエンティティは何も持たない。未知の積荷は置き換えも消去もせず保つ。所有者のログアウトは破棄の理由にならない。
+        // 外部から召喚した空のエンティティは何も持たない。未知のペイロードは置き換えも消去もせず保つ。所有者のログアウトは破棄の理由にならない。
         if (!level().isClientSide && ((cargo == null && opaqueCargo == null) || (cargo != null && cargo.isSpent()))) discard();
         if (level().isClientSide || !isCarrying() || motionMode == REST) return;
         var server = (net.minecraft.server.level.ServerLevel) level();
         var player = owner == null ? null : server.getServer().getPlayerList().getPlayer(owner);
         if (player == null || !player.isAlive() || player.isSpectator() || player.level() != level()) {
-            motionMode = DROPPED; halt(); return; // 所有者が居ない間も積荷を保つ。
+            motionMode = DROPPED; halt(); return; // 所有者が居ない間もペイロードを保つ。
         }
         tickMovement(player);
     }
@@ -139,7 +139,7 @@ public final class MagneticBlockEntity extends Entity {
             motion = first.add(legacyMotion);
         }
         Vec3 next = position().add(motion);
-        // 新しいchunkを強制したり、ワールドの下で積荷を失ったりしない。回収できるまま残る。
+        // 新しいchunkを強制したり、ワールドの下でペイロードを失ったりしない。回収できるまま残る。
         if (next.y < level().getMinBuildHeight() || next.y >= level().getMaxBuildHeight()) { halt(); motionMode = REST; return; }
         for (double x : new double[] {-.5, .5}) for (double z : new double[] {-.5, .5})
             if (!level().hasChunkAt(BlockPos.containing(next.add(x, 0, z)))) { halt(); return; }
@@ -180,7 +180,7 @@ public final class MagneticBlockEntity extends Entity {
         var rawCargo = tag.get("Cargo");
         opaqueCargo = rawCargo != null && cargo == null ? rawCargo.copy() : null;
         int savedMode = tag.getInt("MotionMode");
-        // キーを押し続けるセッションは再起動を越えられない。積荷を保ち、安全に落とす。
+        // キーを押し続けるセッションは再起動を越えられない。ペイロードを保ち、安全に落とす。
         motionMode = savedMode == HELD ? DROPPED : savedMode == FLIGHT || savedMode == DROPPED ? savedMode : REST;
         // 再読込した落下はそのまま落ち続け、再読込した保持は静止から落ちる（原作は再読込でブロックを取り除いた）。
         var saved = tag.getList("LegacyMotion", Tag.TAG_DOUBLE);

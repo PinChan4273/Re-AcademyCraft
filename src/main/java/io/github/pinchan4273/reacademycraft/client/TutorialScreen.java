@@ -157,7 +157,7 @@ public final class TutorialScreen extends Screen {
         return super.mouseDragged(mx, my, button, dx, dy);
     }
     @Override public boolean mouseReleased(double mx, double my, int button) { dragging = false; return super.mouseReleased(mx, my, button); }
-    /** 原作の一覧クリック: 最初の選択でロゴをフェードアウトし、窓を表示する。 */
+    /** 原作の一覧クリック: 最初の選択でロゴをフェードアウトし、ウィンドウを表示する。 */
     public void choose(Tutorials.Tutorial tutorial) {
         if (current == null) chosenAt = now();
         if (current == null || current != tutorial) {
@@ -176,7 +176,7 @@ public final class TutorialScreen extends Screen {
         pose.pushPose();
         pose.translate(x0, y0, 0); pose.scale(scale, scale, 1);
         float mouseX = fx(mx), mouseY = fy(my);
-        // 左: 窓と一覧。
+        // 左: ウィンドウと一覧。
         float leftAlpha = firstOpen ? blend(t, 1.75, .3) : 1;
         DeveloperScreen.quad(pose, WINDOW, LEFT_X, PART_Y, LEFT_W, PART_H, 1, 1, 1, leftAlpha);
         if (listShown()) {

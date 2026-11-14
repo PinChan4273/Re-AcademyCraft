@@ -32,8 +32,8 @@ public final class WirelessNodeMenu extends AbstractContainerMenu {
     /** 原作はパスワードをnodeの近くのすべてのクライアントへ同期する。ここでは設置者だけに伝える。 */
     private final String password;
     /**
-     * GUI-ENERGY-001: データスロットの並び。1.20.1は各スロットをshortで送るので、16bitを超えうるIFの蓄電量と最大値
-     * （ADVANCEDは200,000 IF）は上位・下位の2つに分ける。最後のSYNCEDはサーバーが常に1を送る。スロットは番号の順に
+     * データスロットの並び。1.20.1は各スロットをshortで送るので、16bitを超えうるIFの蓄電量と最大値
+     * （ADVANCEDは200,000 IF）は上位・下位の2つに分ける。最後のSYNCEDはサーバーが常に1を送る。スロットはインデックスの順に
      * 届くので、1が届いた後は前のスロットの値も届いている（初回の同期の前の0と、本当の0 IFを区別する）。
      */
     static final int STORED_LOW = 0, STORED_HIGH = 1, MAX_LOW = 2, MAX_HIGH = 3, LOAD = 4, CAPACITY = 5, RANGE = 6,

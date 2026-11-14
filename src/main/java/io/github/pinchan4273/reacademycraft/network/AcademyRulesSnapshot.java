@@ -14,12 +14,12 @@ import net.minecraft.resources.ResourceLocation;
  */
 public record AcademyRulesSnapshot(List<String> disabledSkills, List<Float> initCp, List<Float> initOverload, List<ResourceLocation> disabledAddonSkills) {
     public static final int LEVELS = 6, MAX_NAME_LENGTH = 64;
-    /** 外部の技能の名前の長さと、無効にした外部の技能の数の上限（1.4.0のS4）。 */
+    /** 外部の技能の名前の長さと、無効にした外部の技能の数の上限（1.4.0）。 */
     public static final int MAX_ADDON_NAME_LENGTH = 256, MAX_ADDON_SKILLS = 1024;
 
     /**
-     * 1.4.0のS4: 無効にした外部の技能（名前空間付きの名前）を足した。本体の技能は今までどおり名前（パス）で送る。
-     * クライアントは、自分の登録簿に無い名前を無視する（登録簿の照合は別の通知が行う）。
+     * 1.4.0: 無効にした外部の技能（名前空間付きの名前）を足した。本体の技能は今までどおり名前（パス）で送る。
+     * クライアントは、自分のレジストリに無い名前を無視する（レジストリの照合は別の通知が行う）。
      */
     public AcademyRulesSnapshot {
         disabledSkills = List.copyOf(disabledSkills); initCp = List.copyOf(initCp); initOverload = List.copyOf(initOverload);
@@ -30,7 +30,7 @@ public record AcademyRulesSnapshot(List<String> disabledSkills, List<Float> init
                 || disabledAddonSkills.stream().anyMatch(id -> "academy".equals(id.getNamespace()) || id.toString().length() > MAX_ADDON_NAME_LENGTH))
             throw new IllegalArgumentException("Invalid AcademyCraft rules");
     }
-    /** 外部の技能の無い規則（1.4.0のS4の前の形）。 */
+    /** 外部の技能の無い規則（1.4.0より前の形）。 */
     public AcademyRulesSnapshot(List<String> disabledSkills, List<Float> initCp, List<Float> initOverload) {
         this(disabledSkills, initCp, initOverload, List.of());
     }

@@ -24,38 +24,41 @@ import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 
 /**
- * v1.5.0 未元物質Lv1 白翼刺突（採用仕様・版41の§4、R08）。押し続けで連撃する。
+ * v1.5.0 未元物質Lv1 白翼刺突。押し続けで連撃する。
  * <p>
  * 最初の1撃はキーを押したときに即時。以後、押し続けている間は技能全体の間隔lerp(12, 8, p)tick（0.6〜0.5〜0.4秒）ごとに1撃。
- * 左右の翼は交互に伸びるが、翼ごとの連射の数えは持たない。各打撃は、その打撃を始めたときの照準で方向を決め、発射後は追尾しない。
+ * 左右の翼は交互に伸びるが、翼ごとの連射のカウンターは持たない。各打撃は、その打撃を始めたときの照準で方向を決め、発射後は追尾しない。
  * <p>
  * 1撃ごとの値（pは熟練度）: 射程lerp(8, 16)ブロック（射程内の減衰なし）、ダメージ6＋14p、CP lerp(80, 40)、過負荷lerp(12, 8)。
  * 費用は空振りでも払い、払えなければ連撃を終える（その打撃は出さない）。支払いが成立した打撃ごとに、習得コース別のCP回復待ちを
  * 既存の{@link PlayerAbilityData#consume}が更新する。有効な命中（損傷が実際に入った）だけ熟練度＋0.1%（と能力レベル経験値）。
  * <p>
- * 熟練度50%未満: 照準上で最初の攻撃可能な対象1体へ。ブロックで止まる（止まった所に突き刺す演出だけ）。損傷の種類は
- * {@link SkillDamageSource#STAB}（被ダメージ後の待ちを飛ばす。防御は通常どおり）。
+ * 損傷の種類（1.5.2）: 熟練度に関係なく、いつも{@link SkillDamageSource.Style#PIERCE}。盾・防具・
+ * 防護エンチャント・耐性（バニラと直接効果）・吸収・他の Mod の守り（攻撃と計算の取り消し、軽減、死の取り消し。{@link PierceHits}）を通る。
+ * 白翼刺突だけは Re 自身の防御（ライト・シールド・ジェットの前面・翼の防御・天界発現の防御の強化）も通る
+ * （{@link SkillDamageSource#bypassesReDefenses}）。ベクトル反射・偏向は、未元物質に直接触れる攻撃として軽減を50%までにする。
+ * 攻撃できるかの判定（PvP・チーム・設定）は先に{@link SkillCombat#mayAttack}で行い、創造モードや独自の無敵（{@code isInvulnerableTo}）は通らない。
+ * バニラの不死のトーテムは効く。
  * <p>
- * 熟練度50%以上: 射程内・照準上に攻撃可能な対象がいれば、途中のブロックで止まらずに届く（ブロックは壊さない）。損傷の種類は
- * {@link SkillDamageSource#PIERCE}で、盾・防具・防護エンチャント・耐性（バニラと直接効果）・吸収・ライト・シールド・ベクトル偏向・
- * ベクトル反射・ジェットの前面防御を通る。攻撃できるかの判定（PvP・チーム・設定）は先に{@link SkillCombat#mayAttack}で行い、
- * 防御無視は他の技能へ引き継がない。創造モードや独自の無敵（{@code isInvulnerableTo}）は通らない（R08: 特殊な無敵は実測で決める）。
+ * 熟練度50%未満: 照準上で最初の攻撃可能な対象1体へ。ブロックで止まる（止まった所に突き刺す演出だけ）。
  * <p>
- * キーを離す、能力OFF、過負荷、干渉、画面、プリセットの変更、スロットの変更、未習得、系統の変更、死亡、ログアウト、次元の移動で
+ * 熟練度50%以上: 射程内・照準上に攻撃可能な対象がいれば、途中のブロックで止まらずに届く（ブロックは壊さない）。
+ * <p>
+ * キーを離す、能力OFF、過負荷、干渉、画面、プリセットの変更、スロットの変更、未習得、系統の変更、死亡、ログアウト、ディメンションの移動で
  * 新しい打撃を止める（打撃は即時なので、開始済みの1撃はその場で完了している）。
  * <p>
- * 連打（2026-11-03のユーザーの指摘）: 次に刺せる時刻と直前の翼は、キーを離しても残す（{@link #LAST}）。間隔の途中で押されたら1撃を予約し、
+ * 連打: 次に刺せる時刻と直前の翼は、キーを離しても残す（{@link #LAST}）。間隔の途中で押されたら1撃を予約し、
  * 間隔が明けたときに出す（その前に離しても出す）。連打でも押し続けより速くならず、翼も直前の反対側の3枚から選び続ける。
  * <p>
- * §13: 放出中の空気砲の間に押されたら、使えることを確かめて完了の後へ回す（{@link DarkMatterAirCannon#queueNext}）。光線は、最初の1撃の費用が払えたときだけ止める。
- * 未元物質人間の1HP＝1CP（§15）は{@link DarkBody}が行う。
+ * 技能どうしの排他: 放出中の空気砲の間に押されたら、使えることを確かめて完了の後へ回す（{@link DarkMatterAirCannon#queueNext}）。光線は、最初の1撃の費用が払えたときだけ止める。
+ * 未元物質人間の1HP＝1CPは{@link DarkBody}が行う。
  */
 @Mod.EventBusSubscriber(modid = "academy")
 public final class WhiteWingStab {
     public static final ResourceLocation ID = DarkMatter.STAB;
-    /** 押し続けの心拍が途切れたとみなすtick（DirectedShockと同じ）。 */
+    /** 押し続けのハートビートが途切れたとみなすtick（DirectedShockと同じ）。 */
     public static final int HEARTBEAT_TICKS = 10;
-    /** 選択的な透過が始まる熟練度。 */
+    /** ブロックを通り抜けて届き始める熟練度（損傷はいつも貫通。1.5.2）。 */
     public static final float PIERCE_FROM = .5f;
     /** 有効な命中1回の熟練度（＋0.1%）。 */
     public static final float GAIN = .001f;
@@ -69,7 +72,7 @@ public final class WhiteWingStab {
             level = player.level(); preset = data.getCurrentPreset(); this.slot = slot; heartbeat = level.getGameTime();
         }
     }
-    /** 1撃の結果（試験と演出のため）。targetは損傷が入った対象（無ければnull）、endは翼の先端が届いた点。 */
+    /** 1撃の結果（テストと演出のため）。targetは損傷が入った対象（無ければnull）、endは翼の先端が届いた点。 */
     public record Strike(boolean paid, @Nullable Entity target, Vec3 end, boolean pierced) { }
 
     /** 次に刺せる時刻（ゲーム時刻）と直前の翼。キーを離しても残す。 */
@@ -87,10 +90,10 @@ public final class WhiteWingStab {
     /** 打撃の間隔（tick）。0%で12（0.6秒）、50%で10（0.5秒）、100%で8（0.4秒）。 */
     public static int interval(float p) { return Math.round(ArcGen.lerp(12, 8, p)); }
     public static boolean pierces(float p) { return p >= PIERCE_FROM; }
-    /** 六翼の数。番号は段×2＋（右なら1）で、0が左上、5が右下。 */
+    /** 六翼の数。インデックスは段×2＋（右なら1）で、0が左上、5が右下。 */
     public static final int WINGS = 6;
     /**
-     * 次に刺す翼: 直前に刺した翼の反対側の3枚からランダム（2026-11-03のユーザーの指示。右中段で刺したら左の3枚から）。
+     * 次に刺す翼: 直前に刺した翼の反対側の3枚からランダム（右中段で刺したら左の3枚から）。
      * 反対側から選ぶので、同じ翼が続くことはない。最初は6枚から。見た目だけで、命中や費用には関係しない。
      */
     public static int nextWing(int last, net.minecraft.util.RandomSource random) {
@@ -122,7 +125,7 @@ public final class WhiteWingStab {
             if (existing.released && existing.slot == slot) { existing.released = false; existing.heartbeat = player.level().getGameTime(); }
             return "";
         }
-        // §13: 光線・刺突・空気砲は排他。放出中の空気砲は完了させ、その後でこの連撃へ移る。
+        // 光線・刺突・空気砲は排他。放出中の空気砲は完了させ、その後でこの連撃へ移る。
         if (DarkMatterAirCannon.active(player)) return DarkMatterAirCannon.queueNext(player, data, ID, slot, consumption(data.getProficiency(ID)));
         var session = new Session(player, data, slot);
         long now = player.level().getGameTime();
@@ -157,9 +160,11 @@ public final class WhiteWingStab {
     public static void cancel(ServerPlayer player, int slot) { release(player, slot); }
     public static void stop(ServerPlayer player) { ACTIVE.remove(player.getUUID()); }
     public static boolean holding(ServerPlayer player) { var s = ACTIVE.get(player.getUUID()); return s != null && !s.released; }
-    /** 試験用: 直前に刺した翼（無ければ-1）。 */
+    /** 連撃（予約の1撃を含む）が動いているか（1.5.2: パッシブの未元光線は、この間は始めない）。 */
+    public static boolean active(ServerPlayer player) { return ACTIVE.containsKey(player.getUUID()); }
+    /** テスト用: 直前に刺した翼（無ければ-1）。 */
     public static int lastWing(ServerPlayer player) { var last = LAST.get(player.getUUID()); return last == null ? -1 : last.wing(); }
-    /** 試験用: この連撃で出した打撃の数（無ければ0）。 */
+    /** テスト用: この連撃で出した打撃の数（無ければ0）。 */
     public static int strikes(ServerPlayer player) { var s = ACTIVE.get(player.getUUID()); return s == null ? 0 : s.strikes; }
 
     /** 1撃。費用を払えなければ何もしない（paid=false）。 */
@@ -170,7 +175,7 @@ public final class WhiteWingStab {
         session.wing = nextWing(session.wing, player.getRandom());
         session.strikes++;
         LAST.put(player.getUUID(), new Last(player.level().getGameTime() + session.wait, session.wing));
-        // §13: 使えないなら現在の攻撃を続けるので、光線を止めるのは最初の1撃の費用を払えた後。
+        // 技能どうしの排他: 使えないなら現在の攻撃を続けるので、光線を止めるのは最初の1撃の費用を払えた後。
         if (session.strikes == 1) DarkMatterRay.stop(player);
         var result = hit(player, p);
         if (result.target() != null) data.addProficiency(ID, GAIN);
@@ -184,7 +189,7 @@ public final class WhiteWingStab {
 
     /**
      * 照準で1撃を当てる（費用は払った後）。50%以上なら途中のブロックを無視して、射程内で最初の攻撃可能な対象へ。50%未満ならブロックで止まる。
-     * 試験からも呼ぶ（費用・熟練度は扱わない）。
+     * テストからも呼ぶ（費用・熟練度は扱わない）。
      */
     public static Strike hit(ServerPlayer player, float p) {
         var start = player.getEyePosition();
@@ -197,7 +202,7 @@ public final class WhiteWingStab {
         }
         var target = firstTarget(player, start, reach);
         if (target == null) return new Strike(true, null, reach, false);
-        boolean hurt = SkillCombat.attackStab(player, target, ID, damage(p), pierce);
+        boolean hurt = SkillCombat.attackStab(player, target, ID, damage(p));
         var at = target.getBoundingBox().inflate(.3).clip(start, reach).orElse(target.position());
         return new Strike(true, hurt ? target : null, at, pierce);
     }
@@ -224,7 +229,7 @@ public final class WhiteWingStab {
         if (--session.wait > 0) return;
         if (!strike(player, data, session).paid() || session.released) stop(player);
     }
-    /** テスト用の入口: サーバーのtickループを待たずに押し続けのセッションを1tick進める（心拍も送ったことにする）。 */
+    /** テスト用の入口: サーバーのtickループを待たずに押し続けのセッションを1tick進める（ハートビートも送ったことにする）。 */
     public static void tickForTest(ServerPlayer player) {
         var session = ACTIVE.get(player.getUUID());
         if (session != null) session.heartbeat = player.level().getGameTime();

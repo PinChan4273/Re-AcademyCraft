@@ -38,7 +38,7 @@ import net.minecraftforge.fml.common.Mod;
  * 原作が設定する179は画面に出ない。この輪も、輪のalphaだけで描く。
  *
  * 飛行: 術者の近くのすべてのclientが、EntityDiamondShieldを出す。単位の菱形の1.5ブロック先の1点で4枚の三角形が
- * 合わさる形で、diamond_shield.pngを光の影響なしで描く（原作は壁越しに描いたが、この移植は深度テストをかける: VIS-JET-DEPTH-001）。術者の1ブロック前、1.1上に置き、頭のyawと
+ * 合わさる形で、diamond_shield.pngを光の影響なしで描く（原作は壁越しに描いたが、この移植は深度テストをかける）。術者の1ブロック前、1.1上に置き、頭のyawと
  * ピッチへ向ける。さらに毎tick、術者から3分の1ブロック以内にmdの粒子を11個出す。どちらも飛行が終わると消える。
  *
  * 原作は、その11個の粒子ごとに飛行の経路上の点を計算するが、使っていない。また飛行中は術者の歩く速さを
@@ -115,11 +115,11 @@ public final class ClientJetEngineEffect {
         });
     }
     static double range(double min, double max) { return min + RANDOM.nextDouble() * (max - min); }
-    /** テスト用の入口: その実体の飛行の菱形が今あるか。 */
+    /** テスト用の入口: そのエンティティの飛行の菱形が今あるか。 */
     public static boolean showing(int entityId) { return FLIGHTS.values().stream().anyMatch(flight -> flight.entityId == entityId); }
 
     @SubscribeEvent public static void render(RenderLevelStageEvent event) {
-        // VIS-JET-DEPTH-001（第2版）: 狙いの目印は粒子の後、菱形はエンティティの直後（術者の体の深度が確定し、半透明のブロックより前）に描く。
+        // 狙いの目印は粒子の後、菱形はエンティティの直後（術者の体の深度が確定し、半透明のブロックより前）に描く。
         // 粒子の後に深度テストをして描くと、手前の色付きガラスや水が先に深度を書いていて、その奥の菱形がすべて落ちた（自動撮影で確認）。
         // エンティティの直後なら、手前のガラスや水は後から菱形の上へ色を重ねる（バニラの半透明なエンティティと同じ順）。
         boolean marksStage = event.getStage() == RenderLevelStageEvent.Stage.AFTER_PARTICLES;
@@ -147,13 +147,13 @@ public final class ClientJetEngineEffect {
         RenderSystem.setShader(LegacyAlphaShaders::worldPositionTexColor);
         RenderSystem.setShaderTexture(0, TEXTURE);
         // シェーダーパックの間はMinecraftのシェーダー（alpha 0.1未満を捨てる）で描くので、盾の淡い外周がtexelの段差で切れ、斜めの輪郭が
-        // ギザギザになる（T178-01）。その間だけテクスチャを線形補間で読み、切れ目をtexelの境でなく滑らかな線にする。形・色・位置は変えない。
+        // ギザギザになる。その間だけテクスチャを線形補間で読み、切れ目をtexelの境でなく滑らかな線にする。形・色・位置は変えない。
         // 線形補間では、三角形の継ぎ目（テクスチャの端）で反対側の端の透明なtexelが混ざり細い線が出るので、その間は端で止める。
         boolean smooth = ShaderPackCompat.inUse();
         var texture = smooth ? client.getTextureManager().getTexture(TEXTURE) : null;
         int[] before = texture == null ? null : smoothen(texture);
         RenderSystem.enableBlend(); RenderSystem.defaultBlendFunc(); RenderSystem.disableCull();
-        // VIS-JET-DEPTH-001: 原作は盾を深度テストなしで描いたが、この移植では術者の前方だけの菱形なので、術者の体や不透明な地形の
+        // 原作は盾を深度テストなしで描いたが、この移植では術者の前方だけの菱形なので、術者の体や不透明な地形の
         // 後ろにある部分は隠す（深度テストなしでは、背後の視点から体越しに見え、全身の盾のように見えた）。深度は比べるだけで書かない:
         // 半透明の盾が深度バッファを書くと、後に描く半透明の演出や粒子が盾の後ろで消える。比較の関数はMinecraftの標準のLEQUAL。
         RenderSystem.enableDepthTest(); RenderSystem.depthFunc(org.lwjgl.opengl.GL11.GL_LEQUAL); RenderSystem.depthMask(false);
@@ -177,9 +177,9 @@ public final class ClientJetEngineEffect {
                 } finally { pose.popPose(); }
             }
         } finally {
-            // 標準の状態（深度テストあり・深度の書き込みあり・背面の省略あり）へ戻す。
+            // 標準の状態（深度テストあり・深度の書き込みあり・背面カリングあり）へ戻す。
             RenderSystem.depthMask(true); RenderSystem.enableCull(); RenderSystem.enableDepthTest();
-            // エンティティの直後に描くので、後に続く描画のために混色も切っておく（エンティティの描画の確定の後の状態）。
+            // エンティティの直後に描くので、後に続く描画のためにブレンドも切っておく（エンティティの描画の確定の後の状態）。
             RenderSystem.disableBlend();
             if (texture != null) restore(texture, before);
         }

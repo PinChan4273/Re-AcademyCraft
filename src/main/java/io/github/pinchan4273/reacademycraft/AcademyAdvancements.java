@@ -78,7 +78,7 @@ public final class AcademyAdvancements {
             grant(player, "getting_factor");
     }
     public static boolean isFactor(ItemStack stack) {
-        // 1.4.0のS4: 因子の無い外部のカテゴリ（空気）は数えない（空のスタックが因子にならないように）。
+        // 1.4.0: 因子の無い外部のカテゴリ（空気）は数えない（空のスタックが因子にならないように）。
         if (stack.isEmpty()) return false;
         for (var category : AbilityCategory.REGISTERED) if (category.hasFactor() && stack.is(category.factor().get())) return true;
         return false;

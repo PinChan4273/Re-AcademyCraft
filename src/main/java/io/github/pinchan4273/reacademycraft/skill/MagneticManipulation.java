@@ -20,7 +20,7 @@ import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 
 /**
- * 新しいForgeの永続的な積荷の上での、原作MagManip（WeAthFolD/Paindar）のゲームプレイ。
+ * 新しいForgeの永続的なペイロードの上での、原作MagManip（WeAthFolD/Paindar）のゲームプレイ。
  */
 @Mod.EventBusSubscriber(modid = "academy")
 public final class MagneticManipulation {
@@ -57,8 +57,8 @@ public final class MagneticManipulation {
         } else {
             var from = p.getEyePosition(); var direction = p.getLookAngle(); var end = from.add(direction.scale(10));
             for (int i = 0; i <= 10; i++) if (!p.level().hasChunkAt(BlockPos.containing(from.add(direction.scale(i))))) return "academy.cast.no_metal";
-            // 原作traceLiving(player, 10, nothing, accepts): LambdaLib2のRaytraceは選別が拒むブロックを1つずつ通り抜けるので、金属でないものは
-            // 通過し、10以内の最初の金属ブロックを取る（壁の向こうでも）。1.12のcollisionRayTraceが外形の箱を使ったのと同じく、金属ブロックは外形で当てる。
+            // 原作traceLiving(player, 10, nothing, accepts): LambdaLib2のRaytraceはフィルターが拒むブロックを1つずつ通り抜けるので、金属でないものは
+            // 通過し、10以内の最初の金属ブロックを取る（壁の向こうでも）。1.12のcollisionRayTraceが外形のバウンディングボックスを使ったのと同じく、金属ブロックは外形で当てる。
             BlockPos metal = net.minecraft.world.level.BlockGetter.traverseBlocks(from, end, p.level(), (level, pos) -> {
                 var state = level.getBlockState(pos);
                 if (!MagneticTargets.isMetal(state)) return null;

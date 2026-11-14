@@ -30,9 +30,9 @@ import net.minecraftforge.common.util.BlockSnapshot;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * WeAthFolDの2セルの土台と3セルの本体に対する、取引としてのForgeのアダプタ。
+ * WeAthFolDの2セルの土台と3セルの本体に対する、トランザクションとしてのForgeのアダプタ。
  * 回転翼のインベントリは本体のルートに属し、エネルギーを生むのは土台のルートだけ。
- * メニュー、原作の絵、回転翼の描画（WindGeneratorRenderer）は実装済み。
+ * メニュー、原作のテクスチャ、回転翼の描画（WindGeneratorRenderer）は実装済み。
  */
 public final class WindBodyBlock extends BaseEntityBlock {
     public enum Body { BASE, MAIN }

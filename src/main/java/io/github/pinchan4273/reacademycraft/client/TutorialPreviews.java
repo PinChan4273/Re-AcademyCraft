@@ -23,16 +23,16 @@ import net.minecraft.world.level.block.Block;
 import net.minecraftforge.registries.ForgeRegistries;
 
 /**
- * 原作ViewGroupsとRecipeHandler: 記事のプレビュー窓（guis/tutorial.xmlの134x134の領域）に表示できるもの。
+ * 原作ViewGroupsとRecipeHandler: 記事のプレビューウィンドウ（guis/tutorial.xmlの134x134の領域）に表示できるもの。
  * グループは1つのタグボタン（原作のCRAFTまたはVIEWアイコン）と、矢印で切り替える1つ以上の表示から成る:
  *
  * - drawsBlock: 見る人の方へ傾けたブロック（原作はtimer / 80度回すが、timerは秒を数えるので、ほぼ止まって見える）。
  * - displayIcon: 中央のテクスチャ。
  * - recipes: そのアイテムを作るすべてのレシピを原作RecipeHandlerの順で: crafting_gridの上の作業台レシピ
  *   （材料は2秒ごとに切り替わり、種類をその上に表示）、次に虚像融合機、金属成形機、かまど。それぞれ
- *   tutorial_windows.xmlの専用の窓に描く。
+ *   tutorial_windows.xmlの専用のウィンドウに描く。
  *
- * 原作はブロックとアイコンを独自の50度の透視で描くが、ここでは窓の上に平らに、原作で見える程度の大きさで描く。
+ * 原作はブロックとアイコンを独自の50度の透視で描くが、ここではウィンドウの上に平らに、原作で見える程度の大きさで描く。
  * スタックにマウスを載せると名前を表示する。
  */
 public final class TutorialPreviews {
@@ -116,7 +116,7 @@ public final class TutorialPreviews {
         g.pose().popPose();
         return hover ? stack : null;
     }
-    /** 指定の大きさ・倍率の窓を領域の中央に置き、その単位で描く。 */
+    /** 指定の大きさ・倍率のウィンドウを領域の中央に置き、その単位で描く。 */
     private interface Window { @Nullable ItemStack draw(GuiGraphics g, float mx, float my, double time); }
     private static View window(ResourceLocation texture, float w, float h, float scale, Window content) {
         return (g, mx, my, time) -> {

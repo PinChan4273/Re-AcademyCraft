@@ -8,7 +8,7 @@ import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 
 /**
- * v1.5.0 §14 CPセーフティの作動（全系統共通）。支払いの判定は{@link PlayerAbilityData}が行い、作動したら次のtickの終わりにここが消費技能をまとめて止める。
+ * v1.5.0 CPセーフティの作動（全系統共通）。支払いの判定は{@link PlayerAbilityData}が行い、作動したら次のtickの終わりにここが消費技能をまとめて止める。
  * 同じtickに成立した支払いと効果はそのまま確定する。
  */
 @Mod.EventBusSubscriber(modid = "academy")

@@ -25,15 +25,16 @@ import net.minecraftforge.fml.common.Mod;
 /**
  * 原作ElectronBomb（WeAthFolD）: meltdownerのレベル1技能。
  *
- * 原作のEntityMdBallは発射物ではない: 術者の周りのランダムなずれを1回選び、寿命の間ずっと術者に付いて行き、その後で発射する。
+ * 原作のEntityMdBallは発射物ではない: 術者の周りのランダムなオフセットを1回選び、寿命の間ずっと術者に付いて行き、その後で発射する。
  * 読み込み時には保存されず消えるので、移植版は保存を防がなければならないワールドのエンティティの代わりに、待機中の爆弾を
  * PlayerTickEventで動かすサーバー側の状態として持つ（CurrentChargingやBodyIntensifyと同じ形）。
  *
  * ビームは発動時ではなく発射時に狙う。原作getDest(player)は起爆のコールバックの中で評価されるため。待機中に狙い直せるのは意図どおり。
  *
- * 原作はこの技能でCPもオーバーロードも消費しない（コンテキストがconsumeを呼ばず、設定は倍率しか持たない）。1.1.0（T178-11、
- * ユーザーが承認した独自のバランス変更）からは、発動時に1回だけArc Generationと同じ式（{@link ArcGen#consumption}・{@link ArcGen#overload}）
- * で払う。払えなければオーブも予約も熟練度も無い。起爆では払わない。
+ * 原作はこの技能でCPもオーバーロードも消費しない（コンテキストがconsumeを呼ばず、設定は倍率しか持たない）。1.1.0（
+ * 独自のバランス変更）からは、発動時に1回だけ払う（{@link #consumption}・{@link #overload}）。1.5.1まではArc Generationと
+ * 同じ式だったが、1.5.2でCPの100%の値を70から60へ下げ、Arc Generationとは別の式になった（オーバーロードは今のまま18 → 12）。
+ * 払えなければオーブも予約も熟練度も無い。起爆では払わない。
  *
  * 原作はビームを20ブロック以内の全員へ送る。オーブはそこでは追跡されるエンティティなので、移植版は持たないエンティティ追跡に
  * 頼らず、同じ方法で送る。
@@ -46,13 +47,17 @@ public final class ElectronBomb {
     private static final double DISTANCE = 15;
     private static final double PRESENTATION_RANGE = 20;
     private static final Map<UUID, Pending> ACTIVE = new HashMap<>();
+    /** 発動1回のCP（1.5.2でlerp(30, 70)からlerp(30, 60)へ）。 */
+    public static float consumption(float exp) { return ArcGen.lerp(30, 60, exp); }
+    /** 発動1回のオーバーロード（1.5.1のArc Generationと同じlerp(18, 12)のまま）。 */
+    public static float overload(float exp) { return ArcGen.lerp(18, 12, exp); }
 
     private static final class Pending {
         final Level level; final float exp; final double subX, subY, subZ; final long session; int remaining;
         Pending(ServerPlayer player, float exp) {
             level = player.level(); this.exp = exp;
             session = io.github.pinchan4273.reacademycraft.network.MdSessions.next();
-            // 原作のずれ: yaw基準で0.9piの弧の中の角度、半径0.8〜1.3、下向きの偏り。
+            // 原作のオフセット: yaw基準で0.9piの弧の中の角度、半径0.8〜1.3、下向きの偏り。
             float theta = (float) (-player.getYRot() / 180 * Math.PI)
                     + Mth.randomBetween(player.getRandom(), -(float) Math.PI * .45f, (float) Math.PI * .45f);
             float radius = Mth.randomBetween(player.getRandom(), .8f, 1.3f);
@@ -76,7 +81,7 @@ public final class ElectronBomb {
         if (data.getCooldown(ID) > 0) return "academy.cast.cooldown";
         if (ACTIVE.containsKey(player.getUUID())) return "academy.cast.cooldown";
         float exp = data.getProficiency(ID);
-        if (!data.consume(ID, ArcGen.consumption(exp), ArcGen.overload(exp), player.getAbilities().instabuild)) return "academy.cast.cp";
+        if (!data.consume(ID, consumption(exp), overload(exp), player.getAbilities().instabuild)) return "academy.cast.cp";
         // 支払いのリスナーが能力を変えたら何も予約しない。支払いが術者をオーバーロードさせただけなら、他の単発の技能（Arc Generationなど）と
         // 同じく発動は成立している。
         if (data.isReadOnly() || !AbilityCategory.MELTDOWNER.id().equals(data.getAbility()) || !data.hasLearned(ID)) return "academy.cast.unlearned";
@@ -97,7 +102,7 @@ public final class ElectronBomb {
         Vec3 end = player.getEyePosition().add(player.getLookAngle().scale(DISTANCE));
         for (Vec3 step : new Vec3[]{start, end})
             if (!level.hasChunkAt(BlockPos.containing(step))) return;
-// LambdaLib2 Raytraceの既定のfilNormalは当たり判定の箱でだけ止まるので、液体では止まらない。
+// LambdaLib2 Raytraceの既定のfilNormalは当たり判定のバウンディングボックスでだけ止まるので、液体では止まらない。
         var block = level.clip(new ClipContext(start, end, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, player));
         double nearest = block.getType() == HitResult.Type.MISS ? start.distanceToSqr(end) : start.distanceToSqr(block.getLocation());
         Entity target = null;

@@ -24,10 +24,16 @@ import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 
 /**
- * v1.5.0 未元物質Lv2 未元光線（§6、R05）。トグルの照射で、{@link #CHARGE_TICKS}tickのチャージの後に撃ち始める（ユーザーの指示で§6の「溜めなし」から変更）。照準に追従し、最初の有効な対象1体に作用してブロックで止まる。
+ * v1.5.0 未元物質Lv2 未元光線。トグルの照射で、{@link #CHARGE_TICKS}tickのチャージの後に撃ち始める。照準に追従し、最初の有効な対象1体に作用してブロックで止まる。
  * 10tickごとに基礎lerp(4,8)×明るさの倍率(0.5＋L/15)。Lは目の位置の、昼夜・天候を反映した天空光とブロック光の高い方。
- * 開始20CP＋過負荷10、維持はlerp(80,40)CP/秒とlerp(4,2)過負荷/秒。開始・維持とも回復待ちを作らない。空振りでも維持費を払う。
- * 通常の防御・軽減は効くが、ベクトルの防御膜は反応しない（{@link SkillDamageSource#passesVectorMembrane}）。
+ * 開始20CP＋過負荷10。維持は部類の外の切り替え型の共通の形（1.5.2: 回復の lerp(100%, 25%) ＋ 毎tick lerp(4, 0)CP。
+ * 1.5.1の毎秒 lerp(80, 40)CPから）。開始・維持ともCPの回復待ちを作らない。空振りでも維持費（CP）を払う。
+ * 1.5.2: 維持の過負荷は払わず、相手に当たるごとに{@link #hitOverload}を「稼働」の払いとして課す
+ * （当て続けると熟練度100%・最大過負荷1,000で約90秒でロック。当てている間は過負荷が回復しない）。
+ * 通常の防御・軽減は効く。ベクトル偏向・反射は、1.5.1までは反応しなかったが、1.5.2から未元物質で変化した物の攻撃として
+ * 解析度に応じて軽減する（解析度100%なら反射で無効。{@link VectorAnalysis}）。
+ * 1.5.2: 能力設定でパッシブにすると、能力使用モードの間に{@link PassiveSkills}が自動で始める（スロットのインデックスは{@link PassiveSkills#SLOT}）。
+ * 開始の費用・チャージ・維持費はキーで始めるときと同じ。空気砲・白翼刺突が動いている間は始めず（技能どうしの排他）、それらが終わったら始める。
  */
 @Mod.EventBusSubscriber(modid = "academy")
 public final class DarkMatterRay {
@@ -39,8 +45,8 @@ public final class DarkMatterRay {
     private static final Map<UUID, Session> ACTIVE = new HashMap<>();
 
     private static final class Session {
-        final Level level; final int preset, slot; int age; PlayerAbilityData.Upkeep upkeep;
-        /** チャージ音と照射音の{@link io.github.pinchan4273.reacademycraft.network.SkillSounds}の番号（無ければ0）。 */
+        final Level level; final int preset; int slot; int age; PlayerAbilityData.Upkeep upkeep;
+        /** チャージ音と照射音の{@link io.github.pinchan4273.reacademycraft.network.SkillSounds}のID（無ければ0）。 */
         long chargeSound, fireSound;
         Session(ServerPlayer player, PlayerAbilityData data, int slot) { level = player.level(); preset = data.getCurrentPreset(); this.slot = slot; }
     }
@@ -49,8 +55,10 @@ public final class DarkMatterRay {
 
     public static double range(float p) { return ArcGen.lerp(24, 40, p); }
     public static float baseHit(float p) { return ArcGen.lerp(4, 8, p); }
-    public static float cpPerSecond(float p) { return ArcGen.lerp(80, 40, p); }
-    public static float overloadPerSecond(float p) { return ArcGen.lerp(4, 2, p); }
+    /** 回復の割合に足す維持費（毎秒。熟練度0%で80、100%で0。設定toggle_upkeep.dark_matter_rayの毎tick 4 × (1 − 熟練度)）。 */
+    public static float cpPerSecond(float p) { return io.github.pinchan4273.reacademycraft.config.AcademyConfig.toggleUpkeep(ID) * (1 - Math.max(0, Math.min(1, p))) * 20; }
+    /** 1.5.2: 相手に当たった1回の過負荷（稼働の払い）。 */
+    public static float hitOverload(float p) { return ArcGen.lerp(11, 5.5f, p); }
     /** 明るさL（0〜15）の倍率。 */
     public static float lightMultiplier(int light) { return .5f + light / 15f; }
     /** 目の位置の明るさ。暗視・ガンマ・演出の光は数えない（サーバーの光だけを見る）。 */
@@ -63,22 +71,32 @@ public final class DarkMatterRay {
     /** チャージが終わって撃っているか。 */
     public static boolean firing(ServerPlayer player) { var s = ACTIVE.get(player.getUUID()); return s != null && s.age >= CHARGE_TICKS; }
     public static int ageOn(ServerPlayer player, int slot) { var s = ACTIVE.get(player.getUUID()); return s == null ? -1 : s.age; }
+    /** 1.5.2: パッシブ（自動で起動）で動いているか（スロットのキーで始めたものはfalse）。 */
+    public static boolean passive(ServerPlayer player) { var s = ACTIVE.get(player.getUUID()); return s != null && s.slot == PassiveSkills.SLOT; }
+    /** 1.5.2: パッシブにした時に、スロットのキーで始めた照射が動いていたら、止めずにパッシブの照射にする（開始の費用を二度払わない）。 */
+    public static void adoptPassive(ServerPlayer player) {
+        var session = ACTIVE.get(player.getUUID());
+        if (session != null) session.slot = PassiveSkills.SLOT;
+    }
 
     public static String toggle(ServerPlayer player, PlayerAbilityData data, int slot) {
         if (ACTIVE.containsKey(player.getUUID())) { stop(player); return ""; }
-        if (slot < 0 || slot >= 4 || !ID.equals(data.getSlot(data.getCurrentPreset(), slot)) || !player.isAlive() || data.isReadOnly()
+        // 1.5.2: slotが{@link PassiveSkills#SLOT}なら、パッシブの自動の起動（パッシブに切り替えていること）。
+        if (!PassiveSkills.slotMatches(data, ID, slot) || !player.isAlive() || data.isReadOnly()
                 || !DarkMatter.CATEGORY.equals(data.getAbility()) || !data.hasLearned(ID)) return "academy.cast.unlearned";
         if (!data.isActive()) return "academy.cast.inactive";
-        if (data.isOverloadLocked()) return "academy.cast.overload";
+        // 1.5.2: ロック中は断る。ただしロック中の再稼働を許した技能（パッシブ。優先順位の順）は通す。
+        if (data.lockBlocks(ID)) return "academy.cast.overload";
         if (data.isInterfering()) return "academy.cast.interfered";
-        // §13: 光線・刺突・空気砲は排他。放出中の空気砲は完了させる。
+        // 光線・刺突・空気砲は排他。放出中の空気砲は完了させる。パッシブの自動の起動は、刺突の間も始めない（刺突を止めない）。
+        if (slot == PassiveSkills.SLOT && WhiteWingStab.active(player)) return "academy.cast.cooldown";
         if (DarkMatterAirCannon.active(player)) return "academy.cast.cooldown";
         if (!data.consumeQuiet(ID, START_CP, START_OVERLOAD, player.getAbilities().instabuild)) return "academy.cast.cp";
         WhiteWingStab.stop(player);
         var session = new Session(player, data, slot);
         session.upkeep = data.startUpkeep(ID, () -> player.getAbilities().instabuild);
         if (session.upkeep == null) return "academy.cast.unlearned";
-        session.upkeep.custom(granted -> cpPerSecond(data.getProficiency(ID)) / 20.0);
+        session.upkeep.recoveryShare();
         ACTIVE.put(player.getUUID(), session);
         DarkWingAction.send(player, DarkWingAction.RAY_ON, 0, (float) range(data.getProficiency(ID)));
         io.github.pinchan4273.reacademycraft.network.SkillModeState.send(player, ID, true);
@@ -96,9 +114,10 @@ public final class DarkMatterRay {
         io.github.pinchan4273.reacademycraft.network.SkillModeState.send(player, ID, false);
     }
     private static boolean continues(ServerPlayer player, PlayerAbilityData data, Session session) {
-        return player.isAlive() && data != null && !data.isReadOnly() && data.canUseAbility() && DarkMatter.CATEGORY.equals(data.getAbility())
-                && data.hasLearned(ID) && session.level == player.level() && data.getCurrentPreset() == session.preset
-                && ID.equals(data.getSlot(session.preset, session.slot)) && data.upkeepHeld(session.upkeep);
+        // 1.5.2: パッシブで動いているものは、プリセットとスロットを見ず、パッシブのままかを見る。
+        return player.isAlive() && data != null && !data.isReadOnly() && data.canUseAbility(ID) && DarkMatter.CATEGORY.equals(data.getAbility())
+                && data.hasLearned(ID) && session.level == player.level()
+                && PassiveSkills.sessionMatches(data, ID, session.preset, session.slot) && data.upkeepHeld(session.upkeep);
     }
     private static void tick(ServerPlayer player) {
         var session = ACTIVE.get(player.getUUID());
@@ -106,17 +125,21 @@ public final class DarkMatterRay {
         var data = data(player);
         if (!continues(player, data, session)) { stop(player); return; }
         float p = data.getProficiency(ID);
-        data.chargeUpkeepOverload(ID, overloadPerSecond(p) / 20, player.getAbilities().instabuild);
-        if (ACTIVE.get(player.getUUID()) != session) return;
         session.age++;
         // 撃ち始め: 撃っている間だけ、原子崩しの採掘レーザーの音が術者に付いて行く。
         if (session.age == CHARGE_TICKS) session.fireSound = io.github.pinchan4273.reacademycraft.network.SkillSounds.follow(player, io.github.pinchan4273.reacademycraft.world.AcademySounds.MD_MINE_LOOP.get(), net.minecraft.sounds.SoundSource.AMBIENT, 1f, true, () -> ACTIVE.get(player.getUUID()) == session);
-        if (session.age >= CHARGE_TICKS && (session.age - CHARGE_TICKS) % HIT_INTERVAL == 0) {
-            if (hit(player, p) != null) data.addProficiency(ID, GAIN);
+        // 1.5.2（ロックからの戻し方）: ロック中に再稼働した光線は維持だけで、当てない（稼働しない）。
+        if (session.age >= CHARGE_TICKS && (session.age - CHARGE_TICKS) % HIT_INTERVAL == 0 && !data.isOverloadLocked()) {
+            if (hit(player, p) != null) {
+                data.addProficiency(ID, GAIN);
+                // 1.5.2: 当たったときだけ過負荷を払う（稼働）。次に当てるまで（10tick後）稼働中にする。
+                data.chargeActionOverload(ID, hitOverload(p), player.getAbilities().instabuild, HIT_INTERVAL + 1);
+                if (ACTIVE.get(player.getUUID()) != session) return;
+            }
         }
         AbilitySyncEvents.sync(player, false);
     }
-    /** 照準上の最初の対象へ1回当てる。損傷が入った対象を返す（試験からも呼ぶ）。 */
+    /** 照準上の最初の対象へ1回当てる。損傷が入った対象を返す（テストからも呼ぶ）。 */
     public static @Nullable Entity hit(ServerPlayer player, float p) {
         var start = player.getEyePosition();
         var end = start.add(player.getLookAngle().scale(range(p)));
@@ -133,13 +156,13 @@ public final class DarkMatterRay {
     }
     /** テスト用の入口。 */
     public static void tickForTest(ServerPlayer player) { tick(player); }
-    /** テスト用の入口: 今の照射のチャージ音と照射音の番号（照射していなければnull）。 */
+    /** テスト用の入口: 今の照射のチャージ音と照射音のID（照射していなければnull）。 */
     public static @Nullable long[] soundsForTest(ServerPlayer player) { var s = ACTIVE.get(player.getUUID()); return s == null ? null : new long[] {s.chargeSound, s.fireSound}; }
 
     @SubscribeEvent public static void playerTick(TickEvent.PlayerTickEvent e) {
         if (e.phase == TickEvent.Phase.END && e.player instanceof ServerPlayer p) tick(p);
     }
-    /** §15: 系統を失ったら、次のtickを待たずに止める。 */
+    /** 系統を失ったら、次のtickを待たずに止める。 */
     @SubscribeEvent public static void category(io.github.pinchan4273.reacademycraft.event.AbilityEvent.CategoryChange e) {
         if (e.player() instanceof ServerPlayer p && active(p)) stop(p);
     }

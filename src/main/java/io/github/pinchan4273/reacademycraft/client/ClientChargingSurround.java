@@ -146,7 +146,7 @@ public final class ClientChargingSurround {
     public static boolean active(UUID player) { return EFFECTS.containsKey(player); }
     public static int activeEffects() { return EFFECTS.size(); }
     public static int reloadGeneration() { return reloadGeneration; }
-    /** 実際の描画の読み取り専用の観測点。効果を開始することは無い。 */
+    /** 実際の描画の読み取り専用のテスト用フック。効果を開始することは無い。 */
     public static long renderedQuads() { return renderedQuads; }
     public static int lastFrameQuads() { return lastFrameQuads; }
     public static List<LegacySurroundAnimation.Frame> frames(UUID player) {

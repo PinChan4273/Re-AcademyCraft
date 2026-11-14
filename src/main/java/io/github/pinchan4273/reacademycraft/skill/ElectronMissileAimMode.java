@@ -4,14 +4,14 @@ import java.util.Locale;
 import javax.annotation.Nullable;
 
 /**
- * Electron Missileの照準の選び方（F9-02、2026-10-23の開発司令室9の訂正）。生成・発射の間隔（8tick）、オーブの上限（5個）、射程、
+ * Electron Missileの照準の選び方。生成・発射の間隔（8tick）、オーブの上限（5個）、射程、
  * 1発の費用はどちらも同じ。撃ってよい相手は、どちらのモードでも攻撃対象のフィルター（{@link ElectronMissileTargetKind}）で決まる。
  * <ul>
  * <li>{@link #AUTO}: 撃ってよい相手のうち、最も近いもの（1.2.0の自動射撃と同じ選び方）。</li>
  * <li>{@link #SEMI}: 撃ってよい相手のうち、視線の円錐（半角{@link ElectronMissileTargeting#SEMI_CONE_DEGREES}度）の中にいるものを優先する
  * （視線に近いものから）。円錐の中にいなければ、AUTOと同じく最も近いものへ戻る。</li>
  * </ul>
- * 保存する値は{@link #id()}の小文字の名前。設定が無い（新しいプレイヤー、F9-02より前のセーブ）ときは{@link #DEFAULT}（AUTO）。
+ * 保存する値は{@link #id()}の小文字の名前。設定が無い（新しいプレイヤー、1.3.0より前のセーブ）ときは{@link #DEFAULT}（AUTO）。
  */
 public enum ElectronMissileAimMode {
     AUTO("auto"), SEMI("semi");

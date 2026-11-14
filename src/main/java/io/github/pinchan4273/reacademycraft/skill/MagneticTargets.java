@@ -39,7 +39,7 @@ public final class MagneticTargets {
         var level = player.serverLevel(); Vec3 start = player.getEyePosition(), direction = player.getLookAngle();
         Vec3 end = start.add(direction.scale(RANGE));
         for (int i = 0; i <= RANGE; i++) if (!level.hasChunkAt(BlockPos.containing(start.add(direction.scale(i))))) return null;
-        // filNormalを使う原作Raytrace.traceLiving: 当たり判定の箱だけが止めるので、草・花・レール（当たり判定の箱が空）は
+        // filNormalを使う原作Raytrace.traceLiving: 当たり判定のバウンディングボックスだけが止めるので、草・花・レール（当たり判定のバウンディングボックスが空）は
         // 原作と同じく通り抜ける。
         var block = level.clip(new ClipContext(start, end, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, player));
         double nearest = block.getType() == HitResult.Type.MISS ? RANGE * RANGE : start.distanceToSqr(block.getLocation());

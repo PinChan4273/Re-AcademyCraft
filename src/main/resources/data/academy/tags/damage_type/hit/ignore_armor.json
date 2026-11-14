@@ -1,0 +1,11 @@
+{
+  "replace": false,
+  "values": [
+    "academy:skill_ignore_armor",
+    "academy:electromaster_ignore_armor",
+    "academy:meltdowner_ignore_armor",
+    "academy:teleporter_ignore_armor",
+    "academy:vecmanip_ignore_armor",
+    "academy:dark_matter_ignore_armor"
+  ]
+}

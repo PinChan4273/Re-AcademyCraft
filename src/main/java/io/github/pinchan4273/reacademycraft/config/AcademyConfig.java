@@ -32,21 +32,30 @@ public final class AcademyConfig {
     public static final ForgeConfigSpec.DoubleValue MAXCP_INCR_RATE, MAXO_INCR_RATE;
     public static final ForgeConfigSpec.ConfigValue<List<? extends Double>> INIT_CP, ADD_CP, INIT_OVERLOAD, ADD_OVERLOAD;
     /**
-     * 1.0.0の後に承認されたCPの容量と回復（docs/CP_RECOVERY_TOGGLE_SPEC_JA.md）。旧項目のinit_cp・add_cp・cp_recover_cooldown・
+     * 1.0.0の後のCPの容量と回復。旧項目のinit_cp・add_cp・cp_recover_cooldown・
      * overload_recover_cooldownは、既存のファイルの値を消さないよう残すが、もう読まない（init_cpだけは1.0.0のセーブの容量を移すときに読む）。
      * 読まないことはCapacityConfigMigrationがサーバーの起動時にログで知らせる。
      */
     public static final ForgeConfigSpec.ConfigValue<List<? extends Double>> BASE_CP, GROWTH_CP;
     public static final ForgeConfigSpec.DoubleValue CP_RECOVER_PER_LEVEL, CP_RECOVER_PER_COURSE, IDLE_RECOVERY_SHARE;
     public static final ForgeConfigSpec.ConfigValue<List<? extends Integer>> CP_RECOVER_WAIT_BY_COURSE, OVERLOAD_RECOVER_WAIT_BY_COURSE;
+    /** 1.5.2: 過負荷の回復待ちの間に残る回復（熟練度100%の値、コース別）と、能力の飛行で空中にいる間の回復の倍率。 */
+    public static final ForgeConfigSpec.ConfigValue<List<? extends Double>> OVERLOAD_WAIT_RECOVERY_AT_FULL;
+    public static final ForgeConfigSpec.DoubleValue AIRBORNE_OVERLOAD_RECOVERY;
+    public static final List<Double> DEFAULT_OVERLOAD_WAIT_RECOVERY_AT_FULL = List.of(.12, .13, .14, .15);
+    public static final double DEFAULT_AIRBORNE_OVERLOAD_RECOVERY = .75;
     public static final List<Double> DEFAULT_BASE_CP = List.of(1500d, 1500d, 3000d, 6000d, 9000d, 12000d),
             DEFAULT_GROWTH_CP = List.of(1500d, 1500d, 3000d, 6000d, 9000d, 12000d);
-    /** 習得した最上位のコース（なし・ブレイン・アドバンスド・マインド）ごとの回復待ち。試遊用の初期値。 */
+    /** 習得した最上位のコース（なし・ブレイン・アドバンスド・マインド）ごとの回復待ち。暫定の初期値。 */
     public static final List<Integer> DEFAULT_CP_RECOVER_WAIT = List.of(15, 12, 9, 5), DEFAULT_OVERLOAD_RECOVER_WAIT = List.of(20, 16, 12, 8);
-    /** Storm Wingの滞空と推進（熟練度0%と100%の値。間は線形）。 */
+    /**
+     * Storm Wingの滞空と推進（熟練度0%と100%の値。間は線形）。1.5.2から、滞空は飛行の部類の基準（回復の割合）で払うので、
+     * 滞空の項目（idle_cp_per_second・idle_overload_recovery_per_second）は使わない（既にある設定ファイルを直させないよう、項目は残す）。
+     * 推進の過負荷の既定は [3, 1] から [0, 0] にした（1.5.2。飛行そのものでは過負荷を足さない）。
+     */
     public static final ForgeConfigSpec.DoubleValue STORM_WING_IDLE_CP;
     public static final ForgeConfigSpec.ConfigValue<List<? extends Double>> STORM_WING_THRUST_CP, STORM_WING_THRUST_OVERLOAD, STORM_WING_IDLE_OVERLOAD_RECOVERY;
-    public static final List<Double> DEFAULT_STORM_WING_THRUST_CP = List.of(120d, 40d), DEFAULT_STORM_WING_THRUST_OVERLOAD = List.of(3d, 1d),
+    public static final List<Double> DEFAULT_STORM_WING_THRUST_CP = List.of(120d, 40d), DEFAULT_STORM_WING_THRUST_OVERLOAD = List.of(0d, 0d),
             DEFAULT_STORM_WING_IDLE_OVERLOAD_RECOVERY = List.of(2d, 4d);
     /**
      * 原作default.confのac.ability.category.<category>.common.prog_incr_rate。ただし電撃使いは従来どおり
@@ -64,15 +73,17 @@ public final class AcademyConfig {
     public static final java.util.Map<String, SkillValues> SKILLS = new java.util.LinkedHashMap<>();
     /**
      * 切り替え型の各技能の、熟練度0%での回復を上回る維持コスト: 回復を完全に止めるモードがあったときの技能自身の0%の維持コスト。
-     * それを持たなかったBody Intensifyは10。
+     * それを持たなかったBody Intensifyは10。未元光線（dark_matter_ray）は1.5.2で足した: 1.5.1の毎秒80 → 40CPの代わりに、
+     * 部類の外の切り替え型の共通の形で、回復の割合に毎tick 4 ×（1 − 熟練度）を足す。
      */
     public static final java.util.Map<String, Double> DEFAULT_TOGGLE_UPKEEP = defaults("body_intensify", 10d, "electron_missile", 12d,
-            "jet_engine", 8d, "flashing", 4d, "vec_deviation", 18d, "vec_reflection", 15d, "storm_wing", 40d, "light_shield", 9d);
+            "jet_engine", 8d, "flashing", 4d, "vec_deviation", 18d, "vec_reflection", 15d, "storm_wing", 40d, "light_shield", 9d,
+            "dark_matter_ray", 4d);
     public static final java.util.Map<String, ForgeConfigSpec.DoubleValue> TOGGLE_UPKEEP = new java.util.LinkedHashMap<>();
     public static final List<Integer> DEFAULT_BODY_WARMUP = List.of(20, 15, 10, 5, 2);
     public static final ForgeConfigSpec.ConfigValue<List<? extends Integer>> BODY_WARMUP_TICKS;
     public static final ForgeConfigSpec.DoubleValue BODY_EXTRA_EXHAUSTION;
-    /** Electron Missileのオーブの生成間隔（F9-01で既定8を正式採用。1.2.0と原作は10）。 */
+    /** Electron Missileのオーブの生成間隔（既定は8。1.2.0と原作は10）。 */
     public static final ForgeConfigSpec.IntValue ELECTRON_MISSILE_SPAWN_INTERVAL;
     private static java.util.Map<String, Double> defaults(Object... pairs) {
         var map = new java.util.LinkedHashMap<String, Double>();
@@ -90,7 +101,8 @@ public final class AcademyConfig {
             "dir_shock", "ground_shock", "vec_accel", "vec_deviation", "dir_blast", "storm_wing", "blood_retro", "vec_reflection", "plasma_cannon",
             // 1.5.0の未元物質。既存の41技能の設定と既定値は変えない（習得できるかはDarkMatter.learnableでも絞る）。
             "white_wing_stab", "white_wing_flight", "dark_matter_ray", "white_wing_guard", "dark_matter_air_cannon",
-            "dark_matter_armor", "dark_matter_beetle", "heaven_manifest", "dark_matter_body");
+            // 1.5.2: 廃止した未元装甲（dark_matter_armor）の設定は無くした。
+            "dark_matter_beetle", "heaven_manifest", "dark_matter_body");
     static final List<Double> LEGACY_INIT_CP = List.of(1800d, 1800d, 2800d, 4000d, 5800d, 8000d),
             LEGACY_ADD_CP = List.of(0d, 900d, 1000d, 1500d, 1700d, 12000d),
             LEGACY_INIT_OVERLOAD = List.of(100d, 100d, 150d, 240d, 350d, 500d),
@@ -168,9 +180,15 @@ public final class AcademyConfig {
         CP_RECOVER_WAIT_BY_COURSE = b.comment("Ticks after spending CP before it comes back, by the highest learned course:",
                         "none, Brain, Advanced Brain, Mind. Trial defaults.")
                 .defineList("cp_recover_wait_by_course", DEFAULT_CP_RECOVER_WAIT, AcademyConfig::waitValue);
-        OVERLOAD_RECOVER_WAIT_BY_COURSE = b.comment("Ticks after overloading before overload starts to fall, by the highest learned course:",
-                        "none, Brain, Advanced Brain, Mind. Trial defaults.")
+        OVERLOAD_RECOVER_WAIT_BY_COURSE = b.comment("Ticks after overload rises before it recovers at full speed, by the highest learned course:",
+                        "none, Brain, Advanced Brain, Mind. Not shortened by proficiency (1.5.2).")
                 .defineList("overload_recover_wait_by_course", DEFAULT_OVERLOAD_RECOVER_WAIT, AcademyConfig::waitValue);
+        OVERLOAD_WAIT_RECOVERY_AT_FULL = b.comment("Share of the overload recovery kept during that wait, at 100% proficiency of the skill that",
+                        "raised it, by the highest learned course (none, Brain, Advanced Brain, Mind). Scales with proficiency: 0% keeps none.")
+                .defineList("overload_wait_recovery_at_full_by_course", DEFAULT_OVERLOAD_WAIT_RECOVERY_AT_FULL, AcademyConfig::shareValue);
+        AIRBORNE_OVERLOAD_RECOVERY = b.comment("Multiplier of the overload recovery while flying with an ability (white wing flight, Storm Wing, Jet Engine)",
+                        "off the ground. 1.0 = no change.")
+                .defineInRange("airborne_overload_recovery", DEFAULT_AIRBORNE_OVERLOAD_RECOVERY, 0.0, 1.0);
         IDLE_RECOVERY_SHARE = b.comment("Share of the normal CP recovery a toggled mode at 100% proficiency leaves when it is held alone",
                         "and idle (not attacking, defending, reflecting, warping or thrusting). 0.5 = half the recovery.")
                 .defineInRange("idle_recovery_share", 0.5, 0.0, 1.0);
@@ -189,26 +207,30 @@ public final class AcademyConfig {
                 .defineListAllowEmpty(List.of("excluded"), LEGACY_AFFECTED_EXCLUDED, value -> value instanceof String s && !s.isBlank() && s.length() <= 256);
         b.pop(2);
         b.pop().comment("Each toggled skill's maintenance, per docs/TOGGLE_MAINTENANCE_CONTRACT_JA.md (not legacy's).",
-                "While on, a skill pays each tick the CP the caster's natural recovery would bring that tick, plus",
-                "this value times (1 - proficiency): at full proficiency and default settings one mode alone",
-                "holds CP exactly level. Several modes add up; the recovery is counted once. The skill's",
-                "cp_consume_speed scales the whole of it, so values other than 1.0 leave the balance; where",
-                "recovery is 0 the standard recovery rate is charged instead. 0 charges the recovery alone.")
+                "Body Intensify, Electron Missile, Flashing and Dark Matter Ray (1.5.2): while on, each pays every tick",
+                "the player's standard recovery (as if not waiting) times 1.0 at 0% proficiency down to 0.25 at 100%,",
+                "plus this value times (1 - proficiency). Each mode pays its own share, however many are on, and it is",
+                "paid during the recovery wait too (1.5.2). The skill's cp_consume_speed scales the whole of it.",
+                "Since 1.5.2 Body Intensify pays it only while its buffs are being used (moving, jumping, attacking, healing).",
+                "0 charges the recovery share alone. Since 1.5.2 the defence skills (Vector Deviation, Vector",
+                "Reflection, Light Shield, the white wing guard) cost no CP while on (as 1.5.1's white wing guard) and",
+                "pay 0.25 CP per point of damage blocked, plus their overload; the flight skills (Jet Engine, Storm Wing)",
+                "follow the flight rules. Their entries here are no longer used.")
                 .push("toggle_upkeep");
         for (var entry : DEFAULT_TOGGLE_UPKEEP.entrySet())
             TOGGLE_UPKEEP.put(entry.getKey(), b.comment("CP a tick at 0% proficiency, above the recovery.")
                     .defineInRange(entry.getKey(), entry.getValue(), 0.0, 1000.0));
-        b.pop().comment("Storm Wing's flight once charged (approved after 1.0.0; docs/CP_RECOVERY_TOGGLE_SPEC_JA.md). Values at 0% and 100%",
-                "proficiency, linear between. Replaces toggle_upkeep.storm_wing, which is no longer used.").push("storm_wing");
-        STORM_WING_IDLE_CP = b.comment("CP a second lost hovering without thrust at 0% proficiency, times (1 - proficiency).",
-                        "At 100% hovering alone keeps capacity.idle_recovery_share of the normal recovery instead.")
+        b.pop().comment("Storm Wing's flight once charged. Values at 0% and 100% proficiency, linear between. Since 1.5.2 (1.5.1's values)",
+                "hovering pays a share of the player's standard recovery (1.0 at 0% down to 0.50 at 100%), even while the recovery waits,",
+                "and thrusting pays the whole of it plus the thrust below. Replaces toggle_upkeep.storm_wing, which is no longer used.").push("storm_wing");
+        STORM_WING_IDLE_CP = b.comment("No longer used since 1.5.2 (hovering follows the flight rules).")
                 .defineInRange("idle_cp_per_second", 40.0, 0.0, 100000.0);
-        STORM_WING_THRUST_CP = b.comment("CP a second while thrusting [at 0%, at 100%]: the whole cost, hovering included, recovery stopped.")
+        STORM_WING_THRUST_CP = b.comment("CP a second lost while thrusting [at 0%, at 100%]: paid on top of the whole recovery, so CP falls by this much.",
+                        "Paid without a recovery wait. Same meaning and default as 1.5.1.")
                 .defineList("thrust_cp_per_second", DEFAULT_STORM_WING_THRUST_CP, AcademyConfig::pairValue);
         STORM_WING_THRUST_OVERLOAD = b.comment("Overload a second while thrusting [at 0%, at 100%].")
                 .defineList("thrust_overload_per_second", DEFAULT_STORM_WING_THRUST_OVERLOAD, AcademyConfig::pairValue);
-        STORM_WING_IDLE_OVERLOAD_RECOVERY = b.comment("Overload a second falling while hovering without thrust, after the overload wait",
-                        "[at 0%, at 100%]. Takes the place of the normal overload recovery while hovering.")
+        STORM_WING_IDLE_OVERLOAD_RECOVERY = b.comment("No longer used since 1.5.2: the overload recovers as usual while hovering.")
                 .defineList("idle_overload_recovery_per_second", DEFAULT_STORM_WING_IDLE_OVERLOAD_RECOVERY, AcademyConfig::pairValue);
         b.pop().comment("Body Intensify as a toggle (user-approved, not legacy's; docs/BODY_INTENSIFY_MASTERY_SPEC_JA.md).")
                 .push("body_intensify");
@@ -218,7 +240,7 @@ public final class AcademyConfig {
         BODY_EXTRA_EXHAUSTION = b.comment("Food exhaustion added each tick while the buffs are on (0.005 = 0.1 a second at 20 TPS;",
                         "creative and spectator players are exempt as from all exhaustion). 0 adds none.")
                 .defineInRange("extra_exhaustion", 0.005, 0.0, 1.0);
-        // F9-01: キーをspawn_interval（1.3.0-rc1の比較用、既定10）からorb_spawn_intervalへ替えた。古いキーは知らないキーとして
+        // キーをspawn_interval（1.3.0-rc1の比較用、既定10）からorb_spawn_intervalへ替えた。古いキーは知らないキーとして
         // Forgeの設定の補正で外れるので、古いファイルに書かれた10は読まない。10と比べたいときは新しいキーへ10を書く。
         b.pop().comment("Electron Missile. Orbs spawn every 8 ticks and fire every 8 ticks (adopted in 1.3.0-rc2; 1.2.0 spawned every 10).")
                 .push("electron_missile");
@@ -243,7 +265,7 @@ public final class AcademyConfig {
         SPEC = b.build();
     }
     private AcademyConfig() { }
-    /** Electron Missileのオーブの生成間隔。設定が読み込まれていなければ既定の8（F9-01）。 */
+    /** Electron Missileのオーブの生成間隔。設定が読み込まれていなければ既定の8。 */
     public static int electronMissileSpawnInterval() {
         return loaded() ? ELECTRON_MISSILE_SPAWN_INTERVAL.get() : io.github.pinchan4273.reacademycraft.skill.ElectronMissile.SPAWN_INTERVAL;
     }
@@ -256,7 +278,7 @@ public final class AcademyConfig {
     public static double progressionMultiplier(ResourceLocation category) {
         if (!loaded()) return 1;
         double categoryRate = io.github.pinchan4273.reacademycraft.skill.ArcGen.CATEGORY.equals(category) ? ELECTROMASTER_EXPERIENCE_MULTIPLIER.get()
-                // 1.4.0のS2: カテゴリごとの倍率は本体のカテゴリだけ（名前空間を見ずにパスで引くと、ほかのmodの同じパスのカテゴリが本体の倍率を拾った）。
+                // 1.4.0: カテゴリごとの倍率は本体のカテゴリだけ（名前空間を見ずにパスで引くと、ほかのmodの同じパスのカテゴリが本体の倍率を拾った）。
                 : category == null || !"academy".equals(category.getNamespace()) || !CATEGORY_PROGRESS.containsKey(category.getPath()) ? 1.0
                 : CATEGORY_PROGRESS.get(category.getPath()).get();
         return SKILL_EXPERIENCE_MULTIPLIER.get() * categoryRate;
@@ -301,6 +323,15 @@ public final class AcademyConfig {
     public static int cpRecoverCooldown(int course) { return byCourse(CP_RECOVER_WAIT_BY_COURSE, DEFAULT_CP_RECOVER_WAIT, course); }
     /** オーバーロードの回復待ち。courseは{@link #cpRecoverCooldown}と同じ。 */
     public static int overloadRecoverCooldown(int course) { return byCourse(OVERLOAD_RECOVER_WAIT_BY_COURSE, DEFAULT_OVERLOAD_RECOVER_WAIT, course); }
+    /** 過負荷の回復待ちの間に残る回復の、熟練度100%の割合（1.5.2）。courseは{@link #cpRecoverCooldown}と同じ。 */
+    public static float overloadWaitRecoveryAtFull(int course) {
+        List<? extends Double> values = loaded() ? OVERLOAD_WAIT_RECOVERY_AT_FULL.get() : DEFAULT_OVERLOAD_WAIT_RECOVERY_AT_FULL;
+        if (values.size() != 4) values = DEFAULT_OVERLOAD_WAIT_RECOVERY_AT_FULL;
+        return (float) Math.max(0, Math.min(1, values.get(Math.max(0, Math.min(3, course)))));
+    }
+    /** 能力の飛行で空中にいる間の、過負荷の回復の倍率（1.5.2）。 */
+    public static float airborneOverloadRecovery() { return (float) (loaded() ? AIRBORNE_OVERLOAD_RECOVERY.get() : DEFAULT_AIRBORNE_OVERLOAD_RECOVERY); }
+    private static boolean shareValue(Object value) { return value instanceof Double d && d >= 0 && d <= 1; }
     /** 待ちが無いときの1tickのCP回復: (レベル × cp_recover_per_level + コース数 × cp_recover_per_course) / 20。倍率とイベントは含まない。 */
     public static double cpRecoveryPerTick(int level, int courses) {
         double perLevel = loaded() ? CP_RECOVER_PER_LEVEL.get() : 50, perCourse = loaded() ? CP_RECOVER_PER_COURSE.get() : 50;
@@ -314,23 +345,15 @@ public final class AcademyConfig {
         float p = Math.max(0, Math.min(1, proficiency));
         return (float) (values.get(0) + (values.get(1) - values.get(0)) * p);
     }
-    /** Storm Wingの、推進しない滞空で失うCP（1tickあたり）。熟練度100%では0。 */
-    public static float stormWingIdleCp(float proficiency) {
-        return (float) ((loaded() ? STORM_WING_IDLE_CP.get() : 40) / 20 * (1 - Math.max(0, Math.min(1, proficiency))));
-    }
-    /** Storm Wingの推進のCP（1tickあたり、滞空の分を含む全体）。 */
+    /** Storm Wingの推進のCP（1tickあたり。1.5.2から、浮く分に足す額）。 */
     public static float stormWingThrustCp(float proficiency) { return lerpPair(STORM_WING_THRUST_CP, DEFAULT_STORM_WING_THRUST_CP, proficiency) / 20; }
     /** Storm Wingの推進のオーバーロード（1tickあたり）。 */
     public static float stormWingThrustOverload(float proficiency) { return lerpPair(STORM_WING_THRUST_OVERLOAD, DEFAULT_STORM_WING_THRUST_OVERLOAD, proficiency) / 20; }
-    /** Storm Wingの、推進しない滞空でのオーバーロードの回復（1tickあたり）。 */
-    public static float stormWingIdleOverloadRecovery(float proficiency) {
-        return lerpPair(STORM_WING_IDLE_OVERLOAD_RECOVERY, DEFAULT_STORM_WING_IDLE_OVERLOAD_RECOVERY, proficiency) / 20;
-    }
     public static float maxCpIncrRate() { return loaded() ? MAXCP_INCR_RATE.get().floatValue() : .0025f; }
     public static float maxOverloadIncrRate() { return loaded() ? MAXO_INCR_RATE.get().floatValue() : .0058f; }
     @javax.annotation.Nullable private static SkillValues skill(ResourceLocation id) {
         if (id == null) return null;
-        // 1.4.0のS4（D12）: 外部の技能は、名前空間ごとの設定ファイル（AddonSkillConfig）。
+        // 1.4.0: 外部の技能は、名前空間ごとの設定ファイル（AddonSkillConfig）。
         if (!"academy".equals(id.getNamespace())) return AddonSkillConfig.values(id);
         return !loaded() ? null : SKILLS.get(id.getPath());
     }

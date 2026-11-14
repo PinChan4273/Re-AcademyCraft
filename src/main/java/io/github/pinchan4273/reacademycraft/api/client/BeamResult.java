@@ -15,7 +15,7 @@ public enum BeamResult {
     UNSUPPORTED,
     /**
      * 要求が正しくない: 持ち主が読み込まれたMOD IDでない、または{@code academy}、効果IDが0以下、座標が有限でない・範囲の外、
-     * 長さが0以下か{@link ExternalPresentation#maxLength}を超える、次元が今のクライアントの次元と違う、見た目がnull。
+     * 長さが0以下か{@link ExternalPresentation#maxLength}を超える、ディメンションが今のクライアントのディメンションと違う、見た目がnull。
      */
     INVALID,
     /** 世界が無い、または資源の読み直し（オーバーレイ）の最中。 */

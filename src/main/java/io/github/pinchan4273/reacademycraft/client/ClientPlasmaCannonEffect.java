@@ -170,7 +170,7 @@ public final class ClientPlasmaCannonEffect {
         var centre = effect.previous.lerp(effect.position, partial);
         var at = centre.subtract(camera);
         var pose = event.getPoseStack();
-        // シェーダーのcamspaceの空間: ワールドのpose、次にシェーダーが掛けるmodel-view。
+        // シェーダーのcamspaceの座標系: ワールドのpose、次にシェーダーが掛けるmodel-view。
         var toCamera = new Matrix4f(RenderSystem.getModelViewMatrix()).mul(pose.last().pose());
         float elapsed = (float) (now - effect.initTime);
         int count = Math.min(16, effect.balls.size());
@@ -228,7 +228,7 @@ public final class ClientPlasmaCannonEffect {
                 shader.clear();
             } finally {
                 if (target != null) {
-                    // メインを結び直してOculusの印を戻し、入ってきたときの実際の描画先（シェーダーパックのもの）と表示範囲へ戻す。
+                    // メインを結び直してOculusのフラグを戻し、入ってきたときの実際の描画先（シェーダーパックのもの）と表示範囲へ戻す。
                     Minecraft.getInstance().getMainRenderTarget().bindWrite(false);
                     GlStateManager._glBindFramebuffer(GL30.GL_READ_FRAMEBUFFER, readFramebuffer);
                     GlStateManager._glBindFramebuffer(GL30.GL_DRAW_FRAMEBUFFER, drawFramebuffer);
@@ -252,7 +252,7 @@ public final class ClientPlasmaCannonEffect {
         return packTarget;
     }
     /**
-     * 専用の描画先の絵を、本体の中心の深さで画面と平行な、画面全体の四角としてワールドへ貼る。画面と平行なので、画面の座標が
+     * 専用の描画先のテクスチャを、本体の中心の深さで画面と平行な、画面全体の四角としてワールドへ貼る。画面と平行なので、画面の座標が
      * そのままテクスチャ座標になる。深度テストはワールドに対してこの深さで行うので、壁の向こうの本体は隠れる（直接描くときの
      * 本体の四角と同じ）。シェーダーはMinecraftのもので、Oculusがシェーダーパックのプログラムへ置き換える。
      */

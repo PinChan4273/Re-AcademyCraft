@@ -5,7 +5,7 @@ import javax.annotation.Nullable;
 import net.minecraft.server.level.ServerPlayer;
 
 /**
- * Light Shieldのモードを読む・変える、サーバーの唯一の入口（工程2）。コマンド（{@link ShieldCommands}）も、将来の能力調整GUIの
+ * Light Shieldのモードを読む・変える、サーバーの唯一の入口。コマンド（{@link ShieldCommands}）も、将来の能力調整GUIの
  * パケットも、ここを呼ぶ。設定の正本はサーバーの能力データ（{@link PlayerAbilityData#getLightShieldMode()}、保存はSkillSettings区分）で、
  * 呼び出した本人のデータだけを変える。
  * <p>

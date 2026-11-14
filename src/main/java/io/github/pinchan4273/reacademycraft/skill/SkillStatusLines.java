@@ -10,7 +10,7 @@ import net.minecraft.resources.ResourceLocation;
  * client専用のクラスから分けてあるのは、サーバー側のGameTestから同じ行を確かめるため。参加中のサーバーの規則
  * （SyncedAcademyRules）はここでは読まず、clientのDebugConsoleが渡す（サーバー側のコードがclientの値を読まないための検査に従う）。
  *
- * <p>2026-10-16の追加指示（パッシブ技能のF4表示）:
+ * <p>パッシブ技能のF4表示:
  * <ul>
  *   <li>能力カテゴリの技能は従来どおり熟練度を出す。Radiation Intensifyだけは、保存された熟練度ではなく実際に効く
  *       実効熟練度（最大CP ÷ 参加中のサーバーのLv5の初期CP）と、その倍率を出す。</li>
@@ -22,7 +22,7 @@ public final class SkillStatusLines {
     /** 標準設定の値（AcademyConfigの既定値）。サーバーの実際の値ではない。 */
     public static final int STANDARD_CP_PER_COURSE = 50;
     public static final String STANDARD_NOTE = "* standard settings; the server's may differ";
-    /** 参加中のサーバーの規則がまだ届いていないときのRadiation Intensifyの行（QAの所見FQ-01）。標準の値をサーバーの値のように出さない。 */
+    /** 参加中のサーバーの規則がまだ届いていないときのRadiation Intensifyの行。標準の値をサーバーの値のように出さない。 */
     public static final String RADIATION_WAITING = "learned; waiting for the server's rules";
     private static final List<ResourceLocation> COURSES = List.of(GenericSkills.BRAIN, GenericSkills.ADVANCED_BRAIN, GenericSkills.MIND);
     private SkillStatusLines() { }

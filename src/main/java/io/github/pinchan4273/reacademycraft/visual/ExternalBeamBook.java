@@ -10,9 +10,9 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 /**
- * 外部の演出の光線の帳簿（演出API版1）: 持ち主（MOD ID）ごとの描いている光線、終わった効果IDの記憶、受け付けと拒否の数。
+ * 外部の演出の光線の管理テーブル（演出API版1）: 持ち主（MOD ID）ごとの描いている光線、終わった効果IDの記憶、受け付けと拒否の数。
  * 自然能力の光線・球の一覧とは別で、上限も持ち主ごと。描画とMinecraftのクライアントには依存しない（GameTestで確かめる）。
- * 時刻は呼び出し側が渡すtickの数（クライアントの世界の時刻ではなく、帳簿を進めた回数）。
+ * 時刻は呼び出し側が渡すtickの数（クライアントの世界の時刻ではなく、管理テーブルを進めた回数）。
  *
  * @param <T> 光線の描画の状態（クライアントの側が持つ）
  */
@@ -28,7 +28,7 @@ public final class ExternalBeamBook<T> {
     private final Map<String, Owner<T>> owners = new HashMap<>();
     private long now;
 
-    /** 帳簿の時刻を1つ進め、重複の記憶の期限が切れたものを捨てる。 */
+    /** 管理テーブルの時刻を1つ進め、重複の記憶の期限が切れたものを捨てる。 */
     public void advance() {
         now++;
         for (var owner : owners.values()) owner.recent.values().removeIf(until -> until <= now);

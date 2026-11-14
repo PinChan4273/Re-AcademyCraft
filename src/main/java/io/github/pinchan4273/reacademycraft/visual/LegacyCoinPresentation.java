@@ -18,14 +18,14 @@ public final class LegacyCoinPresentation {
     public static final ItemRotation FIRST_PERSON_RIGHT_ROTATION = new ItemRotation(0, -90, 25);
     public static final ItemRotation FIRST_PERSON_LEFT_ROTATION = new ItemRotation(0, 90, -25);
     /**
-     * 三人称の手のコインの向き。原作のTEISRはコインを自身の四角形の空間で描いていたので、1.20.1の三人称の腕の変換の下で
+     * 三人称の手のコインの向き。原作のTEISRはコインを自身の四角形の座標系で描いていたので、1.20.1の三人称の腕の変換の下で
      * コインの面が見えるよう回す。
      */
     public static final ItemRotation THIRD_PERSON_RIGHT_ROTATION = new ItemRotation(0, -90, 55);
     public static final ItemRotation THIRD_PERSON_LEFT_ROTATION = new ItemRotation(0, 90, -55);
     /**
      * 現行の拳からの離れ（ブロック単位）。三人称の手にだけ使う。
-     * 原作のTEISRはコインを自身の四角形の空間で描き、1.20.1の手のずれを表さなかったので、固定した三人称の倍率.2だけでは、
+     * 原作のTEISRはコインを自身の四角形の座標系で描き、1.20.1の手のオフセットを表さなかったので、固定した三人称の倍率.2だけでは、
      * .2ブロックのコインが.25ブロックの腕の内側に入り、完全に隠れる。これは互換用の回転と同じく、座標系のアダプタの役割。
      *
      * バニラの三人称の腕の経路はbake済みのRx(-90)/Ry(180)の補正を持つので、単純な「上」への大きな平行移動は、拳から持ち上げる
@@ -59,7 +59,7 @@ public final class LegacyCoinPresentation {
         }
     }
 
-    /** 1つの表示の文脈について、原作のコインのTEISRが対応付ける正確な拡大縮小・平行移動の連鎖。 */
+    /** 1つの表示のコンテキストについて、原作のコインのTEISRが対応付ける正確な拡大縮小・平行移動の連鎖。 */
     public record ItemTransform(float scaleX, float scaleY, float scaleZ,
                                 float translateX, float translateY, float translateZ) {
         public ItemTransform {
@@ -78,7 +78,7 @@ public final class LegacyCoinPresentation {
         }
     }
 
-    /** ブロック空間の平行移動。Minecraftは16分の1の形式を5ブロックで切り詰める。 */
+    /** ブロック座標系の平行移動。Minecraftは16分の1の形式を5ブロックで切り詰める。 */
     public record ItemTranslation(float x, float y, float z) {
         public ItemTranslation {
             if (!Float.isFinite(x) || !Float.isFinite(y) || !Float.isFinite(z)

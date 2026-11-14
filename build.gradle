@@ -6,7 +6,7 @@ plugins {
 }
 
 group = 'io.github.pinchan4273.reacademycraft'
-version = '1.5.1'
+version = '1.5.2'
 base { archivesName = 're-academycraft-forge-1.20.1' }
 
 java {
@@ -39,7 +39,7 @@ minecraft {
                 workingDirectory project.file('run/client-smoke')
                 property 'academy.runtimeSmokeTest', 'true'
                 property 'academy.test.cpSafetyDefaultOff', 'true'
-                // 1.4.0のS4: 統合サーバーのclient smokeでも試験だけのアドオンを登録する（クライアントとサーバーが同じ登録簿）。
+                // 1.4.0: 統合サーバーのclient smokeでも試験だけのアドオンを登録する（クライアントとサーバーが同じ登録簿）。
                 // dedicatedのクライアントには付けない（製品のJARのサーバーと同じ登録簿で、ログインの照合が通ることを確かめる）。
                 property 'academy.testAddon', 'true'
                 mods { academy { source sourceSets.test } }
@@ -61,7 +61,7 @@ minecraft {
                 property 'academy.mpContact', project.property('mpContactRole')
                 // 1.3.0-rc2の複数クライアントの確認（tools/run_mp_rc2.py、Rc2MultiplayerCheck）。このプロパティを付けたときだけ効く。
                 if (project.hasProperty('mpRc2Role')) property 'academy.mpRc2', project.property('mpRc2Role')
-                // 1.4.0の司令室13の条件C（tools/run_mp_addon.py、AddonMultiplayerCheck）。このプロパティを付けたときだけ効く。
+                // 1.4.0: 複数クライアントの確認用（tools/run_mp_addon.py、AddonMultiplayerCheck）。このプロパティを付けたときだけ効く。
                 if (project.hasProperty('mpAddonRole')) property 'academy.mpAddon', project.property('mpAddonRole')
                 if (project.hasProperty('mpAddonSession')) property 'academy.mpAddonSession', project.property('mpAddonSession')
                 // 能力の登録だけを足す試験のアドオン（登録の不一致の切断の確かめ。Forgeの登録簿には何も足さない）。
@@ -78,8 +78,11 @@ minecraft {
             property 'forge.enabledGameTestNamespaces', 'academy'
             // v1.4.1以前の試験はCPをちょうど使い切る形で書かれている。セーフティの試験（CpSafetyGameTests）は値を明示する。
             property 'academy.test.cpSafetyDefaultOff', 'true'
-            // 1.4.0のS4: 試験だけのアドオン（src/testのTestAddon）を登録する。GameTestのサーバーだけで効き、製品のJARとclient smokeには関係しない。
+            // 1.4.0: 試験だけのアドオン（src/testのTestAddon）を登録する。GameTestのサーバーだけで効き、製品のJARとclient smokeには関係しない。
             property 'academy.testAddon', 'true'
+            // 1.5.2: 上限を書かないと物理メモリの1/4になり、Actions のマシン（メモリが少ない）では試験の後半で明るさの計算が
+            // OutOfMemoryError になった。Gradle 本体の 3G と合わせて収まる値にする。
+            jvmArgs '-Xmx2560m'
             mods { academy { source sourceSets.test } }
         }
     }
@@ -89,7 +92,7 @@ dependencies {
     minecraft 'net.minecraftforge:forge:1.20.1-47.4.10'
 }
 
-// 1.4.0の司令室13の条件C: 複数クライアントの確認で、配布用のサンプルのアドオンのJAR（-PmpWithSample=<JARのあるフォルダ>）を、開発の名前へ戻して
+// 1.4.0: 複数クライアントの確認で、配布用のサンプルのアドオンのJAR（-PmpWithSample=<JARのあるフォルダ>）を、開発の名前へ戻して
 // 開発のクライアントへ読み込む（サーバーには同じJARをそのまま入れる）。このプロパティを付けたときだけ効き、製品のJARには関係しない。
 if (project.hasProperty('mpWithSample')) {
     repositories { flatDir { dirs project.property('mpWithSample') } }
@@ -125,7 +128,7 @@ tasks.named('sourcesJar', Jar).configure {
     from('licenses') { into 'META-INF/licenses' }
 }
 
-// 1.4.0のS6: 公開APIだけのJAR・sources・Javadoc。司令室13の裁定D10で、GitHub ReleasesのSDKとして配る（本体と同じGPLv3。再ライセンスしない）。
+// 1.4.0: 公開APIだけのJAR・sources・Javadoc。GitHub ReleasesのSDKとして配る（本体と同じGPLv3。再ライセンスしない）。
 // どのJARにも、LICENSE・NOTICE.md・licenses/（原作のREADMEの追加の文言とGradleのライセンス）を入れる。
 // 公開の範囲は、パッケージapi・api.mc・api.forge・api.clientだけ。APIのJARはアドオンのコンパイルのためのもので、実行には本体のJARが要る。
 // APIのクラスはMinecraftのメソッドを呼ばず（委譲とインターフェースだけ）、1.20.1のクラスの名前は配布用と開発用で同じなので、名前の変換
@@ -143,7 +146,7 @@ tasks.register('apiJar', Jar) {
         attributes 'Implementation-Title': 'Re:AcademyCraft API (experimental)',
                    'Implementation-Version': project.version,
                    // AcademyApi.VERSION と同じ値にする（1.4.1の配布物は1のままだった）。
-                   'Academy-Api-Version': '2'
+                   'Academy-Api-Version': '3'
     }
 }
 tasks.register('apiSourcesJar', Jar) {
@@ -156,7 +159,7 @@ tasks.register('apiSourcesJar', Jar) {
 }
 // APIのJavadocは、OpenJDK（Eclipse AdoptiumのTemurin。GPLv2とClasspath例外）のjavadocで作る。javadocは、JDKのスタイル・スクリプト・画像と
 // jQuery・jQuery UIを出力へ写し、legal/にはJDKの本文を指すだけの1行を置く。Oracle JDKではその本文がNo-Fee Termsで、写した部品の条件が違う。
-// そこで、JDKを決め、指すだけの行の代わりにそのJDKの本文をJARへ入れる（司令室13の裁定D10・条件F）。CIもTemurin。
+// そこで、JDKを決め、指すだけの行の代わりにそのJDKの本文をJARへ入れる。CIもTemurin。
 def apiJavadocTool = javaToolchains.javadocToolFor {
     languageVersion = JavaLanguageVersion.of(17)
     vendor = JvmVendorSpec.ADOPTIUM

@@ -15,9 +15,9 @@ import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 
 /**
- * クライアントが知る能力設定の値（1.4.0のS1）。サーバーから届いた値（{@link SkillSettingsSnapshot}）だけを持ち、画面はこれを表示する。
+ * クライアントが知る能力設定の値（1.4.0）。サーバーから届いた値（{@link SkillSettingsSnapshot}）だけを持ち、画面はこれを表示する。
  * 変更を送った設定は、次の値が届くまで「送信中」として数える（受け入れられても断られても、サーバーは値を送り返す）。
- * 返事が{@link PendingSettingEdits#TIMEOUT_TICKS}tick届かなければ、その保留は終える（WORK-143 F140-S1-F01の念のための守り）。
+ * 返事が{@link PendingSettingEdits#TIMEOUT_TICKS}tick届かなければ、その保留は終える（念のための守り）。
  */
 @Mod.EventBusSubscriber(modid = "academy", value = Dist.CLIENT)
 public final class ClientSkillSettings {
@@ -26,7 +26,7 @@ public final class ClientSkillSettings {
     private static final PendingSettingEdits PENDING = new PendingSettingEdits();
     /** クライアントのtickの数（保留の期限を測る。ワールドの時刻ではないので、ワールドの外でも進む）。 */
     private static long ticks;
-    /** 届いた値の数（試験で、届いたことを待つため）。 */
+    /** 届いた値の数（テストで、届いたことを待つため）。 */
     private static int snapshots;
 
     private ClientSkillSettings() { }

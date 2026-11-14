@@ -15,8 +15,8 @@ import net.minecraft.client.Minecraft;
 
 /**
  * 原作ACHudのnode: CustomizeUIでプレイヤーが位置を変えられるHUD。それぞれ決まった大きさと倍率の部品で、画面の辺に揃え、
- * そこからのずれを原作は設定の"gui"の項目に保存する。ここではconfig/academy_hud.propertiesに原作の名前で保存する。
- * ずれが無いnodeは原作の既定の位置。
+ * そこからのオフセットを原作は設定の"gui"の項目に保存する。ここではconfig/academy_hud.propertiesに原作の名前で保存する。
+ * オフセットが無いnodeは原作の既定の位置。
  */
 public final class HudLayout {
     public enum Align { START, CENTER, END }

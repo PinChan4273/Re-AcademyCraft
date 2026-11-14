@@ -16,12 +16,12 @@ import net.minecraft.world.entity.projectile.Projectile;
 import net.minecraft.world.phys.Vec3;
 
 /**
- * Light Shieldの標的と目標の向きの選び方（工程2）。AUTOとMANUALの違いはここだけで、盾の防御・移動・描画・費用は{@link LightShield}が
- * 共通で行う。数値はPhase 0の比較の第一候補で、正式な値ではない。
+ * Light Shieldの標的と目標の向きの選び方。AUTOとMANUALの違いはここだけで、盾の防御・移動・描画・費用は{@link LightShield}が
+ * 共通で行う。数値は比較の第一候補で、正式な値ではない。
  * <p>
- * <b>AUTO（P-B）</b>: 視線に依らず、基点から半径{@link LightShieldGeometry#SEARCH_RADIUS}の全方向（上下も）を探し、
+ * <b>AUTO</b>: 視線に依らず、基点から半径{@link LightShieldGeometry#SEARCH_RADIUS}の全方向（上下も）を探し、
  * ① 術者へ向かう飛来物（最接近までの時間が短い順）→ ② 今接触している敵 → ③ 術者を狙っているMob（{@code getTarget()}）→
- * ④ 直前（5秒以内）に攻撃してきた元、の順に選ぶ（②〜④は近い順）。脅威が無ければ、最後の向きのまま（Phase 0の待機案(a)）。
+ * ④ 直前（5秒以内）に攻撃してきた元、の順に選ぶ（②〜④は近い順）。脅威が無ければ、最後の向きのまま。
  * <p>
  * <b>MANUAL</b>: 視線の中心軸から{@link #MANUAL_CONE}度以内の有効な対象のうち、軸に最も近いものを選ぶ。角度の差が
  * {@link #MANUAL_TIE}度以内なら近いほうを選ぶ。対象が無ければ視線の方向を目指す。
@@ -39,7 +39,7 @@ public final class LightShieldTargeting {
     public static final int PROJECTILE = 0, CONTACT = 1, AIMING = 2, ATTACKER = 3, ENEMY = 4, NONE = -1;
     public static final int HOLD_TICKS = 10, RECENT_ATTACK_TICKS = 100;
     public static final double MANUAL_CONE = 30, MANUAL_TIE = 3, MANUAL_KEEP = 40, MANUAL_SWITCH = 8;
-    /** 接触とみなす、術者と相手の当たり判定の箱の隙間。 */
+    /** 接触とみなす、術者と相手のバウンディングボックスの隙間。 */
     public static final double CONTACT_GAP = 1.0;
     /** 飛来物が術者へ向かっているとみなす、最接近の距離（基点から）。 */
     public static final double PROJECTILE_MISS = 1.5;
@@ -85,7 +85,7 @@ public final class LightShieldTargeting {
 
     private static @Nullable Candidate choose(LightShieldMode mode, Memory memory, int tick, @Nullable Candidate best, @Nullable Candidate current) {
         if (current == null) return best;
-        // CR8-LS-F01（WORK-121）: MANUALの今の対象が視線の軸から40度より外へ出たら、他の候補が無くても先に解除する
+        // MANUALの今の対象が視線の軸から40度より外へ出たら、他の候補が無くても先に解除する
         // （bestは30度の円錐の中だけなので、ここでcurrentになることはない。nullなら視線へ戻る）。
         if (mode == LightShieldMode.MANUAL && current.angle > MANUAL_KEEP) return best;
         if (best == null || best.entity == current.entity) return current;
@@ -138,6 +138,6 @@ public final class LightShieldTargeting {
         if (e instanceof OwnableEntity owned && player.getUUID().equals(owned.getOwnerUUID())) return false;
         return !e.isAlliedTo(player);
     }
-    /** 盾が向く点: 当たり判定の箱の中心（飛来物も同じ）。 */
+    /** 盾が向く点: バウンディングボックスの中心（飛来物も同じ）。 */
     public static Vec3 center(Entity e) { return e.getBoundingBox().getCenter(); }
 }

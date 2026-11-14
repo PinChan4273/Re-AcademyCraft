@@ -1,13 +1,13 @@
 package io.github.pinchan4273.reacademycraft.skill;
 
 /**
- * ENERGY-RATE-001: カレント・チャージングが標準Forge Energyの受電先へ1 tickに差し出すFE。能力Lvの倍率は2026-10-18の
- * ユーザーの決定（[10, 30, 100, 300, 1000]、Lv1〜5）。熟練度による基本のIF（floor(lerp(15, 35, 熟練度))）と、1 IF = 4 FEは
+ * カレント・チャージングが標準Forge Energyの受電先へ1 tickに差し出すFE。能力Lvの倍率は
+ * [10, 30, 100, 300, 1000]（Lv1〜5）。熟練度による基本のIF（floor(lerp(15, 35, 熟練度))）と、1 IF = 4 FEは
  * 変えない。受電先が実際に受け取る量は、受電先のreceiveEnergyの上限に従う（ここでは差し出す量だけを決める）。
- * 特定のMODの判定はしない。Minecraftのクラスに依存しない（オフラインの試験で確かめる）。
+ * 特定のMODの判定はしない。Minecraftのクラスに依存しない（オフラインのテストで確かめる）。
  */
 public final class ChargingRate {
-    /** 能力Lv1〜5の倍率（ユーザーの決定）。 */
+    /** 能力Lv1〜5の倍率。 */
     public static final int[] LEVEL_MULTIPLIER = {10, 30, 100, 300, 1000};
     /** 原作RFSupport: 1 IF = 4 RF/FE。 */
     public static final int FE_PER_IF = 4;

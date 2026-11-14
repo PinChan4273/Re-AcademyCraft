@@ -33,22 +33,26 @@ public final class ClientIntensifyHud {
     private static void currentWorld(){var w=Minecraft.getInstance().level;if(world!=w){reset();world=w;}}
     private static double age(){return Math.max(0,(System.nanoTime()-startedNanos)/1_000_000_000.0);}
     private static boolean usable(){
-        // TOGGLE-GUI-001: 予備動作は画面の下でも続くので、画面を開いただけでは表示を中断しない。
+        // 予備動作は画面の下でも続くので、画面を開いただけでは表示を中断しない。
         var c=Minecraft.getInstance();if(c.player==null||c.level==null||c.getOverlay()!=null||c.isPaused()||!c.isWindowActive()
                 ||!c.player.isAlive()||c.player.isRemoved())return false;
         var d=c.player.getCapability(AbilityCapabilities.PLAYER_ABILITY).orElse(null);
-        return d!=null&&!d.isReadOnly()&&d.isActive()&&!d.isOverloadLocked();
+        // 1.5.2: ロック中の再稼働（優先順位の順）で動いている身体強化は表示する。動いているかはサーバーが伝える段階で見る。
+        return d!=null&&!d.isReadOnly()&&d.isActive()&&(!d.isOverloadLocked()||ClientBodyIntensify.warmingUp()||ClientBodyIntensify.running());
     }
+    /** 予備動作中の枠が無いときの{@link #heldSlot}の値（1.5.2: パッシブの枠の番号が-1なので、-1は使えない）。 */
+    private static final int NONE=Integer.MIN_VALUE;
     private static int heldSlot(){
-        var c=Minecraft.getInstance();if(!usable()||!ClientBodyIntensify.warmingUp())return -1;var d=c.player.getCapability(AbilityCapabilities.PLAYER_ABILITY).orElseThrow(IllegalStateException::new);
+        var c=Minecraft.getInstance();if(!usable()||!ClientBodyIntensify.warmingUp())return NONE;var d=c.player.getCapability(AbilityCapabilities.PLAYER_ABILITY).orElseThrow(IllegalStateException::new);
         // Body Intensifyは切り替え型: キーを押しているかに関係なく、サーバーが予備動作中と伝えている枠を表示する。
+        // 1.5.2: パッシブで自動で始めたもの（枠の番号はPassiveSkills.SLOT）も表示する。
         int i=ClientBodyIntensify.slot();
-        return i>=0&&BodyIntensify.ID.equals(d.getSlot(d.getCurrentPreset(),i))?i:-1;
+        return ClientPassiveFlight.holds(d,BodyIntensify.ID,d.getCurrentPreset(),i)?i:NONE;
     }
     private static boolean sameOwner(){
         var c=Minecraft.getInstance();if(!usable()||!c.player.getUUID().equals(owner)||c.player.getId()!=entityId)return false;
         var d=c.player.getCapability(AbilityCapabilities.PLAYER_ABILITY).orElseThrow(IllegalStateException::new);
-        return d.getCurrentPreset()==preset&&BodyIntensify.ID.equals(d.getSlot(preset,slot));
+        return (slot==io.github.pinchan4273.reacademycraft.skill.PassiveSkills.SLOT||d.getCurrentPreset()==preset)&&ClientPassiveFlight.holds(d,BodyIntensify.ID,preset,slot);
     }
     public static void receive(IntensifyLoopEffect packet){
         currentWorld();var c=Minecraft.getInstance();
@@ -65,7 +69,7 @@ public final class ClientIntensifyHud {
             return;
         }
         int held=heldSlot();
-        if(held<0){
+        if(held==NONE){
             if(decision==ChargingLoopLedger.Decision.REFRESH&&animation!=null&&!finished&&sameOwner())return;
             LEDGER.cancel(packet.player());if(animation!=null&&!finished)abort();return;
         }

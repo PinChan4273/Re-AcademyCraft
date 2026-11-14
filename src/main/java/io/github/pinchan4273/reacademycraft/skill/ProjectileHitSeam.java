@@ -7,7 +7,7 @@ import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
 /**
- * LambdaLib2のRaytrace.rayTraceEntities: 当たりうる（1.12のcanBeCollidedWith、ここではisPickable）エンティティのうち、0.3広げた箱を
+ * LambdaLib2のRaytrace.rayTraceEntities: 当たりうる（1.12のcanBeCollidedWith、ここではisPickable）エンティティのうち、0.3広げたバウンディングボックスを
  * 線分が横切る最も近いもの。持ち上げたブロックはこれに当たらない: 原作のEntityBlockはcanBeCollidedWithを上書きしておらず（false）、
  * 移植版がpickableにしているのは取り戻せるようにするためだけ。
  */

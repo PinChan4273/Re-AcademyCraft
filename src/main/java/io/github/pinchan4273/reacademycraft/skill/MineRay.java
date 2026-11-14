@@ -23,8 +23,10 @@ import net.minecraftforge.fml.common.Mod;
  * 原作MineRaysBase（WeAthFolD、KSkun）と、数値だけが異なる3つの変種。
  *
  * 押し続ける。光線は術者が見ているブロックを1つずつ削る: 新しいブロックを見ると削りをやり直し、同じブロックを見続けると
- * 硬さがすり減って壊れ、採掘したのと同じくドロップする。オーバーロードは開始時に1回払って押している間の下限にし、CPは毎tick、
- * 離すとクールダウンがかかる。
+ * 硬さがすり減って壊れ、採掘したのと同じくドロップする。オーバーロードは開始時に1回払い、CPは毎tick、離すとクールダウンがかかる。
+ * 原作は開始の値を押している間の下限にしたが、1.5.2から、押している間もオーバーロードは回復する。
+ * 1.5.2の値: 開始のオーバーロードは基本 200 → 100・熟練 300 → 110・幸運 350 → 120（1.5.1は 200 → 150・300 → 200・350 → 300）、
+ * 押している間の毎tickのCPは熟練 25 → 12・幸運 50 → 12（1.5.1は 25 → 15・50 → 35。熟練度100%で毎秒240）。
  *
  * 変種の採掘レベルを超えるブロックは削らずに拒む。壊せないブロックは負の硬さを返し、原作はそれをただで壊すのではなく
  * 実質的に終わらない削りにする。
@@ -49,23 +51,23 @@ public final class MineRay {
 
     public static final Variant BASIC = new Variant(
             ResourceLocation.fromNamespaceAndPath("academy", "mine_ray_basic"), 3,
-            10, 2, .2f, .4f, 12, 7, 200, 150, 40, 20, .0005f, 0);
+            10, 2, .2f, .4f, 12, 7, 200, 100, 40, 20, .0005f, 0);
     public static final Variant EXPERT = new Variant(
             ResourceLocation.fromNamespaceAndPath("academy", "mine_ray_expert"), 4,
-            20, 5, .5f, 1, 25, 15, 300, 200, 60, 30, .0003f, 0);
+            20, 5, .5f, 1, 25, 12, 300, 110, 60, 30, .0003f, 0);
     public static final Variant LUCK = new Variant(
             ResourceLocation.fromNamespaceAndPath("academy", "mine_ray_luck"), 5,
-            20, 5, .5f, 1, 50, 35, 350, 300, 60, 30, .0003f, 3);
+            20, 5, .5f, 1, 50, 12, 350, 120, 60, 30, .0003f, 3);
     public static final java.util.List<Variant> VARIANTS = java.util.List.of(BASIC, EXPERT, LUCK);
 
     private static final Map<UUID, Session> ACTIVE = new HashMap<>();
 
     private static final class Session {
-        final Variant variant; final Level level; final int preset, slot; final float exp, overloadFloor;
+        final Variant variant; final Level level; final int preset, slot; final float exp;
         BlockPos target; float hardnessLeft = Float.MAX_VALUE; long heartbeat, visual;
         Session(Variant variant, ServerPlayer player, PlayerAbilityData data, int slot) {
             this.variant = variant; level = player.level(); preset = data.getCurrentPreset(); this.slot = slot;
-            exp = data.getProficiency(variant.id()); overloadFloor = data.getOverload(); heartbeat = level.getGameTime();
+            exp = data.getProficiency(variant.id()); heartbeat = level.getGameTime();
         }
     }
 
@@ -121,7 +123,7 @@ public final class MineRay {
         if (session == null) return;
         var data = data(player);
         if (data == null || data.isReadOnly()) return;
-        // 習得していない技能（止める前にリスナーやカテゴリの変更が外した）にはクールダウンを書かない（M-110-02）。
+        // 習得していない技能（止める前にリスナーやカテゴリの変更が外した）にはクールダウンを書かない。
         if (data.hasLearned(session.variant.id())) data.setCooldown(session.variant.id(), session.variant.cooldown(session.exp));
     }
 
@@ -141,7 +143,6 @@ public final class MineRay {
                 || data.getCurrentPreset() != session.preset
                 || !variant.id().equals(data.getSlot(session.preset, session.slot))
                 || now - session.heartbeat > 10) { stop(player); return; }
-        if (data.getOverload() < session.overloadFloor) data.setOverload(session.overloadFloor);
         if (!data.consume(variant.id(), variant.cp(session.exp), 0, player.getAbilities().instabuild)) { stop(player); return; }
         var level = player.serverLevel();
         var start = player.getEyePosition();

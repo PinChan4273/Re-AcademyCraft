@@ -6,7 +6,7 @@ import net.minecraft.network.FriendlyByteBuf;
 
 /**
  * 技能由来の直接効果の今の一覧（全種類。サーバー→そのプレイヤー、
- * v1.5.0）。変わったとき・ログイン・復活・次元の移動で送る。値は表示・自分の跳躍・視界のためだけで、効果の有無・時間はサーバーが決める。
+ * v1.5.0）。変わったとき・ログイン・復活・ディメンションの移動で送る。値は表示・自分の跳躍・視界のためだけで、効果の有無・時間はサーバーが決める。
  * kindは{@code skill.DirectEffects.Kind}の序数、remainingは残tickか-1（トグル中）。
  */
 public record DirectEffectSync(List<Effect> effects) {

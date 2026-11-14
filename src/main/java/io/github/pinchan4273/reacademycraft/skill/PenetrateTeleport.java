@@ -24,7 +24,7 @@ import net.minecraftforge.fml.common.Mod;
  * （最大lerp(10, 35, exp)）と、その距離に要するCPで制限される。
  *
  * 原作の3つの挙動を書かれたとおりに移植している: ブロックの判定は座標を(int)キャストで切り捨てるので、floorになるのは正の値だけ。
- * その4歩の間に出会った2つ目の障害物では、その中で歩みが止まる。障害物の中で歩みが尽きると使えないと印が付くが、原作の
+ * その4歩の間に出会った2つ目の障害物では、その中で歩みが止まる。障害物の中で歩みが尽きると使えないとフラグが付くが、原作の
  * terminate()は呼び出し元のメソッドから戻らないので、それでもテレポートする。
  *
  * 原作は照準中にマウスホイールで0.5から最大までの距離を設定でき、それはプレイヤーのuseMouseWheelの設定（既定でオフ）に従う。
@@ -118,6 +118,7 @@ public final class PenetrateTeleport {
         var target = TPSkillHelper.permit(player, dest.position());
         if (target == null) return;
         double distance = player.position().distanceTo(target);
+        // 押している間にロックしたら、強制の支払いも拒否されて移動しない（1.5.2）。
         if (!data.consumeWithForce(ID, (float) (distance * consumption(exp)), ArcGen.lerp(80, 50, exp), player.getAbilities().instabuild)) return;
         data.addProficiency(ID, (float) (.00014 * distance));
         data.setCooldown(ID, (int) ArcGen.lerp(50, 30, exp));

@@ -11,8 +11,8 @@ import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 
 /**
- * 通常のプレイヤー向けの設定コマンド（工程2）: {@code /academy shield mode [auto|semi]}。{@code manual}は{@code semi}の互換の別名
- * （同じSEMI-AUTOを選ぶ。2026-10-23の開発司令室9でモード名を統一）。
+ * 通常のプレイヤー向けの設定コマンド: {@code /academy shield mode [auto|semi]}。{@code manual}は{@code semi}の互換の別名
+ * （同じSEMI-AUTOを選ぶ。1.3.0でモード名を統一）。
  * <ul>
  * <li>オペレーター権限も{@code /aim cheats_on}も要らない（権限のレベル0）。</li>
  * <li>実行した本人の設定だけを読む・変える。他のプレイヤーは指定できない。コンソールなどプレイヤーでない実行者は使えない。</li>

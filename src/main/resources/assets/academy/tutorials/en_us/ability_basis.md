@@ -26,9 +26,9 @@ Using your ability increases your maximum CP (up to twice the level's base). Lev
 
 ## Resetting Your Ability
 
-Resetting requires an __Advanced Ability Developer__ and an existing ability of level 3 or higher. Hold a __High-Voltage Magnetic Amplification Coil__ in your main hand and carry an __Induction Factor__ for a different ability category in your main inventory, then select reset after the developer finishes loading.
+Resetting requires an __Advanced Ability Developer__ and an existing ability of level 3 or higher. Hold a __High-Voltage Magnetic Amplification Coil__ in your main hand, then select reset after the developer finishes loading. If you carry an __Induction Factor__ for a different ability category, you change to that category; without one, you change at random to a category other than your current one. If your only factors are for your current category, the reset does not start (remove the factor to change at random).
 
-Completing the reset changes your ability category, lowers your ability by one level, clears all learned skills, consumes the coil, and consumes the entire stack of Induction Factors. Check the displayed requirements before you begin.
+Completing the reset changes your ability category, lowers your ability by one level, clears all learned skills and consumes one High-Voltage Magnetic Amplification Coil and, when a factor is used, one Induction Factor. Check the displayed new category and factor before you begin.
 
 # Using Your Ability
 

@@ -26,14 +26,15 @@ import net.minecraftforge.common.util.ITeleporter;
  * 原作LocationTeleport（WeAthFolD）: テレポーターのレベル3技能。
  *
  * キーは発動せず、名前付きの地点の一覧を開く: 術者は立っている場所を登録し、地点を忘れ、またはそこへテレポートできる。
- * テレポートには、5ブロック以内の大きすぎない（幅 * 幅 * 高さが80未満の）生き物をすべて連れて行き、それぞれ術者からのずれを保つ。
- * ディメンションをまたぐには熟練度80%超が要る。テレポートは原作の強制consumeで払う: オーバーロード240と、
+ * テレポートには、5ブロック以内の大きすぎない（幅 * 幅 * 高さが80未満の）生き物をすべて連れて行き、それぞれ術者からのオフセットを保つ。
+ * ディメンションをまたぐには熟練度80%超が要る。テレポートは原作の強制consumeで払う: オーバーロードlerp(240, 100, exp)（1.5.2。
+ * 1.5.1までは固定の240）と、
  * max(8, sqrt(min(800, 距離)))の1単位ごとにlerp(200, 150, exp)のCP（ディメンションをまたぐと2倍）。経験値は0.015（200ブロック以上なら
  * 0.03）で、その経験値の後にクールダウンlerp(30, 20, exp)を取る。
  *
  * 原作がクライアントを信じていた所は、ここではサーバーが決める。原作のperformメッセージはクライアントから地点全体（任意の名前・
  * ディメンション・座標）を運び、サーバーは一覧・CP・ディメンション越えの熟練度、技能を習得しているかさえ確かめずにそこへテレポートした。
- * ここではクライアントは登録済みの地点を番号で指し、サーバーがすべてを自身で確かめる。地点はプレイヤーの永続Forgeデータにあり、
+ * ここではクライアントは登録済みの地点をインデックスで指し、サーバーがすべてを自身で確かめる。地点はプレイヤーの永続Forgeデータにあり、
  * 原作のデータ部分と同じく死亡を越えて付いて行く。
  */
 public final class LocationTeleport {
@@ -45,7 +46,10 @@ public final class LocationTeleport {
     /** 原作WorldUtils.getEntities(player, 5, teleportSelector)。 */
     public static final double CARRY_RANGE = 5;
     public static final float CARRY_VOLUME = 80;
+    /** 熟練度0%のオーバーロード（1.5.1までは熟練度によらずこの値）。 */
     public static final float OVERLOAD = 240;
+    /** テレポート1回のオーバーロード（1.5.2で固定の240からlerp(240, 100)へ）。 */
+    public static float overload(float exp) { return ArcGen.lerp(OVERLOAD, 100, exp); }
     private static final String TAG = "academy_locations";
 
     public record Location(String name, ResourceKey<Level> dimension, float x, float y, float z) {
@@ -117,7 +121,7 @@ public final class LocationTeleport {
         store(player, locations);
         return true;
     }
-    /** 原作hRemove: 後ろのものは、原作が番号を振り直すのと同じく繰り上がる。 */
+    /** 原作hRemove: 後ろのものは、原作がインデックスを振り直すのと同じく繰り上がる。 */
     public static boolean remove(ServerPlayer player, int index) {
         if (!usable(player, data(player))) return false;
         var locations = locations(player);
@@ -144,7 +148,7 @@ public final class LocationTeleport {
         return null;
     }
 
-    /** この番号の登録済み地点に対する原作perform。失敗の翻訳キー、または術者が移動した後は""を返す。 */
+    /** このインデックスの登録済み地点に対する原作perform。失敗の翻訳キー、または術者が移動した後は""を返す。 */
     public static String perform(ServerPlayer player, int index) {
         var data = data(player);
         if (!usable(player, data)) return "academy.cast.unlearned";
@@ -177,7 +181,7 @@ public final class LocationTeleport {
         if (player.level() != destination) return "";
         float exp = data.getProficiency(ID);
         double distance = origin.distanceTo(location.position());
-        data.consumeWithForce(ID, cpCost(exp, distance, cross), OVERLOAD, player.getAbilities().instabuild);
+        data.consumeWithForce(ID, cpCost(exp, distance, cross), overload(exp), player.getAbilities().instabuild);
         for (var entity : carried) move(entity, destination, target.add(entity.position().subtract(origin)));
         data.addProficiency(ID, distance >= 200 ? .03f : .015f);
         data.setCooldown(ID, (int) ArcGen.lerp(30, 20, data.getProficiency(ID)));

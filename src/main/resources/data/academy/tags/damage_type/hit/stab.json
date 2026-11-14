@@ -1,0 +1,11 @@
+{
+  "replace": false,
+  "values": [
+    "academy:skill_stab",
+    "academy:electromaster_stab",
+    "academy:meltdowner_stab",
+    "academy:teleporter_stab",
+    "academy:vecmanip_stab",
+    "academy:dark_matter_stab"
+  ]
+}

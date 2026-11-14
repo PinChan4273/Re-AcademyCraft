@@ -29,7 +29,7 @@ import net.minecraftforge.fml.common.Mod;
 /**
  * RenderBlockMultiを通した原作RenderDeveloperNormalとRenderDeveloperAdvanced: 原点のブロックの中央に
  * （回転の中心(0.5, 0, 0.5)はどの向きでもそこに来る）、BlockMultiのdrMapで回し、さらに半回転し、半分の大きさで、
- * 原作の開発機のモデルを描く。原作と同じく、cullingなし・合成ありで描く。原作BlockDeveloperは、
+ * 原作の開発機のモデルを描く。原作と同じく、cullingなし・ブレンドありで描く。原作BlockDeveloperは、
  * どのセルでもブロックの枠線を隠す。
  */
 @Mod.EventBusSubscriber(modid = "academy", value = Dist.CLIENT, bus = Mod.EventBusSubscriber.Bus.MOD)

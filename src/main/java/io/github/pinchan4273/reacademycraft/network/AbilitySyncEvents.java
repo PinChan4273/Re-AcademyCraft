@@ -27,8 +27,8 @@ public final class AbilitySyncEvents {
                 LAST_SENT.put(player, snapshot);
             }
         });
-        // 能力設定の値（1.4.0のS1）は、変わったときだけ送る（技能のキーのたびの強制の同期では送り直さない）。
-        // ログイン・リスポーン・次元の移動では、下で前に送った値を忘れてから呼ぶので、必ず送る。
+        // 能力設定の値（1.4.0）は、変わったときだけ送る（技能のキーのたびの強制の同期では送り直さない）。
+        // ログイン・リスポーン・ディメンションの移動では、下で前に送った値を忘れてから呼ぶので、必ず送る。
         SkillSettingsSync.sync(player, false);
     }
 
@@ -48,12 +48,12 @@ public final class AbilitySyncEvents {
 
     @SubscribeEvent public static void tick(TickEvent.PlayerTickEvent event) {
         if (event.phase != TickEvent.Phase.END || !(event.player instanceof ServerPlayer player)) return;
-        // 原作は毎tick妨害の発生源を確かめ、印が変わるとデータをdirtyにするので、クライアントは次の心拍を待たずにすぐ知る。
+        // 原作は毎tick妨害の発生源を確かめ、フラグが変わるとデータをdirtyにするので、クライアントは次のハートビートを待たずにすぐ知る。
         boolean moved = player.getCapability(io.github.pinchan4273.reacademycraft.capability.AbilityCapabilities.PLAYER_ABILITY)
                 .map(io.github.pinchan4273.reacademycraft.skill.PlayerAbilityData::tickInterference).orElse(false);
         if (moved) { sync(player, true); return; }
         if (player.tickCount % 5 == 0) {
-            // ローカルのプレイヤーやワールドの準備前に届いたスナップショットは、心拍で取り戻す。
+            // ローカルのプレイヤーやワールドの準備前に届いたスナップショットは、ハートビートで取り戻す。
             sync(player, player.tickCount % 100 == 0);
         }
     }

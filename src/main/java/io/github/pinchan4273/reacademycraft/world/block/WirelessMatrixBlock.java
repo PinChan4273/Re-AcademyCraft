@@ -47,7 +47,7 @@ public final class WirelessMatrixBlock extends BaseEntityBlock {
         return state.getValue(PART) == 0 ? new WirelessMatrixBlockEntity(pos, state) : null;
     }
 
-    /** BlockMulti.rotate: 置いた向きに対する子ブロックのずれ。 */
+    /** BlockMulti.rotate: 置いた向きに対する子ブロックのオフセット。 */
     public static BlockPos offset(int part, Direction facing) {
         int dx = SUB[part][0], dy = SUB[part][1], dz = SUB[part][2];
         return switch (facing) {

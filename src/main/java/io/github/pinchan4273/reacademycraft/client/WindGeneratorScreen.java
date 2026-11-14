@@ -24,7 +24,7 @@ import net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent;
  *   上部・柱・土台）を、完成度に応じて0.2、0.6、1で描く。InfoAreaには原作のバッファのヒストグラム、情報行、高度。
  *   2ページ目は原作の無線ページ（WirelessPage.userPage）。
  * - 上部（InventoryPage("windmain")）: ui_windmainとファンのスロット。InfoAreaには高度。
- * 原作が絵に任せていること（止まっている理由、柱、上部の高度）は、移植版がインベントリページのボタンで説明する。
+ * 原作がテクスチャに任せていること（止まっている理由、柱、上部の高度）は、移植版がインベントリページのボタンで説明する。
  */
 @Mod.EventBusSubscriber(modid = "academy", value = Dist.CLIENT, bus = Mod.EventBusSubscriber.Bus.MOD)
 public final class WindGeneratorScreen extends TechScreen<WindGeneratorMenu> {

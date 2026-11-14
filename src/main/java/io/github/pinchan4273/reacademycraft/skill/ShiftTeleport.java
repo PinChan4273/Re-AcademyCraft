@@ -35,7 +35,7 @@ import net.minecraftforge.fml.common.Mod;
  *
  * メインハンドにブロックを持って押し続け、離すとその1つを視線に沿って最大lerp(25, 35, exp)ブロック先へ送る: 視線が当たった面の上、
  * 何にも当たらなければ届く範囲の終点のすぐ上。ブロックがそこへ行けない場合（または術者が狙ったブロックを壊してはならない場合）は、
- * 代わりにアイテムとして1つそこへ落とす。術者の足からその地点までの線が箱を通るすべての生き物は、テレポーターのクリティカル判定を
+ * 代わりにアイテムとして1つそこへ落とす。術者の足からその地点までの線がバウンディングボックスを通るすべての生き物は、テレポーターのクリティカル判定を
  * 通してlerp(15, 35, exp)のダメージを受ける。
  *
  * 原作の通常のconsumeで払う: lerp(260, 320, exp)のCPとlerp(40, 30, exp)のオーバーロード。払えなければ何も起きない。
@@ -131,7 +131,7 @@ public final class ShiftTeleport {
         var place = aimed.relative(face);
         return new Aim(place, aimed, face, hit.add(face.getStepX(), face.getStepY(), face.getStepZ()), Vec3.atCenterOf(place));
     }
-    /** 原作getTargetsInLine: 術者の足から行き先のブロックの中央までの線が箱を通る、術者以外の生き物。 */
+    /** 原作getTargetsInLine: 術者の足から行き先のブロックの中央までの線がバウンディングボックスを通る、術者以外の生き物。 */
     public static List<Entity> targets(net.minecraft.world.entity.player.Player player, Aim aim) {
         var from = player.position(); var to = aim.lineEnd();
         return player.level().getEntities(player, new AABB(from, to).inflate(.5), e -> e.isAlive() && !e.isSpectator()

@@ -36,7 +36,7 @@ import net.minecraftforge.fml.common.Mod;
  * 草ブロックは土になり、それ以外はエネルギーを使うだけ。それらのブロックの上に立つ生き物はlerp(4, 6, exp)のダメージを受けて
  * 打ち上げられ、経路上のブロックはそのまま壊れることがあり（30%）、経路の上の3ブロックはエネルギーが硬さを上回れば壊れる。
  * 熟練度最大では、術者の周り10 x 2 x 10の範囲の柔らかいブロック（硬さ0.6以下）もすべて壊れ、lerp(30%, 100%)の確率でドロップする。
- * lerp(80, 150, exp)のCPとlerp(15, 10, exp)のオーバーロード。クールダウンはlerp(80, 40, exp)。
+ * lerp(80, 120, exp)のCP（1.5.2。1.5.1はlerp(80, 150)）とlerp(16, 10, exp)のオーバーロード。クールダウンはlerp(80, 40, exp)。
  *
  * 書かれたとおりに移植している: 原作は横のブロックを横へ広げるつもりだったが、rotateYawは新しいベクトルを返してそれを捨てるので、
  * 横のブロックは経路に沿って並ぶ。破壊は訪れている横のブロックではなく経路の点を使う。真上や真下を見ると水平の方向が無く、
@@ -65,7 +65,7 @@ public final class Groundshock {
     }
     public static double energy(float exp) { return ArcGen.lerp(60, 120, exp); }
     public static float damage(float exp) { return ArcGen.lerp(4, 6, exp); }
-    public static float consumption(float exp) { return ArcGen.lerp(80, 150, exp); }
+    public static float consumption(float exp) { return ArcGen.lerp(80, 120, exp); }
     public static float overload(float exp) { return ArcGen.lerp(16, 10, exp); }
     public static int steps(float exp) { return (int) ArcGen.lerp(10, 25, exp); }
     public static int cooldown(float exp) { return (int) ArcGen.lerp(80, 40, exp); }

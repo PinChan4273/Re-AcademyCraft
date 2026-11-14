@@ -30,8 +30,8 @@ import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 
 /**
- * 技能由来の直接効果（v1.5.0、採用仕様・版41の§0「既存5技能の直接効果化」とR03・R04）。技能はバニラの状態効果を付けず、ここへ
- * 発生元の技能・発生元の実体・対象・強度・残tickを記録し、サーバーがゲームの処理へ反映する。
+ * 技能由来の直接効果（v1.5.0、既存5技能の直接効果化）。技能はバニラの状態効果を付けず、ここへ
+ * 発生元の技能・発生元のエンティティ・対象・強度・残tickを記録し、サーバーがゲームの処理へ反映する。
  * <ul>
  * <li>移動速度・鈍足・攻撃力: 種類ごとに固定のUUIDの一時的な属性の補正（ポーションの補正とは別のUUIDなので両方が効く）。値はバニラの
  * 同名の効果と同じ（速度+20%/段、鈍足-15%/段、攻撃力+3/段）。</li>
@@ -41,11 +41,11 @@ import net.minecraftforge.fml.common.Mod;
  * <li>耐性: 防具などの後の残りの損傷へ、1段20%の軽減を掛ける（バニラの耐性を無視する損傷には掛けない）。</li>
  * <li>盲目・吐き気: 対象のプレイヤーのクライアントへ開始・終了を伝え、クライアントが視界を変える（{@code client/ClientDirectEffects}）。</li>
  * </ul>
- * 牛乳・トーテム・他MODの効果の削除（{@code MobEffectEvent.Remove}）はバニラの状態効果だけに働き、ここの効果は続く（文書版27・28）。
+ * 牛乳・トーテム・他MODの効果の削除（{@code MobEffectEvent.Remove}）はバニラの状態効果だけに働き、ここの効果は続く。
  * 権限のある{@code /effect clear}は、対象の効果（効果名を指定したら、その種類だけ）をここからも外す（{@link #command}）。
  * <p>
- * 保存（R04）: 実体のForgeの永続データに置くので、実体と一緒に保存される。時間制の効果はその実体のtickでだけ減るので、ログアウト・
- * サーバー停止中は止まり、再接続で続きから減る。次元の移動では同じプレイヤーの実体のまま（エンドからの帰還は{@link #clone}で写す）。
+ * 保存: エンティティのForgeの永続データに置くので、エンティティと一緒に保存される。時間制の効果はそのエンティティのtickでだけ減るので、ログアウト・
+ * サーバー停止中は止まり、再接続で続きから減る。ディメンションの移動では同じプレイヤーのエンティティのまま（エンドからの帰還は{@link #clone}で写す）。
  * 真の死亡で外す。トグル中だけ続く効果（{@link #BOUND}、身体強化）は保存しても読み込みで外し、再接続で自動では戻らない。
  */
 @Mod.EventBusSubscriber(modid = "academy")
@@ -60,7 +60,7 @@ public final class DirectEffects {
         Kind(String id, MobEffect vanilla, boolean client) { this.id = id; this.vanilla = vanilla; this.client = client; }
         public String id() { return id; }
         public MobEffect vanilla() { return vanilla; }
-        /** 対象のプレイヤーのクライアント自身が反映する（跳躍・視界）。一覧はどの種類も送る（表示と試験のため）。 */
+        /** 対象のプレイヤーのクライアント自身が反映する（跳躍・視界）。一覧はどの種類も送る（表示とテストのため）。 */
         public boolean client() { return client; }
         public static @Nullable Kind byId(String id) {
             for (var kind : values()) if (kind.id.equals(id)) return kind;
@@ -69,7 +69,7 @@ public final class DirectEffects {
     }
     /** 時間でなく、発生元の技能が外すまで続く（身体強化のトグル中）。 */
     public static final int BOUND = -1;
-    /** 1つの効果。sourceは発生元の実体（術者）。remainingは残tick、または{@link #BOUND}。clockは再生の周期の数え。 */
+    /** 1つの効果。sourceは発生元のエンティティ（術者）。remainingは残tick、または{@link #BOUND}。clockは再生の周期のカウンター。 */
     public record Entry(Kind kind, ResourceLocation skill, @Nullable UUID source, int amplifier, int remaining, int clock) {
         public boolean bound() { return remaining == BOUND; }
         CompoundTag save() {
@@ -136,7 +136,7 @@ public final class DirectEffects {
      */
     public static void add(LivingEntity target, Kind kind, int amplifier, int ticks, ResourceLocation skill, @Nullable Entity source) {
         if (target.level().isClientSide || amplifier < 0 || (ticks <= 0 && ticks != BOUND)) return;
-        // §15: 未元物質人間は有害な直接効果を受けない。
+        // 未元物質人間は有害な直接効果を受けない。
         if (kind.vanilla.getCategory() == net.minecraft.world.effect.MobEffectCategory.HARMFUL && DarkBody.immuneToDebuffs(target)) return;
         var sourceId = source == null ? null : source.getUUID();
         var entries = entries(target);
@@ -163,7 +163,7 @@ public final class DirectEffects {
         refresh(target, true);
         return true;
     }
-    /** 有害な種類だけを外す（§15: 未元物質人間への変化）。有益な効果は残す。 */
+    /** 有害な種類だけを外す（未元物質人間への変化）。有益な効果は残す。 */
     public static void clearHarmful(LivingEntity target) {
         if (target.level().isClientSide) return;
         var entries = entries(target);
@@ -181,7 +181,7 @@ public final class DirectEffects {
     }
 
     /**
-     * 権限のある{@code /effect clear}（文書版28）: 指定の効果（nullなら全部）に当たる直接効果を外す。身体強化の強化が外れたら、
+     * 権限のある{@code /effect clear}: 指定の効果（nullなら全部）に当たる直接効果を外す。身体強化の強化が外れたら、
      * 既存の停止の規則でトグルをOFFにし、継続更新で付け直さない。外したものがあればtrue。
      */
     public static boolean clearByCommand(LivingEntity target, @Nullable MobEffect effect) {
@@ -229,7 +229,7 @@ public final class DirectEffects {
         DirectEffectSync.send(player, list);
     }
 
-    /** 1tick進める（時間制の効果を減らし、再生を行う）。試験からも呼ぶ。 */
+    /** 1tick進める（時間制の効果を減らし、再生を行う）。テストからも呼ぶ。 */
     public static void tick(LivingEntity target) {
         if (target.level().isClientSide || !target.getPersistentData().contains(KEY)) return;
         var entries = entries(target);
@@ -244,7 +244,7 @@ public final class DirectEffects {
         }
         write(target, next);
         if (heal > 0 && target.isAlive() && target.getHealth() < target.getMaxHealth()) target.heal(heal);
-        // 読み込んだ実体は一時的な補正を持たないので、毎tick確かめて付け直す（同じ値なら何もしない）。
+        // 読み込んだエンティティは一時的な補正を持たないので、毎tick確かめて付け直す（同じ値なら何もしない）。
         refresh(target, expired);
     }
 
@@ -257,7 +257,7 @@ public final class DirectEffects {
         int amplifier = amplifier(entity, Kind.JUMP);
         if (amplifier >= 0) entity.setDeltaMovement(jumped(entity.getDeltaMovement(), amplifier));
     }
-    /** 跳躍後の速さ。バニラの跳躍はfloatの和をdoubleにするので、同じ段の薬と同じ値になるようfloatで足す（薬とも足し合わさる。R03）。 */
+    /** 跳躍後の速さ。バニラの跳躍はfloatの和をdoubleにするので、同じ段の薬と同じ値になるようfloatで足す（薬とも足し合わさる）。 */
     public static net.minecraft.world.phys.Vec3 jumped(net.minecraft.world.phys.Vec3 motion, int amplifier) {
         return new net.minecraft.world.phys.Vec3(motion.x, (double) ((float) motion.y + .1f * (amplifier + 1)), motion.z);
     }
@@ -267,33 +267,40 @@ public final class DirectEffects {
         int amplifier = amplifier(entity, Kind.JUMP);
         if (amplifier >= 0) event.setDistance(Math.max(0, event.getDistance() - (amplifier + 1)));
     }
-    /** 耐性: 他のリスナーの後に、残りの損傷へ掛ける。バニラの耐性・効果を無視する損傷、防御無視の刺突には掛けない。 */
-    @SubscribeEvent(priority = EventPriority.LOWEST)
-    public static void hurt(LivingHurtEvent event) {
+    /** 耐性: 他のリスナーの後に、残りの損傷へ掛ける。バニラの耐性・効果を無視する損傷（貫通の打撃を含む）には掛けない。 */
+    @SubscribeEvent(priority = EventPriority.LOWEST, receiveCanceled = true)
+    public static void hurt(LivingHurtEvent event) { PierceHits.hurtStage(event, DirectEffects::hurtBody); }
+    /** 耐性の本体（1.5.2: 貫通の打撃では、他の Mod の取り消しの後も {@link PierceHits} を通して動く）。 */
+    private static void hurtBody(LivingHurtEvent event) {
         var entity = event.getEntity();
         if (event.isCanceled() || entity.level().isClientSide) return;
         int amplifier = amplifier(entity, Kind.RESISTANCE);
         var source = event.getSource();
-        if (amplifier < 0 || source.is(DamageTypeTags.BYPASSES_RESISTANCE) || source.is(DamageTypeTags.BYPASSES_EFFECTS)
-                || SkillDamageSource.ignoresDefenses(source)) return;
+        // 貫通の打撃は、バニラの耐性と同じくタグ（bypasses_resistance・bypasses_effects）で飛ばす。
+        if (amplifier < 0 || source.is(DamageTypeTags.BYPASSES_RESISTANCE) || source.is(DamageTypeTags.BYPASSES_EFFECTS)) return;
         event.setAmount(Math.max(0, event.getAmount() * (1 - .2f * (amplifier + 1))));
     }
     /** 真の死亡で外す（死亡が取り消された場合は残す）。 */
     /** {@link DeathOrder}が、救済・人間化されなかった死亡でだけ呼ぶ。 */
     public static void death(LivingDeathEvent event) { if (!event.isCanceled()) clear(event.getEntity()); }
-    /** エンドからの帰還は同じプレイヤーの続き: 効果を写す。死亡からの復活では写さない（Forgeも写さない場所に置いている）。 */
+    /**
+     * エンドからの帰還は同じプレイヤーの続き: 効果を写す。死亡からの復活では写さない（Forgeも写さない場所に置いている）。
+     * 天界発現の効果（暗闇）は、領域を出た後の残りなので写さない（1.5.2: エンドから戻った後も最大8秒残った）。
+     */
     @SubscribeEvent public static void clone(PlayerEvent.Clone event) {
         var player = event.getEntity();
         if (event.isWasDeath()) { player.getPersistentData().remove(KEY); return; }
         var old = event.getOriginal().getPersistentData();
         if (old.contains(KEY, Tag.TAG_LIST)) player.getPersistentData().put(KEY, old.getList(KEY, Tag.TAG_COMPOUND).copy());
-        // 新しい実体のトグルは動いていないので、トグル中だけの効果は残さない。
-        dropBound(player);
+        // 新しいエンティティのトグルは動いていないので、トグル中だけの効果は残さない。天界発現の効果も残さない。
+        var entries = entries(player);
+        var kept = entries.stream().filter(e -> !e.bound() && !e.skill().equals(HeavenManifest.ID)).toList();
+        if (kept.size() != entries.size()) write(player, new ArrayList<>(kept));
     }
     @SubscribeEvent public static void respawn(PlayerEvent.PlayerRespawnEvent event) {
         if (event.getEntity() instanceof ServerPlayer player) { refresh(player, true); }
     }
-    /** 再接続: トグル中だけの効果は残さない（R04: 再接続で自動では戻らない）。時間制の効果は続きから。 */
+    /** 再接続: トグル中だけの効果は残さない（再接続で自動では戻らない）。時間制の効果は続きから。 */
     @SubscribeEvent public static void login(PlayerEvent.PlayerLoggedInEvent event) {
         if (event.getEntity() instanceof ServerPlayer player) { dropBound(player); refresh(player, true); }
     }
@@ -307,7 +314,7 @@ public final class DirectEffects {
     }
 
     /**
-     * 権限のある{@code /effect clear [対象] [効果]}を、実行の直前に見つけて直接効果も外す（文書版28）。権限の無い送り手は、構文の
+     * 権限のある{@code /effect clear [対象] [効果]}を、実行の直前に見つけて直接効果も外す。権限の無い送り手は、構文の
      * 解析で{@code clear}の節まで進めない（節の要求が通らない）ので、ここへ来ない。解析が完全に成功した命令だけを扱い、ほかのリスナーが
      * 取り消した命令は扱わない。
      */

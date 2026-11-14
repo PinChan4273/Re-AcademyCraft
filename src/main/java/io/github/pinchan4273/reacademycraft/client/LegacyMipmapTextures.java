@@ -23,7 +23,7 @@ import org.lwjgl.opengl.GL30;
  * 原作ClientResources.preloadMipmapTexture（AcademyCraft 7b1401cd）: これらのテクスチャは、何かが描く前に、それぞれの名前で
  * MinecraftのTextureManagerへ登録されていた。Minecraft既定のnearest・繰り返しではなく、完全なmipmap列を持つtrilinear
  * （glGenerateMipmap、GL_LINEAR_MIPMAP_LINEAR / GL_LINEAR）で、端はclampする。画面マスクは画面全体へ引き伸ばされ、
- * 開発機・教程・Aboutの絵は元画像より大きくも小さくも描かれるので、nearestでは縁が段になる。同じ画像を同じ名前で登録するので、
+ * 開発機・チュートリアル・Aboutのテクスチャは元画像より大きくも小さくも描かれるので、nearestでは縁が段になる。同じ画像を同じ名前で登録するので、
  * これを描くすべての箇所が原作と同じテクスチャを使う。1.20のcore profileにGL_CLAMPは無いため、CLAMP_TO_EDGEとする。
  * リソース再読込のたびに登録する: 固定の15枚で、それぞれが前のものを置き換える（そして解放する）。
  */

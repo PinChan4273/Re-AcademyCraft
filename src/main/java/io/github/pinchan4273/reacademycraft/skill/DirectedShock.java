@@ -20,7 +20,7 @@ import net.minecraftforge.fml.common.Mod;
  * 原作DirectedShock: ベクトル操作のレベル1の打撃。
  *
  * 押し続けてから、6tickより長く50tickより短い時間で離す（原作MIN_TICKSとMAX_ACCEPTED_TICKS）。それ以外の離し方では何もせず、
- * 200tick押し続けると終わる。窓の中で離すと、何かがあってもなくてもlerp(50, 100, exp)のCPとlerp(18, 12, exp)のオーバーロードを払い、
+ * 200tick押し続けると終わる。受付時間の中で離すと、何かがあってもなくてもlerp(50, 100, exp)のCPとlerp(18, 12, exp)のオーバーロードを払い、
  * 視線の3ブロック以内の生き物にlerp(7, 15, exp)のダメージを与えて押し出す: 熟練度25%からは原作のノックバックで上と後ろへ投げ、
  * 常に術者から離れる方向へ0.24の速さを加える。当たれば経験値0.0035とクールダウンlerp(60, 20, exp)、外れれば0.001でクールダウン無し。
  *
@@ -77,7 +77,7 @@ public final class DirectedShock {
         ACTIVE.remove(player.getUUID());
         var data = data(player);
         if (!allowed(player, data) || session.level != player.level()) return;
-        // 原作l_keyUp: 窓の中での離しだけが実行する。
+        // 原作l_keyUp: 受付時間の中での離しだけが実行する。
         if (session.ticks > MIN_TICKS && session.ticks < MAX_ACCEPTED_TICKS) perform(player, data, session.damage);
     }
     public static void cancel(ServerPlayer player, int slot) {

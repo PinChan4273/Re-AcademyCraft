@@ -14,7 +14,7 @@ import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 
 /**
- * 原作MdParticleFactory（LambdaLib2のParticle上）: md_particle（またはLuck Mine Rayの絵）。大きさ0.05〜0.07、
+ * 原作MdParticleFactory（LambdaLib2のParticle上）: md_particle（またはLuck Mine Rayのテクスチャ）。大きさ0.05〜0.07、
  * アルファ76〜151、光の影響なし。25〜54tick生きてから20tickで消える（その前に既定の5tickのフェードイン）。
  * 漂う種類は速度を保ち、ブロックに当たる（既定のRigidbody）。Mine Rayのブロック用の種類は0.01で落下し、
  * ブロックをすり抜ける（専用のRigidbody）。

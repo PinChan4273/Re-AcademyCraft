@@ -35,13 +35,13 @@ import net.minecraftforge.fml.common.Mod;
  * - キーを押している間（l_tick）、術者の歩く速さを20tickかけて0.1から0.007まで下げる（視界も狭くなる）。
  *   終わると0.1へ戻す（l_terminate）。
  * - MSG_PERFORMを受けたとき（c_perform）: 対象の周りに、大きさ1.4〜1.8の原作のEntityBloodSplashを6〜9個、
- *   術者の視線の方向へ0.2ずらして出す。さらに対象の高さの0.6から、ピッチ0・±30・±45・±60・±80と、
+ *   術者の視線の方向へ0.2オフセットして出す。さらに対象の高さの0.6から、ピッチ0・±30・±45・±60・±80と、
  *   術者の頭のyaw±20の方向へ、5ブロック先まで9本の光線を飛ばし、当たったブロックごとに
  *   原作のBloodSprayEffectを2つ出す。
  *
  * BloodSprayEffectは原作の記述どおり: 面から0.01離して面に平らに置き、大きさは1.1〜1.4
- * （側面ではその0.8倍）。向きはランダムで、面の上をガウス分布0.15でずらす。3枚の絵のうち1枚を使い、
- * 上下の面では"wall"、側面では"grnd"の絵を使う（原作のisWallはUPとDOWNでtrue）。
+ * （側面ではその0.8倍）。向きはランダムで、面の上をガウス分布0.15でオフセットする。3枚のテクスチャのうち1枚を使い、
+ * 上下の面では"wall"、側面では"grnd"のテクスチャを使う（原作のisWallはUPとDOWNでtrue）。
  * 1200tick経つか、そのブロックが無くなると消える。
  */
 @Mod.EventBusSubscriber(modid = "academy", value = Dist.CLIENT)
@@ -142,7 +142,7 @@ public final class ClientBloodRetro {
         RenderSystem.enableDepthTest(); RenderSystem.depthMask(false);
         try {
             for (var spray : SPRAYS) {
-                // 原作のisWall: 上下の面は"wall"の絵を使う。
+                // 原作のisWall: 上下の面は"wall"のテクスチャを使う。
                 boolean flat = spray.face.getAxis() == Direction.Axis.Y;
                 RenderSystem.setShaderTexture(0, (flat ? WALL : GROUND)[spray.picture % 3]);
                 pose.pushPose();

@@ -7,7 +7,7 @@ import javax.annotation.Nullable;
 import net.minecraft.server.level.ServerPlayer;
 
 /**
- * Electron Missileの照準のモードと攻撃対象のフィルターを読む・変える、サーバーの唯一の入口（F9-02）。コマンド（{@link MissileCommands}）は
+ * Electron Missileの照準のモードと攻撃対象のフィルターを読む・変える、サーバーの唯一の入口。コマンド（{@link MissileCommands}）は
  * ここを呼び、将来のGUIも同じ入口を使う。設定の正本はサーバーの能力データ（保存はSkillSettings区分）で、呼び出した本人のデータだけを変える。
  * <p>
  * モードがONの間に変えても、セッションは続いたまま次の発射のtickから新しい設定で相手を選ぶ（起動のやり直し・費用・クールダウンは無い）。

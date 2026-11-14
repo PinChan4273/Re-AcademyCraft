@@ -8,7 +8,7 @@ package io.github.pinchan4273.reacademycraft.api;
  * <li>{@link #REFUSED_UNLEARNED}: 能力が無い・カテゴリが合わない・習得していない・データが読み取り専用。</li>
  * <li>{@link #REFUSED_DISABLED}: サーバーの設定で、その技能が無効。</li>
  * <li>{@link #REFUSED_INACTIVE}: 能力がオフ。</li>
- * <li>{@link #REFUSED_OVERLOAD}: 過負荷の錠がかかっている。</li>
+ * <li>{@link #REFUSED_OVERLOAD}: 過負荷のロックがかかっている。</li>
  * <li>{@link #REFUSED_INTERFERED}: 能力の妨害の中。</li>
  * <li>{@link #REFUSED_COOLDOWN}: クールダウンの中。</li>
  * <li>{@link #REFUSED_RESOURCE}: 資源（自然能力者ならCP）が足りない。振る舞いが返す。</li>

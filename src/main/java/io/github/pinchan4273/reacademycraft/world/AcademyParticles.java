@@ -12,7 +12,7 @@ public final class AcademyParticles {
     private static final DeferredRegister<ParticleType<?>> PARTICLES = DeferredRegister.create(ForgeRegistries.PARTICLE_TYPES, "academy");
     /** 原作TPParticleFactory: effects/tp_particle.png。 */
     public static final RegistryObject<SimpleParticleType> TP = PARTICLES.register("tp", () -> new SimpleParticleType(false));
-    /** 原作MdParticleFactory: effects/md_particle.png（漂う）と、Luck Mine Ray独自の絵。 */
+    /** 原作MdParticleFactory: effects/md_particle.png（漂う）と、Luck Mine Ray独自のテクスチャ。 */
     public static final RegistryObject<SimpleParticleType> MD = PARTICLES.register("md", () -> new SimpleParticleType(false)),
             MD_LUCK = PARTICLES.register("md_luck", () -> new SimpleParticleType(false));
     /** 同じものを、Mine Rayが削るブロックから散らすもの: 重力0.01、ブロックをすり抜ける。 */

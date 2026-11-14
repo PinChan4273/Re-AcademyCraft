@@ -73,7 +73,7 @@ public final class NormalDeveloperBlockEntity extends BlockEntity {
     }
     /**
      * chunkの境界・再読込の後の、読み込まれた部品の回復。他のchunkを読み込まない。
-     * 未知の形式は、互換の読み手ができるまで、見えるグループ全体を保つ。
+     * 未知の形式は、互換のリーダーができるまで、見えるグループ全体を保つ。
      */
     public void reconcile() {
         if (level == null || level.isClientSide || isRemoved() || removing || future != null) return;
@@ -98,7 +98,7 @@ public final class NormalDeveloperBlockEntity extends BlockEntity {
         if (amount < 0 || amount > energyIF() || !complete()) return false;
         energyFE -= amount * 4; setChanged(); return true;
     }
-    /** プレビュー用のOPコマンド専用。通常の充電はFEの受け口を通る。 */
+    /** プレビュー用のOPコマンド専用。通常の充電はFEのハンドラを通る。 */
     public boolean setEnergyIFForTest(int amount) {
         if (level == null || level.isClientSide || amount < 0 || amount > tier.capacity || !complete()) return false;
         energyFE = amount * 4; setChanged(); return true;

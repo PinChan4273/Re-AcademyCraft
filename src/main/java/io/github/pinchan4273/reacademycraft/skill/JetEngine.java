@@ -27,12 +27,14 @@ import net.minecraftforge.fml.common.Mod;
  * そして跳躍の経験値を与える。オンの間、術者は視線の方向へ運ばれる: 毎tick速度が視線に沿ったspeed()へ4分の1ずつ近づくので、
  * 視点と共に曲がり、その速さに落ち着く。speed()と開始時に術者が既に持っていた速さの大きい方を超えては増えない: 落下中や
  * 強く吹き飛ばされている間にオンにした術者は、最初はその速さを保ち、そこからspeed()へ下がっていく（切り詰めない）。
- * クライアントはいつもどおり術者を動かすので、壁で止まる。オンの間は切り替え型技能の維持コストを払う（止めている回復に、
- * toggle_upkeep.jet_engine × (1 - 熟練度)を加えた量。熟練度100%で回復と釣り合う）。払えなくなる、能力のオフ、プリセットやカテゴリの
+ * クライアントはいつもどおり術者を動かすので、壁で止まる。1.5.2から、費用は飛行の部類の基準（{@link FlightCost}）:
+ * オンにする（離陸）ごとに CP lerp(40, 20) と過負荷 lerp(10, 0)（1.5.1は CP lerp(60, 50)・過負荷 lerp(60, 30)）、オンの間は
+ * いつも推進しているので、総額 G0 ＋ lerp(80, 40)/秒 を毎tick払う（白翼飛行の高速と同じ。前面の防御を含む。
+ * G0 は待ちの無いときの回復で、回復待ちの間も同じ額。1.5.1は回復の全部 ＋ toggle_upkeep.jet_engine × (1 − 熟練度)）。維持費は回復待ちを作らない。払えなくなる、能力のオフ、プリセットやカテゴリの
  * 変更、技能がスロットから外れる、妨害、コンテナの画面、死亡、ログアウト、ディメンションの移動で終わる。術者自身のクライアントも、
  * 画面が開くかウィンドウがフォーカスを失うと終える。終了で原作のクールダウンが始まる。通り抜けた生き物は原作のダメージで焼かれ、
- * それぞれHIT_INTERVAL tickに最大1回（2026-10-16の統合指示書4章で10から8へ。旧案の5は撤回）。8tickでは標準の被ダメージ後の待ち
- * （命中から20tickのうちinvulnerableTime &gt; 10の間）に削られるので、待ちだけを飛ばす専用の型（{@link SkillDamageSource#CONTACT}）で当てる。
+ * それぞれHIT_INTERVAL tickに最大1回。8tickでは標準の被ダメージ後の待ち
+ * （命中から20tickのうちinvulnerableTime &gt; 10の間）に削られるので、待ちだけを飛ばす専用の型（{@link SkillDamageSource.Style#CONTACT}）で当てる。
  *
  * オンの間は落下を数えず（原作の飛行中と同じ）、浮いているプレイヤーに対するサーバーの確認の上では術者は飛んでよい: mayflyを
  * 持たない術者にだけ貸し、ゲームモードが飛行を与える場合を除き、終了時に返してもらう（lendFlightとgiveBackFlightを参照）。
@@ -41,7 +43,7 @@ import net.minecraftforge.fml.common.Mod;
 @Mod.EventBusSubscriber(modid = "academy")
 public final class JetEngine {
     public static final ResourceLocation ID = ResourceLocation.fromNamespaceAndPath("academy", "jet_engine");
-    /** 原作ではなく、試遊で調整した値: 推進の速さ（1tickあたりのブロック数）、それへ向かう速さ、1tickあたりのCP、同じ生き物を焼く間隔。 */
+    /** 原作の値ではなく、この移植版で調整した値: 推進の速さ（1tickあたりのブロック数）、それへ向かう速さ、1tickあたりのCP、同じ生き物を焼く間隔。 */
     public static final float TURN = .25f;
     public static final int HIT_INTERVAL = 8;
     private static final Map<UUID, Session> ACTIVE = new HashMap<>();
@@ -58,13 +60,10 @@ public final class JetEngine {
             level = player.level(); preset = data.getCurrentPreset(); this.slot = slot;
             exp = data.getProficiency(ID); velocity = player.getDeltaMovement();
         }
-        /**
-         * 原作はこれを"consumption"と呼び、consumeのoverload引数へ渡す。起動のオーバーロード（2026-10-16、統合指示書3章:
-         * 原作lerp(170, 140)からlerp(60, 30)へ。CPのcpCostは変えない）。
-         */
+        /** 起動（離陸）の過負荷。1.5.2から飛行の部類の離陸の値 lerp(10, 0)（1.5.1は lerp(60, 30)）。 */
         float overloadCost() { return startOverload(exp); }
-        /** 原作はこれを"overload"と呼び、consumeのCP引数へ渡す。 */
-        float cpCost() { return ArcGen.lerp(60, 50, exp); }
+        /** 起動（離陸）のCP。1.5.2から飛行の部類の離陸の値 lerp(40, 20)（1.5.1は lerp(60, 50)）。 */
+        float cpCost() { return startCp(exp); }
         float damage() { return ArcGen.lerp(7, 20, exp); }
         int cooldown() { return (int) ArcGen.lerp(60, 30, exp); }
     }
@@ -83,13 +82,17 @@ public final class JetEngine {
     }
 
     public static float speed(float exp) { return ArcGen.lerp(.7f, 1f, exp); }
-    /** 起動のオーバーロード（consumeのoverload引数）。 */
-    public static float startOverload(float exp) { return ArcGen.lerp(60, 30, exp); }
+    /** 起動のオーバーロード（consumeのoverload引数）。1.5.2: 飛行の部類の離陸の過負荷 lerp(10, 0)。 */
+    public static float startOverload(float exp) { return FlightCost.takeoffOverload(exp); }
+    /** 起動のCP。1.5.2: 飛行の部類の離陸のCP lerp(40, 20)。 */
+    public static float startCp(float exp) { return FlightCost.takeoffCp(exp); }
+    /** オンの間、浮く分に足すCP（毎秒）。1.5.2: lerp(60, 30)。 */
+    public static float thrustCpPerSecond(float exp) { return FlightCost.jetCpPerSecond(exp); }
 
     private JetEngine() { }
     private static PlayerAbilityData data(ServerPlayer p) { return p.getCapability(AbilityCapabilities.PLAYER_ABILITY).orElse(null); }
     /**
-     * 続けられるか。TOGGLE-GUI-001: コンテナの画面を開いただけでは止めない（推進は元の視線の方向へ続く）。
+     * 続けられるか。コンテナの画面を開いただけでは止めない（推進は元の視線の方向へ続く）。
      * 画面を開いている間の新しい開始は、start()が拒否する。
      */
     private static boolean allowed(ServerPlayer player, PlayerAbilityData data) {
@@ -99,12 +102,13 @@ public final class JetEngine {
 
     /** 推進をオンにする。オンの間の押下は、AbilityActionがオフとして扱う。 */
     public static String start(ServerPlayer player, PlayerAbilityData data, int slot) {
-        if (slot < 0 || slot >= 4 || !ID.equals(data.getSlot(data.getCurrentPreset(), slot))
+        if (!PassiveSkills.slotMatches(data, ID, slot)
                 || !player.isAlive() || data.isReadOnly()
                 || !AbilityCategory.MELTDOWNER.id().equals(data.getAbility()) || !data.hasLearned(ID))
             return "academy.cast.unlearned";
         if (!data.isActive()) return "academy.cast.inactive";
-        if (data.isOverloadLocked()) return "academy.cast.overload";
+        // 1.5.2: ロック中は断る。ただしロック中の再稼働を許した技能（パッシブ。優先順位の順）は通す。
+        if (data.lockBlocks(ID)) return "academy.cast.overload";
         if (data.getCooldown(ID) > 0) return "academy.cast.cooldown";
         if (player.containerMenu != player.inventoryMenu) return "academy.cast.unlearned";
         if (ACTIVE.containsKey(player.getUUID())) return "";
@@ -112,14 +116,15 @@ public final class JetEngine {
         if (!data.consume(ID, session.cpCost(), session.overloadCost(), player.getAbilities().instabuild)) return "academy.cast.cp";
         // 支払いで術者がオーバーロードすることがあり、そのイベントは、このモードがまだ存在しないうちにすべてのモードを終える:
         // その場合は何も始めない。オーバーロードさせた分は、他のオーバーロードを起こすコストと同じく払ったまま。
-        if (!allowed(player, data) || data.isOverloadLocked() || data.isInterfering() || !ID.equals(data.getSlot(data.getCurrentPreset(), slot))) {
+        if (!allowed(player, data) || data.lockBlocks(ID) || data.isInterfering() || !PassiveSkills.slotMatches(data, ID, slot)) {
             AbilitySyncEvents.sync(player, true); return "academy.cast.overload";
         }
         ACTIVE.put(player.getUUID(), session);
         session.upkeep = data.startUpkeep(ID, () -> player.getAbilities().instabuild);
         // ON中はずっと推進するので、入力が無くても待機にならない（無料の待機にはしない。CPの精算）。維持の熟練度は、待機と同じ
-        // 0.1パーセントポイント/秒を技能だけに受け取り、能力レベルの経験値は受け取らない（2026-10-16、案B）。
-        if (session.upkeep != null) session.upkeep.alwaysActing().skillOnlyHold();
+        // 0.1パーセントポイント/秒を技能だけに受け取り、能力レベルの経験値は受け取らない。
+        // 1.5.2: 費用は総額 G0 ＋ lerp(80, 40)/秒（前面の防御を含む）。熟練度は今の値で数える。
+        if (session.upkeep != null) session.upkeep.alwaysActing().skillOnlyHold().custom(g0 -> FlightCost.jetDue(data.getProficiency(ID), (float) g0));
         lendFlight(player, session);
         io.github.pinchan4273.reacademycraft.network.SkillModeState.send(player, ID, true);
         // 原作はコンテキストを持つすべてのクライアントへMSG_TRIGGERを送るので、ダイヤ形の盾とその粒子は術者だけでなく近くの全員に見える。
@@ -148,7 +153,7 @@ public final class JetEngine {
         var data = data(player);
         if (data != null) data.endUpkeep(session.upkeep);
         if (data != null && !data.isReadOnly()) {
-            // 習得していない技能（止める前にリスナーやカテゴリの変更が外した）にはクールダウンを書かない（M-110-02）。
+            // 習得していない技能（止める前にリスナーやカテゴリの変更が外した）にはクールダウンを書かない。
             if (data.hasLearned(ID)) data.setCooldown(ID, session.cooldown());
             AbilitySyncEvents.sync(player, true);
         }
@@ -175,6 +180,8 @@ public final class JetEngine {
         player.onUpdateAbilities();
     }
     public static boolean holding(ServerPlayer player) { return ACTIVE.containsKey(player.getUUID()); }
+    /** 1.5.2: パッシブ（自動で起動）で動いているか（スロットのキーで始めたものはfalse）。 */
+    public static boolean passive(ServerPlayer player) { var s = ACTIVE.get(player.getUUID()); return s != null && s.slot == PassiveSkills.SLOT; }
     public static boolean flying(ServerPlayer player) { return holding(player); }
     public static int flightTicks(ServerPlayer player) {
         var session = ACTIVE.get(player.getUUID());
@@ -188,13 +195,13 @@ public final class JetEngine {
 
     /** このtickもモードを続けてよいか（tickの始めと、熟練度のイベントの後に確かめる）。 */
     private static boolean continues(ServerPlayer player, PlayerAbilityData data, Session session) {
+        // 1.5.2: パッシブで飛んでいるものは、プリセットとスロットを見ず、パッシブのままかを見る。
         return data != null && allowed(player, data) && !(session.level != player.level()
-                || data.getCurrentPreset() != session.preset
-                || !ID.equals(data.getSlot(session.preset, session.slot))
+                || !PassiveSkills.sessionMatches(data, ID, session.preset, session.slot)
                 || data.isInterfering());
     }
     /**
-     * 前方限定防御の試作（{@link JetFrontDefense}）: 被弾の時点で、推進のtickと同じ条件でセッションが続いているか
+     * 前方限定防御（{@link JetFrontDefense}）: 被弾の時点で、推進のtickと同じ条件でセッションが続いているか
      * （生存・能力・習得・スロット・プリセット・妨害・維持の支払い）。
      */
     static boolean defending(ServerPlayer player) {
@@ -214,10 +221,10 @@ public final class JetEngine {
         if (!continues(player, data, session)) { stop(player); return; }
         // 維持コストはこのtickの始めに精算済み。払えなかった要求は外れている。
         if (!data.upkeepHeld(session.upkeep)) { stop(player); return; }
-        // 推進を続けている時間の熟練度（1.1.0、T178-10）。オンにした瞬間の+0.004は廃止した。
+        // 推進を続けている時間の熟練度（1.1.0）。オンにした瞬間の+0.004は廃止した。
         data.upkeepEarn(session.upkeep);
         // 熟練度のイベントのリスナーが、モードを終えた・置き換えた・続けられなくした（能力、スロット、プリセット）かもしれない:
-        // このtickを古いセッションで続けない（M-110-01）。
+        // このtickを古いセッションで続けない。
         if (ACTIVE.get(player.getUUID()) != session) return;
         if (!continues(player, data, session) || !data.upkeepHeld(session.upkeep)) { stop(player); return; }
         lendFlight(player, session);
@@ -225,7 +232,8 @@ public final class JetEngine {
         session.lastHit.values().removeIf(at -> session.ticks - at >= HIT_INTERVAL);
         if (player.isPassenger()) player.stopRiding();
         burnWhatWePassed(player, data, session);
-        var target = player.getLookAngle().scale(speed(session.exp));
+        // 1.5.2（FluidFlight）: 水中・溶岩の中は、いつも高速の扱いの倍率を掛ける。速度はサーバーが毎tick置くので、液体の抵抗は効かない。
+        var target = player.getLookAngle().scale(speed(session.exp) * FluidFlight.speedFactor(player, true));
         session.velocity = session.velocity.add(target.subtract(session.velocity).scale(TURN));
         player.setDeltaMovement(session.velocity);
         player.hurtMarked = true;

@@ -64,7 +64,7 @@ public final class ClientDirectEffects {
         else spin = Math.max(0, spin - .05f);
         if (spin > 0 && client.player.spinningEffectIntensity < spin) client.player.spinningEffectIntensity = spin;
     }
-    /** 吐き気の歪みだけを出し、ネザーポータルの紫の重ね絵は出さない（バニラの吐き気と同じ見え方。ポータルの中なら通常どおり）。 */
+    /** 吐き気の歪みだけを出し、ネザーポータルの紫のオーバーレイは出さない（バニラの吐き気と同じ見え方。ポータルの中なら通常どおり）。 */
     @SubscribeEvent public static void overlay(RenderGuiOverlayEvent.Pre event) {
         var player = Minecraft.getInstance().player;
         if (player == null || spin <= 0 || !event.getOverlay().id().equals(VanillaGuiOverlay.PORTAL.id())) return;

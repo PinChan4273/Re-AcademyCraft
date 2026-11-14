@@ -42,6 +42,8 @@ public final class Railgun {
         }
     }
     private Railgun() { }
+    /** 1発のCP（1.5.2で、威力あたりのCPが熟練度で悪くならないようlerp(200, 450)からlerp(200, 360)へ）。 */
+    public static float consumption(float exp) { return ArcGen.lerp(200, 360, exp); }
     public static boolean accepted(ItemStack stack) { return !stack.isEmpty() && (stack.is(Items.IRON_INGOT) || stack.is(Items.IRON_BLOCK)); }
     private static PlayerAbilityData data(ServerPlayer p) { return p.getCapability(AbilityCapabilities.PLAYER_ABILITY).orElse(null); }
     private static boolean allowed(ServerPlayer p, PlayerAbilityData d) {
@@ -61,7 +63,7 @@ public final class Railgun {
         if (d.isOverloadLocked()) return "academy.cast.overload";
         if (p.containerMenu != p.inventoryMenu) return "academy.cast.unlearned";
         if (d.getCooldown(ID) > 0) return "academy.cast.cooldown";
-        if (!p.getAbilities().instabuild && d.getCp() < ArcGen.lerp(200, 450, d.getProficiency(ID))) return "academy.cast.cp";
+        if (!p.getAbilities().instabuild && d.getCp() < consumption(d.getProficiency(ID))) return "academy.cast.cp";
         var coin = coin(p);
         if (coin != null) {
             stop(p);
@@ -105,7 +107,7 @@ public final class Railgun {
     }
     private static String fire(ServerPlayer p, PlayerAbilityData d, CoinEntity coin) {
         if (!allowed(p, d) || d.getCooldown(ID) > 0) return "academy.cast.unlearned";
-        float exp = d.getProficiency(ID), cp = ArcGen.lerp(200, 450, exp), overload = ArcGen.lerp(180, 120, exp);
+        float exp = d.getProficiency(ID), cp = consumption(exp), overload = ArcGen.lerp(180, 120, exp);
         if (!p.getAbilities().instabuild && d.getCp() < cp) return "academy.cast.cp";
         var held = p.getMainHandItem();
         if (coin == null && !accepted(held)) return "academy.cast.railgun_ammo";
@@ -130,7 +132,8 @@ public final class Railgun {
     }
     /**
      * 20ブロック以内の各クライアントでの原作EntityRailgunFX: 光線そのもの。常に目から視線に沿って原作の45ブロックで、地形で
-     * 短くならない。反射されたときは反射した者までに短くし、その点から反射した者の見る方向へ15の2本目の光線を続ける。
+     * 短くならない。反射されたときは反射した者までに短くし、その点から15の2本目の光線を続ける。2本目の向きは、1.5.2から
+     * 実際の当たりと同じ向き（{@link RailgunAttack.Result#reflectDirection}。ベクトル反射の反射方向、決めなければ反射した者の見る方向）。
      */
     private static void beams(ServerPlayer p, net.minecraft.world.phys.Vec3 look, RailgunAttack.Result attack) {
         var eye = p.getEyePosition();
@@ -140,11 +143,11 @@ public final class Railgun {
         broadcast(p, new MdRayEffect(p.level().dimension().location(), p.getUUID(), p.getId(),
                 nextSession(), eye, eye.add(look.scale(length)), MdRayEffect.RAILGUN));
         if (reflector == null) return;
-        // 原作は反射光線を、反射した者自身ではなく、術者が反射した者の距離で見ていた所に置き、反射した者の頭の向きで回す。
-        var at = eye.add(look.scale(reflector.distanceTo(p)));
-        var away = net.minecraft.world.phys.Vec3.directionFromRotation(reflector.getXRot(), reflector.getYHeadRot());
+        // 原作は反射光線を、反射した者自身ではなく、術者が反射した者の距離で見ていた所に置いた。1.5.2から、
+        // 実際の当たりと同じ始点（反射した者の目）と向きで描く。
+        var ends = RailgunAttack.reflectedBeam(eye, look, attack, REFLECT_LENGTH);
         broadcast(p, new MdRayEffect(p.level().dimension().location(), p.getUUID(), p.getId(),
-                nextSession(), at, at.add(away.scale(REFLECT_LENGTH)), MdRayEffect.RAILGUN));
+                nextSession(), ends[0], ends[1], MdRayEffect.RAILGUN));
     }
     private static void broadcast(ServerPlayer player, MdRayEffect beam) {
         if (player.connection != null) io.github.pinchan4273.reacademycraft.network.AcademyNetwork.send(player, beam);

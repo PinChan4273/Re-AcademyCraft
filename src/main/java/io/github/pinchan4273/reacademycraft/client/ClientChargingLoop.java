@@ -108,7 +108,7 @@ public final class ClientChargingLoop {
         var sound = LOOPS.get(player);
         return sound != null && !sound.isStopped() && Minecraft.getInstance().getSoundManager().isActive(sound);
     }
-    /** native channelの寿命を調べるための、読み取り専用の観測点。 */
+    /** native channelの寿命を調べるための、読み取り専用のテスト用フック。 */
     public static net.minecraft.client.resources.sounds.SoundInstance sound(UUID player) { return LOOPS.get(player); }
     public static int activeSounds() { return LOOPS.size(); }
     public static int reloadGeneration() { return reloadGeneration; }

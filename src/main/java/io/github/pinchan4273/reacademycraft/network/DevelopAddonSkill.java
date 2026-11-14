@@ -7,7 +7,7 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 
 /**
- * 開発機の画面からの、外部の技能の学習の要求（クライアント→サーバー、1.4.0のS4、司令室11の裁定D11）。送るのは技能の名前だけで、
+ * 開発機の画面からの、外部の技能の学習の要求（クライアント→サーバー、1.4.0）。送るのは技能の名前だけで、
  * サーバーが、開いている開発機のメニューと今の状態で条件を確かめてから始める（{@link DeveloperMenu#startAddon}）。
  * 本体の技能は旧い経路（メニューのボタン）だけで学ぶので、ここでは断る。
  */
@@ -23,7 +23,7 @@ public record DevelopAddonSkill(ResourceLocation skill) {
         if (id == null) throw new IllegalArgumentException("Invalid skill identifier");
         return new DevelopAddonSkill(id);
     }
-    /** 学習を始めたか（試験のため）。 */
+    /** 学習を始めたか（テストのため）。 */
     public boolean handle(@Nullable ServerPlayer player) {
         return player != null && player.containerMenu instanceof DeveloperMenu menu && menu.startAddon(player, skill);
     }

@@ -1,9 +1,9 @@
 package io.github.pinchan4273.reacademycraft.world.menu;
 
 /**
- * GUI-ENERGY-001: メニューのデータスロットで32bitの値を運ぶ。1.20.1のClientboundContainerSetDataPacketは値をshortで送るので、
+ * メニューのデータスロットで32bitの値を運ぶ。1.20.1のClientboundContainerSetDataPacketは値をshortで送るので、
  * 16bitを超える値は上位・下位の2つのスロットに分けて送り、受け取った側は両方を{@code & 0xffff}で戻してから組み立てる。
- * Minecraftのクラスに依存しない（オフラインの試験で確かめる）。
+ * Minecraftのクラスに依存しない（オフラインのテストで確かめる）。
  */
 public final class MenuInts {
     private MenuInts() { }

@@ -14,9 +14,9 @@ import net.minecraftforge.registries.ForgeRegistries;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * 今後のMagManipエンティティのための、サーバー専用の損失の無い積荷。取り込みでブロックを取り除くことはない。
- * 未知の版やレジストリ項目は、生の包みを読み取り専用で保つ。
- * ブロックエンティティのインベントリを送ったり、クライアントからサーバーへのメッセージで積荷のNBTを受け取ったりしない。
+ * 今後のMagManipエンティティのための、サーバー専用の損失の無いペイロード。取り込みでブロックを取り除くことはない。
+ * 未知の版やレジストリ項目は、生のNBT（envelope）を読み取り専用で保つ。
+ * ブロックエンティティのインベントリを送ったり、クライアントからサーバーへのメッセージでペイロードのNBTを受け取ったりしない。
  */
 public final class BlockPayload {
     private final CompoundTag envelope;
@@ -33,7 +33,7 @@ public final class BlockPayload {
         return new BlockPayload(tag);
     }
     public static BlockPayload load(CompoundTag tag) { return new BlockPayload(tag); }
-    /** アイテムの状態とコンテナのタグはサーバーでだけ解釈する。所有する積荷は、アイテムを正確に返すために元のアイテムNBTを別に保つ。 */
+    /** アイテムの状態とコンテナのタグはサーバーでだけ解釈する。所有するペイロードは、アイテムを正確に返すために元のアイテムNBTを別に保つ。 */
     public static Optional<BlockPayload> fromItem(net.minecraft.world.item.ItemStack stack) {
         if (stack.isEmpty() || !(stack.getItem() instanceof net.minecraft.world.item.BlockItem item)) return Optional.empty();
         var stateTag = NbtUtils.writeBlockState(item.getBlock().defaultBlockState());
@@ -64,7 +64,7 @@ public final class BlockPayload {
         return envelope.contains("block_entity", Tag.TAG_COMPOUND)
                 ? Optional.of(envelope.getCompound("block_entity").copy()) : Optional.empty();
     }
-    /** 設置できないときも、標準のブロックアイテムのNBTで積荷を回収できるようにする。 */
+    /** 設置できないときも、標準のブロックアイテムのNBTでペイロードを回収できるようにする。 */
     public net.minecraft.world.item.ItemStack recoveryItem() {
         if (state == null) return net.minecraft.world.item.ItemStack.EMPTY;
         var item = new net.minecraft.world.item.ItemStack(state.getBlock());
@@ -90,7 +90,7 @@ public final class BlockPayload {
         var rawState = tag.getCompound("state"); var id = ResourceLocation.tryParse(rawState.getString("Name"));
         if (id == null || !ForgeRegistries.BLOCKS.containsKey(id)) return null;
         var state = NbtUtils.readBlockState(BuiltInRegistries.BLOCK.asLookup(), rawState);
-        // 既定のプロパティや空気への損失のある代替を認めず、古い積荷を書き換えない。
+        // 既定のプロパティや空気への損失のある代替を認めず、古いペイロードを書き換えない。
         if (state.isAir() || !NbtUtils.writeBlockState(state).equals(rawState)) return null;
         boolean hasData = tag.contains("block_entity", Tag.TAG_COMPOUND);
         if (state.hasBlockEntity() != hasData || (tag.contains("block_entity") && !hasData)) return null;

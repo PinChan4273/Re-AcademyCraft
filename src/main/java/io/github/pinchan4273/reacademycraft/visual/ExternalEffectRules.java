@@ -9,7 +9,7 @@ import net.minecraft.world.phys.Vec3;
 
 /**
  * 外部の演出の要求の検査（演出API版3）。描画とMinecraftのクライアントに依存しない（GameTestで確かめる）。
- * 結果はnullなら通る。順番: 種類 → 持ち主 → 効果ID → 次元 → 座標 → 種類ごとの欄。
+ * 結果はnullなら通る。順番: 種類 → 持ち主 → 効果ID → ディメンション → 座標 → 種類ごとの欄。
  */
 public final class ExternalEffectRules {
     private ExternalEffectRules() { }
@@ -52,7 +52,7 @@ public final class ExternalEffectRules {
             case RAILGUN_HAND, JET_SHIELD, STORM_WING, MINE_RAY_BASIC, MINE_RAY_EXPERT, MINE_RAY_LUCK -> entity(request) ? null : BeamResult.INVALID;
             case PLASMA_CANNON -> request.target() != null && !bounded(request.target()) ? BeamResult.INVALID : scale(request, MAX_PLASMA_SCALE);
             case ARC_BURST, LIGHTNING, BLOOD_SPLASH, BLOOD_SPLASH_LARGE, CRITICAL_FORMULA, ORB, RIPPLE -> null;
-            // 演出API版3: 未元物質。翼と頭上の輪はプレイヤーに付く（プレイヤーかどうかはクライアントが実体を見て確かめる）。
+            // 演出API版3: 未元物質。翼と頭上の輪はプレイヤーに付く（プレイヤーかどうかはクライアントがエンティティを見て確かめる）。
             case DARK_WINGS, DARK_HALO -> entity(request) ? null : BeamResult.INVALID;
             case DARK_WING_STAB -> entity(request) ? between(request, MAX_STAB_REACH) : BeamResult.INVALID;
             case DARK_FEATHER_BALL -> !entity(request) || (request.target() != null && !bounded(request.target())) ? BeamResult.INVALID : null;

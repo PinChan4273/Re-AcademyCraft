@@ -27,7 +27,7 @@ public final class AbilityDataProvider implements ICapabilitySerializable<Compou
     public void bindOwner(net.minecraft.world.entity.player.Player player) { data.bindOwner(player); }
     public void invalidate() {
         LazyOptional<PlayerAbilityData> previous = view;
-        // Entityは、capabilityが無効の間は参照を受け付けない。Forgeが次元移動やcloneのために同じプレイヤーを
+        // Entityは、capabilityが無効の間は参照を受け付けない。Forgeがディメンション移動やcloneのために同じプレイヤーを
         // 復活させるときは、新しいwrapperが要る。古いwrapperは無効のままにし、状態そのものは保持する。
         view = LazyOptional.of(() -> data);
         previous.invalidate();

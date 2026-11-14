@@ -47,9 +47,18 @@ public final class TerminalState {
         if (!player.level().isClientSide) net.minecraftforge.common.MinecraftForge.EVENT_BUS.post(new io.github.pinchan4273.reacademycraft.event.AcademyEvent.AppInstalled(player, app.name()));
         return true;
     }
-    /** このプレイヤーが開けるアプリ。登録された順。 */
+    /**
+     * このプレイヤーが開けるアプリ。登録された順。1.5.2: ベクトル解析のアプリは、今の系統がベクトル操作のときだけ出す（ほかの系統では
+     * 中身が無いため。持っているかどうか（{@link #has}）は変えない）。
+     */
     public static List<TerminalApp> available(Player player) {
-        return TerminalApps.all().stream().filter(app -> has(player, app)).toList();
+        return TerminalApps.all().stream().filter(app -> has(player, app) && shown(player, app)).toList();
+    }
+    /** 系統で出し分けるアプリを、このプレイヤーの一覧に出すか。 */
+    private static boolean shown(Player player, TerminalApp app) {
+        if (app.kind() != TerminalApp.Kind.VECTOR_ANALYSIS) return true;
+        var data = player.getCapability(io.github.pinchan4273.reacademycraft.capability.AbilityCapabilities.PLAYER_ABILITY).orElse(null);
+        return data != null && io.github.pinchan4273.reacademycraft.skill.AbilityCategory.VECMANIP.id().equals(data.getAbility());
     }
     /** クライアント専用: サーバーが最後に伝えた内容。 */
     public static void accept(Player player, boolean installed, List<String> apps) {

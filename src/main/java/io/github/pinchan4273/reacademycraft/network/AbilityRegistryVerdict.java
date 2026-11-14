@@ -5,7 +5,7 @@ import java.util.List;
 import net.minecraft.network.FriendlyByteBuf;
 
 /**
- * クライアントの能力の登録簿と、サーバーの要約との違い（クライアント→サーバー、1.4.0のS4、司令室11の裁定D7）。空なら一致。
+ * クライアントの能力のレジストリと、サーバーの要約との違い（クライアント→サーバー、1.4.0）。空なら一致。
  * 違いが多ければ、先頭の{@link #MAX_PROBLEMS}件だけを送る（数は別に送る）。
  */
 public record AbilityRegistryVerdict(int count, List<String> problems) {

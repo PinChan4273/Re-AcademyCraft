@@ -13,7 +13,7 @@ import net.minecraftforge.registries.DeferredRegister;
 import net.minecraftforge.registries.RegistryObject;
 
 /**
- * 原作WorldGenInit/ACWorldGenのgenOresの関門。配置されたfeatureが実行されるときに評価する。
+ * 原作WorldGenInit/ACWorldGenのgenOresのフィルター。配置されたfeatureが実行されるときに評価する。
  * 鉱石の配置データは登録したままで、既存のブロックには触れない。
  */
 public final class OreGenerationFilter extends PlacementFilter {

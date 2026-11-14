@@ -111,7 +111,7 @@ public final class BlockCargo {
     }
 
     /**
-     * 空いた位置に置く。取り消しや失敗では、再試行のためにこの積荷を保つ。
+     * 空いた位置に置く。取り消しや失敗では、再試行のためにこのペイロードを保つ。
      * 使用済みのトークン（NBTから読み直したものを含む）は2回置けない。
      */
     public boolean place(ServerPlayer player, BlockPos pos, Direction face) {

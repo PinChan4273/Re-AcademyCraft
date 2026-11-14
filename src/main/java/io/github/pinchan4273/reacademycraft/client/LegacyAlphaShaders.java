@@ -53,17 +53,24 @@ public final class LegacyAlphaShaders {
      */
     @Nullable public static ShaderInstance worldParticle() { return ShaderPackCompat.inUse() ? GameRenderer.getParticleShader() : particle; }
 
-    /** Minecraftの半透明の粒子のシート（alphaテストなし）。 */
+    /**
+     * Minecraftの半透明の粒子のシート（alphaテストなし）。
+     * <p>
+     * 1.5.2: 深度は書かない（読むだけ）。alphaテストが無いので、深度を書くと、透明な画素まで四角形全体が深度を埋め、後から描く
+     * 半透明の粒子（別の煙など）に見えない四角い穴をあけていた。
+     * 壁などの不透明な物には、今までどおり深度の比較で隠れる。
+     */
     public static final ParticleRenderType PARTICLE_SHEET_TRANSLUCENT = new ParticleRenderType() {
         @Override public void begin(BufferBuilder buffer, TextureManager textures) {
-            RenderSystem.depthMask(true);
+            RenderSystem.depthMask(false);
             RenderSystem.setShader(LegacyAlphaShaders::worldParticle);
             RenderSystem.setShaderTexture(0, TextureAtlas.LOCATION_PARTICLES);
             RenderSystem.enableBlend();
             RenderSystem.defaultBlendFunc();
             buffer.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.PARTICLE);
         }
-        @Override public void end(Tesselator tesselator) { tesselator.end(); }
+        // 次に描く物のために、深度を書く設定へ戻す（バニラの粒子のシートは begin でそれぞれ決め直すが、念のため）。
+        @Override public void end(Tesselator tesselator) { tesselator.end(); RenderSystem.depthMask(true); }
         @Override public String toString() { return "ACADEMY_PARTICLE_SHEET_TRANSLUCENT_ALPHA_TEST_OFF"; }
     };
 }

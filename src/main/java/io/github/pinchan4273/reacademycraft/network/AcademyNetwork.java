@@ -10,25 +10,36 @@ import net.minecraftforge.network.NetworkRegistry;
 import net.minecraftforge.network.PacketDistributor;
 import net.minecraftforge.network.simple.SimpleChannel;
 
-/** このmodの通信路（Forge 1.20.1のSimpleChannel）と、各通知の登録。 */
+/** このmodのチャンネル（Forge 1.20.1のSimpleChannel）と、各通知の登録。 */
 public final class AcademyNetwork {
     /**
      * 通信の版。通知の並びが変わったら上げる。61: プリセットの編集を1操作ずつにし、金属成形・融合のレシピの並びを独自にした。
      * 62: Storm Wingの推進の入力（StormWingInput）と状態の番号を足し、Light Shieldを押し続けからトグルにした（古いクライアントは
-     * 心拍とキーアップでLight Shieldを動かすので、新しいサーバーへ繋がせない）。
-     * 63: Light Shieldの盾面の状態（LightShieldState、50番）を足し、Light Shieldの表示をSkillVisualから移した（工程2。62のクライアントは
+     * ハートビートとキーアップでLight Shieldを動かすので、新しいサーバーへ繋がせない）。
+     * 63: Light Shieldの盾面の状態（LightShieldState、50番）を足し、Light Shieldの表示をSkillVisualから移した（62のクライアントは
      * 盾の向きを知らないので繋がせない）。
-     * 64: 能力設定の画面（1.4.0のS1）の通知を足した（SkillSettingEdit 51番、SkillSettingsSnapshot 52番）。63のクライアントは
-     * 設定の値を受け取れないので繋がせない。1.4.0のS4で、開発機の外部の技能の学習（DevelopAddonSkill 53番、
-     * DevelopAddonAvailability 54番）と、ログインの時の登録簿の照合（AbilityRegistryCheck 55番、AbilityRegistryVerdict 56番）も足した（1.4.0の公開の前なので、版は64のまま。設計の文書13.4の4）。
+     * 64: 能力設定の画面（1.4.0）の通知を足した（SkillSettingEdit 51番、SkillSettingsSnapshot 52番）。63のクライアントは
+     * 設定の値を受け取れないので繋がせない。1.4.0で、開発機の外部の技能の学習（DevelopAddonSkill 53番、
+     * DevelopAddonAvailability 54番）と、ログインの時のレジストリの照合（AbilityRegistryCheck 55番、AbilityRegistryVerdict 56番）も足した（1.4.0の公開の前なので、版は64のまま）。
      * 65: v1.5.0。未元物質の技能の学習で開発機の可用性のビットが48を超え、メニューのデータを4スロットにした。技能由来の直接効果の
      * 同期（DirectEffectSync）を足した。64のクライアントは新しい技能・効果を受け取れないので繋がせない。
-     * 66: v1.5.1。甲虫の実体に同期データ（EMERGE、出現の残りtick）と実体のイベント101（EVENT_RECALL、回収の演出）を足し、
-     * 甲虫生成の発動をINSTANTからHELD（短押しで生成、2秒の長押しで全個体の回収）にした。1.5.0と1.5.1が混ざると、実体の同期データの並びと
-     * キーの送り方が食い違うので繋がせない（主担当の決定）。
+     * 66: v1.5.1。甲虫のエンティティに同期データ（EMERGE、出現の残りtick）とエンティティのイベント101（EVENT_RECALL、回収の演出）を足し、
+     * 甲虫生成の発動をINSTANTからHELD（短押しで生成、2秒の長押しで全個体の回収）にした。1.5.0と1.5.1が混ざると、エンティティの同期データの並びと
+     * キーの送り方が食い違うので繋がせない。
+     * 67: 1.5.2。ベクトル操作の解析度の同期（VectorAnalysisSync、74番）を足した。66のクライアントは知らない番号を受けるので繋がせない
+     * （1.5.2の公開の前に通知を足すときは、版は67のまま）。
+     * 68: 1.5.2。パッシブにした飛行の離陸と停止の依頼（PassiveFlightInput、75番）を足し、能力設定の値にパッシブ／アクティブの
+     * 切り替え（academy:passive.*）を足した（版を上げる。67のクライアントは切り替えの値と依頼を知らないので繋がせない）。
+     * 69: 1.5.2。開発機の初回の取得・磁気コイルでの変更の計画（DevelopFactorPlan、76番）を足した（因子なしのランダムの取得・変更。
+     * 開発中のJARと混ざらないよう版を上げる。68のクライアントは計画の通知を知らないので繋がせない）。
+     * 70: 1.5.2。開発機の取得・変更の開始を、画面が見た計画を載せた要求（DevelopCategoryStart、77番）に変え、
+     * 計画の通知（76番）に「食い違いで断った」のフラグを足した。69のクライアントはメニューのボタンで始めようとし、新しいサーバーはそれを
+     * 断るので繋がせない。
+     * 71: 1.5.2。身体強化の状態の通知（BodyIntensifyState）のスロットに、パッシブの自動の起動の-1を足し、能力設定の値を
+     * 32に増やした（画面へ送る値の数の上限は64）。70のクライアントは-1のスロットを読めず（断って通信が切れる）、パッシブの欄も知らないので繋がせない。
      * 版が違う相手とは、ログインの時点で接続を断る（古い通知を誤って読むところまで進ませない）。
      */
-    public static final String VERSION = "66";
+    public static final String VERSION = "73";
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             ResourceLocation.fromNamespaceAndPath("academy", "main"), () -> VERSION, AcademyNetwork::accepts, AcademyNetwork::accepts);
 
@@ -247,7 +258,7 @@ public final class AcademyNetwork {
                 .encoder(SkillSettingsSnapshot::encode).decoder(SkillSettingsSnapshot::decode)
                 .consumerMainThread((packet, context) -> DistExecutor.unsafeRunWhenOn(Dist.CLIENT,
                         () -> () -> io.github.pinchan4273.reacademycraft.client.ClientSkillSettings.receive(packet))).add();
-        // 1.4.0のS4（司令室11の裁定D11）: 開発機の、外部の技能の学習（旧い48ビットの外）。
+        // 1.4.0: 開発機の、外部の技能の学習（旧い48ビットの外）。
         CHANNEL.messageBuilder(DevelopAddonSkill.class, 53, NetworkDirection.PLAY_TO_SERVER)
                 .encoder(DevelopAddonSkill::encode).decoder(DevelopAddonSkill::decode)
                 .consumerMainThread((packet, context) -> packet.handle(context.get().getSender())).add();
@@ -255,7 +266,7 @@ public final class AcademyNetwork {
                 .encoder(DevelopAddonAvailability::encode).decoder(DevelopAddonAvailability::decode)
                 .consumerMainThread((packet, context) -> DistExecutor.unsafeRunWhenOn(Dist.CLIENT,
                         () -> () -> io.github.pinchan4273.reacademycraft.client.ClientDevelopAddons.receive(packet))).add();
-        // 1.4.0のS4（司令室11の裁定D7）: ログインの時の、能力の登録簿の照合。
+        // 1.4.0: ログインの時の、能力のレジストリの照合。
         CHANNEL.messageBuilder(AbilityRegistryCheck.class, 55, NetworkDirection.PLAY_TO_CLIENT)
                 .encoder(AbilityRegistryCheck::encode).decoder(AbilityRegistryCheck::decode)
                 .consumerMainThread((packet, context) -> DistExecutor.unsafeRunWhenOn(Dist.CLIENT,
@@ -295,6 +306,24 @@ public final class AcademyNetwork {
                 .encoder(HeavenMark::encode).decoder(HeavenMark::decode)
                 .consumerMainThread((packet, context) -> DistExecutor.unsafeRunWhenOn(Dist.CLIENT,
                         () -> () -> io.github.pinchan4273.reacademycraft.client.ClientHeavenEffects.receive(packet))).add();
+        // 1.5.2: パッシブにした飛行の離陸と停止の依頼（術者のクライアントから）。
+        CHANNEL.messageBuilder(PassiveFlightInput.class, 75, NetworkDirection.PLAY_TO_SERVER)
+                .encoder(PassiveFlightInput::encode).decoder(PassiveFlightInput::decode)
+                .consumerMainThread((packet, context) -> packet.handle(context.get().getSender())).add();
+        // 1.5.2: 開発機の初回の取得・磁気コイルでの変更の計画（ランダムか因子の指定か）。
+        CHANNEL.messageBuilder(DevelopFactorPlan.class, 76, NetworkDirection.PLAY_TO_CLIENT)
+                .encoder(DevelopFactorPlan::encode).decoder(DevelopFactorPlan::decode)
+                .consumerMainThread((packet, context) -> DistExecutor.unsafeRunWhenOn(Dist.CLIENT,
+                        () -> () -> io.github.pinchan4273.reacademycraft.client.ClientDevelopFactor.receive(packet))).add();
+        // 1.5.2: 開発機の取得・変更の開始の要求。画面が見た計画を載せ、サーバーが計算し直した計画と比べる。
+        CHANNEL.messageBuilder(DevelopCategoryStart.class, 77, NetworkDirection.PLAY_TO_SERVER)
+                .encoder(DevelopCategoryStart::encode).decoder(DevelopCategoryStart::decode)
+                .consumerMainThread((packet, context) -> packet.handle(context.get().getSender())).add();
+        // 1.5.2: ベクトル操作の解析度（本人だけ）。
+        CHANNEL.messageBuilder(VectorAnalysisSync.class, 74, NetworkDirection.PLAY_TO_CLIENT)
+                .encoder(VectorAnalysisSync::encode).decoder(VectorAnalysisSync::decode)
+                .consumerMainThread((packet, context) -> DistExecutor.unsafeRunWhenOn(Dist.CLIENT,
+                        () -> () -> io.github.pinchan4273.reacademycraft.client.ClientVectorAnalysis.receive(packet))).add();
         CHANNEL.messageBuilder(DarkBeetleShot.class, 62, NetworkDirection.PLAY_TO_CLIENT)
                 .encoder(DarkBeetleShot::encode).decoder(DarkBeetleShot::decode)
                 .consumerMainThread((packet, context) -> DistExecutor.unsafeRunWhenOn(Dist.CLIENT,
@@ -320,12 +349,17 @@ public final class AcademyNetwork {
     public static void send(ServerPlayer player, DevelopAddonAvailability availability) {
         if (player.connection != null) CHANNEL.send(PacketDistributor.PLAYER.with(() -> player), availability);
     }
+    public static void send(ServerPlayer player, DevelopFactorPlan plan) {
+        if (player.connection != null) CHANNEL.send(PacketDistributor.PLAYER.with(() -> player), plan);
+    }
     /** 開発機の画面から、外部の技能の学習を求める（クライアント）。 */
     public static void sendToServer(DevelopAddonSkill request) { CHANNEL.sendToServer(request); }
+    /** 開発機のコンソールから、取得・変更の開始を求める（クライアント。画面が見た計画を載せる）。 */
+    public static void sendToServer(DevelopCategoryStart request) { CHANNEL.sendToServer(request); }
     public static void send(ServerPlayer player, AbilityRegistryCheck check) {
         if (player.connection != null) CHANNEL.send(PacketDistributor.PLAYER.with(() -> player), check);
     }
-    /** 登録簿の照合の答え（クライアント）。 */
+    /** レジストリの照合の答え（クライアント）。 */
     public static void sendToServer(AbilityRegistryVerdict verdict) { CHANNEL.sendToServer(verdict); }
     public static void send(ServerPlayer player, ChargingLoopEffect effect) {
         if (player.connection != null) CHANNEL.send(PacketDistributor.PLAYER.with(() -> player), effect);

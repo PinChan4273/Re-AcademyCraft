@@ -12,7 +12,7 @@ import net.minecraft.resources.ResourceLocation;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL14;
 
-/** 原作のマスクとspriteの絵を変えずに、状態を保つForgeのGUIのadapterで描く。 */
+/** 原作のマスクとspriteのテクスチャを変えずに、状態を保つForgeのGUIのadapterで描く。 */
 public final class LegacyIntensifyHudRenderer {
     public static final ResourceLocation MASK = id("em_intensify_mask.png");
     private static final MultiBufferSource.BufferSource BUFFERS = MultiBufferSource.immediate(new BufferBuilder(4096));
