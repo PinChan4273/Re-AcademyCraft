@@ -15,11 +15,11 @@ import net.minecraft.resources.Identifier;
  * すべてのアプリのアイテム。
  */
 public final class Tutorials {
-    /** 記事1つ: id、それを解放するアイテム、プレビュー窓に表示するもの。 */
+    /** 記事1つ: id、それを解放するアイテム、プレビューウィンドウに表示するもの。 */
     public record Tutorial(String id, List<Identifier> items, List<Preview> previews) {
         public boolean defaultInstalled() { return items.isEmpty(); }
     }
-    /** 原作ViewGroups: プレビュー窓で回るブロック、アイテムの作業台レシピ、またはアイコン。 */
+    /** 原作ViewGroups: プレビューウィンドウで回るブロック、アイテムの作業台レシピ、またはアイコン。 */
     public record Preview(Kind kind, Identifier target) {
         public enum Kind { BLOCK, RECIPES, ICON }
     }

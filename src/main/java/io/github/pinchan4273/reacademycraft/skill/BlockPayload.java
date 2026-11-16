@@ -17,9 +17,9 @@ import net.minecraft.world.level.block.state.BlockState;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * 今後のMagManipエンティティのための、サーバー専用の損失の無い積荷。取り込みでブロックを取り除くことはない。
- * 未知の版やレジストリ項目は、生の包みを読み取り専用で保つ。
- * ブロックエンティティのインベントリを送ったり、クライアントからサーバーへのメッセージで積荷のNBTを受け取ったりしない。
+ * 今後のMagManipエンティティのための、サーバー専用の損失の無いペイロード。取り込みでブロックを取り除くことはない。
+ * 未知の版やレジストリ項目は、生のNBT（envelope）を読み取り専用で保つ。
+ * ブロックエンティティのインベントリを送ったり、クライアントからサーバーへのメッセージでペイロードのNBTを受け取ったりしない。
  *
  * <p>1.21: ブロックアイテムの状態と中身は、Forge 1.20.1版のNBT（BlockStateTag・BlockEntityTag）でなくData Component
  * （BLOCK_STATE・BLOCK_ENTITY_DATA）にある。さらに容器の中身・名前・鍵はBLOCK_ENTITY_DATAでなく、それぞれの部品
@@ -41,7 +41,7 @@ public final class BlockPayload {
         return new BlockPayload(tag);
     }
     public static BlockPayload load(CompoundTag tag) { return new BlockPayload(tag); }
-    /** アイテムの状態とコンテナのタグはサーバーでだけ解釈する。所有する積荷は、アイテムを正確に返すために元のアイテムNBTを別に保つ。 */
+    /** アイテムの状態とコンテナのタグはサーバーでだけ解釈する。所有するペイロードは、アイテムを正確に返すために元のアイテムNBTを別に保つ。 */
     public static Optional<BlockPayload> fromItem(net.minecraft.world.item.ItemStack stack, HolderLookup.Provider registries) {
         if (stack.isEmpty() || !(stack.getItem() instanceof net.minecraft.world.item.BlockItem item)) return Optional.empty();
         var stateTag = NbtUtils.writeBlockState(item.getBlock().defaultBlockState());
@@ -82,7 +82,7 @@ public final class BlockPayload {
                 ? Optional.of(envelope.getCompoundOrEmpty("block_entity").copy()) : Optional.empty();
     }
     /**
-     * 設置できないときも、標準のブロックアイテムの形で積荷を回収できるようにする。1.21ではvanillaのsaveToItem（データ付きで
+     * 設置できないときも、標準のブロックアイテムの形でペイロードを回収できるようにする。1.21ではvanillaのsaveToItem（データ付きで
      * 拾ったブロックと同じ形）: 中身・名前は部品、残りはBLOCK_ENTITY_DATA。普通に置き直すと、そのまま元に戻る。
      */
     public net.minecraft.world.item.ItemStack recoveryItem(HolderLookup.Provider registries) {
@@ -123,7 +123,7 @@ public final class BlockPayload {
         var rawState = tag.getCompoundOrEmpty("state"); var id = Identifier.tryParse(rawState.getStringOr("Name", ""));
         if (id == null || !net.minecraft.core.registries.BuiltInRegistries.BLOCK.containsKey(id)) return null;
         var state = NbtUtils.readBlockState(BuiltInRegistries.BLOCK, rawState);
-        // 既定のプロパティや空気への損失のある代替を認めず、古い積荷を書き換えない。
+        // 既定のプロパティや空気への損失のある代替を認めず、古いペイロードを書き換えない。
         if (state.isAir() || !NbtUtils.writeBlockState(state).equals(rawState)) return null;
         boolean hasData = io.github.pinchan4273.reacademycraft.world.NbtCompat.contains(tag, "block_entity", Tag.TAG_COMPOUND);
         if (state.hasBlockEntity() != hasData || (tag.contains("block_entity") && !hasData)) return null;

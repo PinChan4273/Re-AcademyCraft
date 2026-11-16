@@ -16,7 +16,7 @@ import net.minecraft.util.Mth;
 import org.lwjgl.glfw.GLFW;
 
 /**
- * 原作SettingsUI（guis/settings.xml）: settings.pngの窓。742x923を0.2倍で画面中央に置き、右のバーでスクロールする
+ * 原作SettingsUI（guis/settings.xml）: settings.pngのウィンドウ。742x923を0.2倍で画面中央に置き、右のバーでスクロールする
  * 一覧を持つ。カテゴリは原作の順（そのHashMapの順）: Keys、Generic、Misc。それぞれ線の上の見出し、行、後ろに20の余白。
  *
  * - Keys: 原作のキー項目。ここでは移植版のキー割り当てを原作の名前で示す。クリックするとオレンジでPRESSと表示し、

@@ -22,7 +22,7 @@ import net.neoforged.neoforge.client.event.ClientTickEvent;
 import net.neoforged.bus.api.SubscribeEvent;
 
 /**
- * Light Shieldの盾を、術者と追跡している各clientで描く（原作EntityMdShieldとRenderMdShield）。工程2から、盾の向きと大きさは
+ * Light Shieldの盾を、術者と追跡している各clientで描く（原作EntityMdShieldとRenderMdShield）。盾の向きと大きさは
  * サーバーが送る盾面の状態（{@link LightShieldState}）そのもので、clientは自分では標的も向きも選ばない。置く位置は、術者の今の
  * （補間した）足元から{@link LightShieldGeometry}の式で計算するので、サーバーの判定と同じ面になる。
  * <p>
@@ -79,7 +79,7 @@ public final class ClientLightShieldEffect {
             shield.ticks++;
             shield.previous = shield.shown; shield.previousRadius = shield.shownRadius;
             shield.shown = shield.target; shield.shownRadius = shield.targetRadius;
-            // 原作c_update: 30%のtickで、盾の中心の周りにmdの粒子を出す（工程2から、視線の前でなく盾の中心）。
+            // 原作c_update: 30%のtickで、盾の中心の周りにmdの粒子を出す（視線の前でなく盾の中心）。
             if (shield.shown != null && RANDOM.nextFloat() < .3f) {
                 var at = LightShieldGeometry.center(entity.position(), shield.shown);
                 level.addParticle(AcademyParticles.MD.get(), at.x + range(-.5, .5), at.y + range(-.5, .5), at.z + range(-.5, .5),
@@ -136,7 +136,7 @@ public final class ClientLightShieldEffect {
         } finally { io.github.pinchan4273.reacademycraft.client.render.Immediate.enableCull(); }
     }
     private static void clear() { SHIELDS.clear(); ENDED.clear(); }
-    /** 外部の演出の盾を消す（自然能力の終わった番号の記憶を使わない）。 */
+    /** 外部の演出の盾を消す（自然能力の終わったIDの記憶を使わない）。 */
     static void endExternal(long token) { SHIELDS.remove(token); }
     @SubscribeEvent public static void loggedOut(ClientPlayerNetworkEvent.LoggingOut event) { clear(); world = null; }
     /** テスト用の入口。 */

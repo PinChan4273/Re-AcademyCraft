@@ -12,7 +12,7 @@ import org.jetbrains.annotations.Nullable;
 
 /**
  * 原作の風力の土台の1スロットのインベントリ（WeAthFolDのContainerWindGenBase/SlotIFItem）。
- * サーバー専用の充電の取引は、受け口のコールバックを呼ぶ前にエネルギーを予約する。
+ * サーバー専用の充電のトランザクションは、ハンドラのコールバックを呼ぶ前にエネルギーを予約する。
  */
 final class WindChargeInventory {
     static final String KEY = "academy_wind_charge";
@@ -47,7 +47,7 @@ final class WindChargeInventory {
         if (!io.github.pinchan4273.reacademycraft.world.NbtCompat.contains(saved, "item", Tag.TAG_COMPOUND)) { readOnly = true; return; }
         CompoundTag item = saved.getCompoundOrEmpty("item");
         // 1つだけのスタックとして読めるものだけを読む（loadSingle）。未対応の元の個数を黙って1にして失わない。
-        // 読み込み中に受け口のコールバックを呼ばない。以前対応していたアイテムは、エネルギーのcapabilityが無くなっても回収できなければならない。
+        // 読み込み中にハンドラのコールバックを呼ばない。以前対応していたアイテムは、エネルギーのcapabilityが無くなっても回収できなければならない。
         ItemStack decoded = loadSingle(item, registries);
         if (decoded.isEmpty() || decoded.getCount() != 1) { readOnly = true; return; }
         stack = decoded; savedStack = item.copy();

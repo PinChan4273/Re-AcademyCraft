@@ -11,16 +11,16 @@ import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
 
 /**
- * v1.5.0 天界発現の個人設定（§10〜§12、§15の「系統を失っても保持」）。能力データの{@code SkillSettings}区分に保存し、サーバーが正本。
+ * v1.5.0 天界発現の個人設定（系統を失っても保持する）。能力データの{@code SkillSettings}区分に保存し、サーバーが正本。
  * 領域は毎回ここを読むので、変更は発動中でも即時に効く。既定の値は書かない。
  * <p>
  * 常時効果は対象区分と効果の組ごとのON／OFFで、相反する2効果は{@link Pair}の1つの選択（OFF／強化／弱体化）にしているので、同一区分で両方はONにできない（二者択一）。
- * 既定でONなのは、自分の甲虫の「攻撃強化」と敵対モブの「移動阻害」だけ（§10）。
- * 怪現象は、現象ごとにON／OFF・頻度・対象区分を持つ。既定は全現象ONで対象は敵対モブだけ（§10は「発生費用は別に精算する」と書くが初期の組み合わせは書いていないので実装で決めた。
+ * 既定でONなのは、自分の甲虫の「攻撃強化」と敵対モブの「移動阻害」だけ。
+ * 怪現象は、現象ごとにON／OFF・頻度・対象区分を持つ。既定は全現象ONで対象は敵対モブだけ（初期の組み合わせは実装で決めた。
  * 暗闇はプレイヤー専用なので既定の対象なし）。
  */
 public final class HeavenSettings {
-    /** §12の対象区分。 */
+    /** 対象区分。 */
     public enum Target {
         SELF("self"), BEETLE("beetle"), ALLY("ally"), OTHER("other"), HOSTILE("hostile"), NEUTRAL("neutral");
         private final String id;
@@ -44,7 +44,7 @@ public final class HeavenSettings {
         public String id() { return id; }
         public static @Nullable Choice parse(String value) { for (var c : values()) if (c.id.equals(value)) return c; return null; }
     }
-    /** §10の常時効果10種。値は熟練度0%と100%の直線補間（表の50%はその中点）。割合か、HP／秒・ダメージ／秒。 */
+    /** 常時効果10種。値は熟練度0%と100%の直線補間。割合か、HP／秒・ダメージ／秒。 */
     public enum Effect {
         ATTACK_UP(Pair.ATTACK, Choice.BOON, .10f, .40f), DEFENSE_UP(Pair.DEFENSE, Choice.BOON, .10f, .30f), MOVE_UP(Pair.MOVE, Choice.BOON, .10f, .30f),
         HASTE(Pair.TEMPO, Choice.BOON, .10f, .30f), REGEN(Pair.LIFE, Choice.BOON, 1, 3),
@@ -61,14 +61,14 @@ public final class HeavenSettings {
             throw new IllegalArgumentException(pair + "/" + side);
         }
     }
-    /** §11の抽選の枠と全種類ON時の重み。 */
+    /** 抽選の枠と全種類ON時の重み。 */
     public enum Frame {
         STATUS(35), GLOW(35), LIGHTNING(20), MUTATION(10);
         private final int weight;
         Frame(int weight) { this.weight = weight; }
         public int weight() { return weight; }
     }
-    /** §11の現象。状態異常7種は{@link Frame#STATUS}の枠の中から選ぶ。値は表の0%と100%の直線補間。 */
+    /** 現象。状態異常7種は{@link Frame#STATUS}の枠の中から選ぶ。値は熟練度0%と100%の直線補間。 */
     public enum Phenomenon {
         BURN("burn", Frame.STATUS, 2, 4), POISON("poison", Frame.STATUS, 1, 3), WITHER("wither", Frame.STATUS, 2, 4), SLOW("slow", Frame.STATUS, .2f, .6f),
         WEAK("weak", Frame.STATUS, .2f, .5f), DARK("dark", Frame.STATUS, 0, 0), FLOAT("float", Frame.STATUS, 1, 2),
@@ -78,11 +78,11 @@ public final class HeavenSettings {
         public String id() { return id; }
         public Frame frame() { return frame; }
         public float value(float p) { return ArcGen.lerp(from, to, p); }
-        /** 害のある現象か。発光の輪郭だけが無害で、それ以外はPvP・チームの保護と§15の無効を通す。 */
+        /** 害のある現象か。発光の輪郭だけが無害で、それ以外はPvP・チームの保護と未元物質人間の無効を通す。 */
         public boolean harmful() { return this != GLOW; }
         public static @Nullable Phenomenon parse(String value) { for (var p : values()) if (p.id.equals(value)) return p; return null; }
     }
-    /** §11の頻度: 低は間隔2倍、高は半分。 */
+    /** 頻度: 低は間隔2倍、高は半分。 */
     public enum Frequency {
         LOW("low", 2), STANDARD("std", 1), HIGH("high", .5f);
         private final String id; private final float interval;
@@ -91,7 +91,7 @@ public final class HeavenSettings {
         public float interval() { return interval; }
         public static @Nullable Frequency parse(String value) { for (var f : values()) if (f.id.equals(value)) return f; return null; }
     }
-    /** §12の個別プレイヤーの登録。 */
+    /** 個別プレイヤーの登録。 */
     public enum PlayerMode {
         AUTO("auto"), ALLY("ally"), EXCLUDE("exclude");
         private final String id;
@@ -150,9 +150,9 @@ public final class HeavenSettings {
     public PlayerMode playerMode(UUID player) { var entry = players.get(player); return entry == null ? PlayerMode.AUTO : entry.mode(); }
     public Map<UUID, PlayerEntry> players() { return Collections.unmodifiableMap(players); }
 
-    /** 組み合わせが許されるか: 自分の甲虫へ害のある選択はできない（§12: 誤射保護を領域で迂回しない）。 */
+    /** 組み合わせが許されるか: 自分の甲虫へ害のある選択はできない（誤射保護を領域で迂回しない）。 */
     public static boolean allowed(Target target, Pair pair, Choice choice) { return target != Target.BEETLE || choice != Choice.BANE; }
-    /** 組み合わせが許されるか: 自分と自分の甲虫へは害のある現象を選べない（同じ保護）。変異は§11のとおりモブだけで、自分の区分には使えない。 */
+    /** 組み合わせが許されるか: 自分と自分の甲虫へは害のある現象を選べない（同じ保護）。変異はモブだけで、自分の区分には使えない。 */
     public static boolean allowed(Phenomenon phenomenon, Target target) {
         if (phenomenon == Phenomenon.DARK) return target == Target.SELF || target == Target.ALLY || target == Target.OTHER;
         if (phenomenon == Phenomenon.MUTATION) return target != Target.SELF && target != Target.BEETLE;
@@ -279,7 +279,7 @@ public final class HeavenSettings {
         }
         return out;
     }
-    /** 枠ごとの重みの表（試験と抽選で使う）。 */
+    /** 枠ごとの重みの表（テストと抽選で使う）。 */
     public static Map<Frame, Integer> weights() {
         var out = new EnumMap<Frame, Integer>(Frame.class);
         for (var frame : Frame.values()) out.put(frame, frame.weight());

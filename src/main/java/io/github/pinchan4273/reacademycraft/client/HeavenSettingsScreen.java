@@ -23,7 +23,7 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 
 /**
- * 天界発現の設定の画面（v1.5.0 §10〜§12）。能力設定の画面の行から開く。窓と行の形は{@link AbilitySettingsScreen}と同じで、すべて「&lt; 値 &gt;」の行にしている。
+ * 天界発現の設定の画面（v1.5.0）。能力設定の画面の行から開く。ウィンドウと行の形は{@link AbilitySettingsScreen}と同じで、すべて「&lt; 値 &gt;」の行にしている。
  * 対象区分と現象は選択の行で1つを選び、その区分・現象の行を出す（6区分×5組と10現象×8項目を全部並べると一覧が読めないため）。
  * 効果と現象の値はサーバーが正本で、押すと変更を送り、返事の値を表示する（断られたら元へ戻る）。表示の項目（発光の強度・リング・境界・環境音）は{@link ClientSettings}で、効果と費用を変えない。
  */
@@ -65,7 +65,8 @@ public final class HeavenSettingsScreen extends Screen {
         head("academy.heaven_settings.section.control");
         rows.add(new Row(false, () -> tr("academy.heaven_settings.stop"),
                 () -> tr(ClientSkillModes.active(DarkMatter.HEAVEN) ? "academy.heaven_settings.stop.do" : "academy.heaven_settings.stop.inactive"),
-                dir -> ClientHeavenSettings.request(HeavenSettingEdit.STOP, ""), () -> ClientSkillModes.active(DarkMatter.HEAVEN)));
+                // 1.5.2: パッシブの領域は解除できない（サーバーも断る）。
+                dir -> ClientHeavenSettings.request(HeavenSettingEdit.STOP, ""), () -> ClientSkillModes.active(DarkMatter.HEAVEN) && !ClientPassiveFlight.passive(DarkMatter.HEAVEN)));
         head("academy.heaven_settings.section.effects");
         rows.add(new Row(false, () -> tr("academy.heaven_settings.target_select"), () -> tr("academy.heaven.target." + target.id()),
                 dir -> target = next(Target.values(), target, dir), () -> true));

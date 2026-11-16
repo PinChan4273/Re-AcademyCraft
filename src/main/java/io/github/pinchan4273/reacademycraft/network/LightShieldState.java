@@ -5,7 +5,7 @@ import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.resources.Identifier;
 
 /**
- * Light Shieldの盾面の状態（工程2、サーバー→クライアント、通信の版63で追加）。術者自身と、術者を追跡している各クライアントへ送る。
+ * Light Shieldの盾面の状態（サーバー→クライアント、通信の版63で追加）。術者自身と、術者を追跡している各クライアントへ送る。
  * 盾の正本はサーバーにあり、クライアントは受け取った法線・半径をそのまま使って、術者の今の位置に盾を置く（自分では標的を選ばない）。
  * <p>
  * tokenは盾のセッションごとの識別、sequenceはそのセッションの中で単調に増える番号。クライアントは、同じtokenの古いsequence、

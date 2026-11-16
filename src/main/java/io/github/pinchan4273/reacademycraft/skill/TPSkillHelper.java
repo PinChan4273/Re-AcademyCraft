@@ -9,8 +9,8 @@ import net.minecraft.world.entity.Entity;
 /**
  * 原作TPSkillHelper（WeAthFolD）: テレポーターのすべての攻撃は、当たる前にここでクリティカルの判定をする。
  *
- * 3つの段を、成功するまで順に試す: 1.3倍、1.6倍、2.6倍。確率はテレポーターの2つの受動技能だけから来る（第1段は両方から、
- * 他の2段はSpace Fluctuationだけから）。習得していない受動技能は何も寄与しない。クリティカルは術者に伝え、両方の受動技能に
+ * 3つの段を、成功するまで順に試す: 1.3倍、1.6倍、2.6倍。確率はテレポーターの2つのパッシブ技能だけから来る（第1段は両方から、
+ * 他の2段はSpace Fluctuationだけから）。習得していないパッシブ技能は何も寄与しない。クリティカルは術者に伝え、両方のパッシブ技能に
  * 経験値を与え、（原作addSkillExpにより）まだ習得していない方を習得させる: 原作では、Dimension Folding Theoremだけを持つ術者が
  * 最初のクリティカルでレベル4のSpace Fluctuationを習得する。
  */
@@ -94,8 +94,8 @@ public final class TPSkillHelper {
     /** 原作Raytrace.traceLivingが見つけたもの: 勝ったエンティティまたはブロックと、原作がそれについて返す位置。 */
     public record Trace(net.minecraft.world.phys.Vec3 position, Entity entity, net.minecraft.world.phys.BlockHitResult block) { }
     /**
-     * 原作Raytrace.traceLiving（LambdaLib2）: 目から視線に沿って与えた距離まで、選別が受け入れるエンティティ（術者は除く）と
-     * 衝突できるブロックに対して調べる。0.3広げた箱に光線が最初に当たったエンティティが、エンティティの中で勝つ。その結果は原作の
+     * 原作Raytrace.traceLiving（LambdaLib2）: 目から視線に沿って与えた距離まで、フィルターが受け入れるエンティティ（術者は除く）と
+     * 衝突できるブロックに対して調べる。0.3広げたバウンディングボックスに光線が最初に当たったエンティティが、エンティティの中で勝つ。その結果は原作の
      * RayTraceResult(entity)で、光線が当たった点ではなくエンティティ自身の位置を持ち、その位置をブロックへの当たりと比べる
      * （同じならエンティティが勝つ）。外れは届く範囲の終点を返す。
      */

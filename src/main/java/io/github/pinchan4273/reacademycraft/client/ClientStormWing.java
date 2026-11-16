@@ -44,7 +44,7 @@ public final class ClientStormWing {
      *
      * <p>操作できない間（画面・データ端末・フォーカスなし）は、押していたキーを放したものとする。戻った後に押されたままと
      * 報告されるキーは、新しい押下として数えず、一度離されたのを見てから数える。フォーカスの外で離したキーの離しが届かず押された
-     * ままに見えても、推進を勝手に再開しない。TOGGLE-GUI-001: 操作できない間に押し始めたキーも同じ（画面を閉じるとゲームが
+     * ままに見えても、推進を勝手に再開しない。操作できない間に押し始めたキーも同じ（画面を閉じるとゲームが
      * 物理的なキーの状態を読み直すため、それを新しい押下にすると、GUIの中で押した方向へ閉じた途端に推進してしまう）。
      * 戻ったときに離されていたキーは、すぐ効く。
      */
@@ -63,7 +63,7 @@ public final class ClientStormWing {
         /** 操作できるtick: 各方向のキーが押されていると報告されているか。 */
         public void read(boolean[] pressed) { read(pressed, new boolean[4]); }
         /**
-         * F03: フォーカスの喪失の印（{@link SteeringGate.FocusMark}）のある方向は、離されていると報告されても数えない状態を解かず、
+         * フォーカスの喪失のマーカー（{@link SteeringGate.FocusMark}）のある方向は、離されていると報告されても数えない状態を解かず、
          * 押されていても推進しない（本当の離しを見るまで）。
          */
         public void read(boolean[] pressed, boolean[] focusMarked) {
@@ -90,6 +90,8 @@ public final class ClientStormWing {
     /** サーバーが推進を払えず、滞空だけを許しているか。 */
     public static boolean stalled() { return stalled; }
     public static void receive(StormWingState packet) {
+        // 今のモードと違う番号の終了は捨てる（1.5.2: サーバーが古い番号の入力に返した終了が、新しいモードの後に届いても止めない）。
+        if (packet.state() < 0 && state >= 0 && packet.epoch() != epoch) return;
         boolean fresh = packet.epoch() != epoch || state != StormWing.ACTIVE_STATE;
         state = packet.state(); epoch = packet.epoch(); stalled = packet.stalled();
         if (state != StormWing.ACTIVE_STATE) { release(); sentThrust = false; }
@@ -124,20 +126,29 @@ public final class ClientStormWing {
                             ClientFocusMarks.marked(options.keyLeft), ClientFocusMarks.marked(options.keyRight) });
         }
         if (state == StormWing.ACTIVE_STATE && thrusting() != sentThrust) send();
+        // 1.5.2（FluidFlight）: 水中・溶岩の中は、推進を高速の扱いの倍率で遅くし、液体の抵抗は前のtickに動いた速さへ戻して打ち消す。
+        var medium = io.github.pinchan4273.reacademycraft.skill.FluidFlight.of(player);
+        boolean fluid = medium != io.github.pinchan4273.reacademycraft.skill.FluidFlight.Medium.AIR;
         if (thrusting() && !stalled) {
             var heldDirection = LOCAL[KEYS.held()];
             var data = AbilityCapabilities.of(player).orElse(null);
-            double speed = StormWing.speed(data == null ? 0 : data.getProficiency(StormWing.ID));
+            double speed = StormWing.speed(data == null ? 0 : data.getProficiency(StormWing.ID))
+                    * io.github.pinchan4273.reacademycraft.skill.FluidFlight.speedFactor(medium, true);
             var expected = StormWing.worldSpace(heldDirection, player.getYHeadRot(), player.getXRot()).scale(speed);
             if (player.isPassenger()) player.stopRiding();
             var motion = player.getDeltaMovement();
+            if (fluid) motion = io.github.pinchan4273.reacademycraft.skill.FluidFlight.restore(player, motion);
             player.setDeltaMovement(move(motion.x, expected.x, ACCEL), move(motion.y, expected.y, ACCEL), move(motion.z, expected.z, ACCEL));
         } else {
             var from = player.position().add(0, .5, 0); var to = player.position().add(0, -.3, 0);
             boolean near = player.level().clip(new ClipContext(from, to, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, player))
                     .getType() != HitResult.Type.MISS;
             var motion = player.getDeltaMovement();
-            player.setDeltaMovement(motion.x, near ? .1 : motion.y + .078, motion.z);
+            // 液体の中の滞空は、空中の滞空と同じ縦の動きにする: 前のtickに動いた縦の速さへ戻し、空中の物理（重力を引いて0.98倍）を当ててから
+            // 原作の0.078を足す（液体の浮き沈みに任せない）。横は液体の抵抗のまま。
+            double y = fluid ? (io.github.pinchan4273.reacademycraft.skill.FluidFlight.restore(player, motion).y
+                    - io.github.pinchan4273.reacademycraft.skill.FluidFlight.gravity(player)) * .98 : motion.y;
+            player.setDeltaMovement(motion.x, near ? .1 : y + .078, motion.z);
         }
         player.fallDistance = 0;
     }

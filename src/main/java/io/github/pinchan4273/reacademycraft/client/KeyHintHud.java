@@ -24,6 +24,10 @@ import net.neoforged.bus.api.SubscribeEvent;
  * 原作のDelegateStateは技能の生きているcontextから来る: IDLE（alpha 0.7、光なし）、ACTIVE（青い光が脈打つ）、
  * そして充電を報告する4つの技能ではCHARGE（橙）。このclientは、押し続け型の技能が押されていることと、モードの技能が
  * ONであることを知っていて、それらをACTIVEとして表示する。CHARGEの色は区別しない。
+ * <p>1.5.2: パッシブに切り替えた技能はスロットに無いので、スロットの行の下に行を足して出す。
+ * 起動している間（防御は動いている間、飛行は飛んでいる間）は、モードの技能と同じく光が脈打つ。出し方はクライアントの設定
+ * （{@link ClientSettings#keyHintPassive()}）で、非表示・アイコン（既定。キーのラベルを描かず、背景とアイコンだけ）・
+ * アイコン＋自動（キーの代わりに「自動」のラベル）から選ぶ。
  */
 @net.neoforged.fml.common.EventBusSubscriber(modid = "academy", value = Dist.CLIENT)
 public final class KeyHintHud {
@@ -46,6 +50,11 @@ public final class KeyHintHud {
     private static int columns;
     /** テスト用: 直前のフレームで描いたキーの列の数。 */
     public static int columns() { return columns; }
+    private static int passiveRows, passiveLabels;
+    /** テスト用: 直前のフレームで描いたパッシブの技能の行の数。 */
+    public static int passiveRows() { return passiveRows; }
+    /** テスト用: 直前のフレームで、パッシブの行に「自動」のラベルを描いた数。 */
+    public static int passiveLabels() { return passiveLabels; }
 
     @SubscribeEvent public static void draw(RenderGuiEvent.Post event) {
         var client = Minecraft.getInstance();
@@ -81,6 +90,23 @@ public final class KeyHintHud {
             g.pose().popMatrix();
             y += 92;
         }
+        // 1.5.2: パッシブの技能の行（スロットの行の下）。出し方は設定の3段（非表示なら行を出さない）。
+        var passiveMode = ClientSettings.keyHintPassive();
+        int drawnPassive = 0;
+        if (passiveMode.shown()) {
+            for (var skill : passiveSkills(data)) {
+                var icon = SkillTreeLayout.icon(skill);
+                if (icon == null) continue;
+                g.pose().pushMatrix();
+                g.pose().translate(-200, y);
+                single(g, data, null, skill, icon, passiveRunning(skill), alpha, sin, 0, passiveMode.label());
+                g.pose().popMatrix();
+                y += 92;
+                drawnPassive++;
+            }
+        }
+        passiveRows = drawnPassive;
+        passiveLabels = passiveMode.label() ? drawnPassive : 0;
         // 原作の他のキーのグループ。既定のグループの後、名前の順に、1列ずつ左へ: Flashingの"TP_Flashing"（ONの間）、
         // Storm Wingの"vm_storm_wing"（飛び始めてから）。
         int column = y > 0 ? 1 : 0;
@@ -112,8 +138,25 @@ public final class KeyHintHud {
         holdBar(g, width, height, AbilityControls.beetleHold(), alpha);
         frames++;
     }
+    /** 1.5.2: キーの案内に出す、パッシブに切り替えた技能（今の系統で習得済みのもの。能力設定の並びの順）。 */
+    static java.util.List<Identifier> passiveSkills(PlayerAbilityData data) {
+        var out = new java.util.ArrayList<Identifier>();
+        for (var skill : io.github.pinchan4273.reacademycraft.skill.PassiveSkills.switchableIn(data.getAbility()))
+            if (ClientPassiveFlight.passive(skill) && data.hasLearned(skill)) out.add(skill);
+        return out;
+    }
     /**
-     * 甲虫生成のキーの長押しの進み（v1.5.1、Forge c0b3c070 の試作）: 照準の少し下に細い帯を出し、左から満ちる。満ちたら（回収の時）帯の全体を明るくする。
+     * パッシブの技能が起動しているか（サーバーが伝えたモードの状態。ストームウィングは溜めを含めて飛んでいる間）。
+     * フラッシングはモードの状態を別の通知で受けるので、その状態を見る（1.5.2）。
+     */
+    static boolean passiveRunning(Identifier skill) {
+        return ClientSkillModes.active(skill) || (io.github.pinchan4273.reacademycraft.skill.StormWing.ID.equals(skill) && ClientStormWing.state() >= 0)
+                || (io.github.pinchan4273.reacademycraft.skill.Flashing.ID.equals(skill) && ClientFlashing.active());
+    }
+    /** パッシブの行のキーの代わりに出すラベルの翻訳キー。 */
+    static final String PASSIVE_LABEL = "academy.key_hint.passive";
+    /**
+     * 甲虫生成のキーの長押しの進み（v1.5.1）: 照準の少し下に細い帯を出し、左から満ちる。満ちたら（回収の時）帯の全体を明るくする。
      * キーの案内は画面の端で小さいので、押している間に目を離さずに読めるよう照準の近くにも出す。
      */
     private static void holdBar(GuiGraphicsExtractor g, int width, int height, float hold, float alpha) {
@@ -125,7 +168,7 @@ public final class KeyHintHud {
     }
 
     /**
-     * F4（DebugConsole）が避ける、キーのヒントの範囲（GUI座標、WORK-045のFQ-03）。上のdrawと同じ並べ方で囲む: 各キーは(-200 - 列×200,
+     * F4（DebugConsole）が避ける、キーのヒントの範囲（GUI座標）。上のdrawと同じ並べ方で囲む: 各キーは(-200 - 列×200,
      * 行×92)から、背景(122〜307, 0〜83)と、(180, 27)に中央揃えで描くキーの名前（32/9倍）。列は既定のグループ、Flashing、Storm Wing。
      * 名前は、描きうるキーのうち最も幅の広いもので見積もる。描き方は変えない。能力がOFFか、描くキーが無ければnull。
      */
@@ -140,6 +183,15 @@ public final class KeyHintHud {
             if (SkillTreeLayout.icon(skill) == null) continue;
             rows++;
             name = Math.max(name, font.width(AbilityControls.SLOTS[slot].getTranslatedKeyMessage().getString()));
+        }
+        // 1.5.2: パッシブの技能の行。drawと同じく設定に従う: 非表示なら行を数えず、アイコンだけならラベルの幅を数えない。
+        var passiveMode = ClientSettings.keyHintPassive();
+        if (passiveMode.shown()) {
+            for (var skill : passiveSkills(data)) {
+                if (SkillTreeLayout.icon(skill) == null) continue;
+                rows++;
+                if (passiveMode.label()) name = Math.max(name, font.width(net.minecraft.network.chat.Component.translatable(PASSIVE_LABEL).getString()));
+            }
         }
         int columns = rows > 0 ? 1 : 0;
         boolean flashing = ClientFlashing.active(), wing = ClientStormWing.state() == io.github.pinchan4273.reacademycraft.skill.StormWing.ACTIVE_STATE
@@ -162,31 +214,40 @@ public final class KeyHintHud {
      * 1つのキーの原作drawSingle: 背景、キー、アイコン、状態。自身の技能を持たないキー（他のグループのもの）には、
      * ここでは自身のクールダウンが無い。
      */
-    private static void single(GuiGraphicsExtractor g, PlayerAbilityData data, KeyMapping mapping, @javax.annotation.Nullable Identifier skill,
+    private static void single(GuiGraphicsExtractor g, PlayerAbilityData data, @javax.annotation.Nullable KeyMapping mapping, @javax.annotation.Nullable Identifier skill,
                                Identifier icon, boolean inUse, float alpha, float sin) {
         single(g, data, mapping, skill, icon, inUse, alpha, sin, 0);
     }
-    /**
-     * holdは甲虫生成のキーの長押しの進み（0〜1、v1.5.1、Forge 17561eb5 の試作）。0より大きければ、アイコンの上へ下から白く満ちる帯を重ね、満ちたら（回収の時）
-     * 光の縁を明るくする。クールダウンの灰色の帯（上から減る）とは向きと色で分ける。
-     */
-    private static void single(GuiGraphicsExtractor g, PlayerAbilityData data, KeyMapping mapping, @javax.annotation.Nullable Identifier skill,
+    private static void single(GuiGraphicsExtractor g, PlayerAbilityData data, @javax.annotation.Nullable KeyMapping mapping, @javax.annotation.Nullable Identifier skill,
                                Identifier icon, boolean inUse, float alpha, float sin, float hold) {
+        single(g, data, mapping, skill, icon, inUse, alpha, sin, hold, true);
+    }
+    /**
+     * holdは甲虫生成のキーの長押しの進み（0〜1、v1.5.1）。0より大きければ、アイコンの上へ下から白く満ちる帯を重ね、満ちたら（回収の時）
+     * 光の縁を明るくする。クールダウンの灰色の帯（上から減る）とは向きと色で分ける。
+     * mappingがnullなら（1.5.2のパッシブの技能の行）、passiveLabelがtrueのときだけ、キーの代わりに「自動」のラベル（{@link #PASSIVE_LABEL}）を
+     * 長いキーの形で出す。falseならキーのラベルを描かず、背景とアイコン（起動中は光）だけにする。
+     */
+    private static void single(GuiGraphicsExtractor g, PlayerAbilityData data, @javax.annotation.Nullable KeyMapping mapping, @javax.annotation.Nullable Identifier skill,
+                               Identifier icon, boolean inUse, float alpha, float sin, float hold, boolean passiveLabel) {
         DeveloperScreen.quad(g, BACK, 122, 0, 185, 83, 1, 1, 1, alpha);
         int left = skill == null ? 0 : data.getCooldown(skill);
         if (skill != null) { if (left <= 0) COOLDOWN_MAX.remove(skill); else COOLDOWN_MAX.merge(skill, left, Math::max); }
         boolean grey = !data.canUseAbility() || left > 0;
         // キー: 原作の短いキー・長いキー・マウス。使えないときはShaderMonoで灰色にする。
-        var key = mapping.getKey();
         String name = null; Identifier back;
-        if (key.getType() == InputConstants.Type.MOUSE) {
+        if (mapping == null) {
+            name = passiveLabel ? net.minecraft.network.chat.Component.translatable(PASSIVE_LABEL).getString() : null;
+            back = passiveLabel ? KEY_LONG : null;
+        } else if (mapping.getKey().getType() == InputConstants.Type.MOUSE) {
+            var key = mapping.getKey();
             back = key.getValue() == 0 ? MOUSE_L : key.getValue() == 1 ? MOUSE_R : MOUSE_GENERIC;
             if (back == MOUSE_GENERIC) name = String.valueOf(key.getValue());
         } else {
             name = mapping.getTranslatedKeyMessage().getString();
             back = name.length() <= 2 ? KEY_SHORT : KEY_LONG;
         }
-        draw(g, back, 146, 10, 70, 70, grey, alpha);
+        if (back != null) draw(g, back, 146, 10, 70, 70, grey, alpha);
         if (name != null) {
             var font = Minecraft.getInstance().font;
             float s = 32f / font.lineHeight;

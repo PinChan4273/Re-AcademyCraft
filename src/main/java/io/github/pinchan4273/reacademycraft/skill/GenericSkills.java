@@ -3,9 +3,9 @@ package io.github.pinchan4273.reacademycraft.skill;
 import net.minecraft.resources.Identifier;
 
 /**
- * 原作の汎用コース（WeAthFolD）。受動技能で、スロットのアクションにはならない。
+ * 原作の汎用コース（WeAthFolD）。パッシブ技能で、スロットのアクションにはならない。
  *
- * <p>1.0.0の後に承認した仕様（docs/CP_RECOVERY_TOGGLE_SPEC_JA.md）では、コースは最大CPを増やさない。習得したコース1つごとに
+ * <p>1.0.0の後の仕様では、コースは最大CPを増やさない。習得したコース1つごとに
  * CPの回復が増え（{@link #courses}）、習得した最上位のコースがCPとオーバーロードの回復待ちを短くする（{@link #topCourse}）。
  * 上級コースのオーバーロード上限+100は、廃止するかが未決定なので残す。1.0.0の容量のボーナス（ブレイン+1000、上級+1500。
  * 原作の英語の説明は1000と言うがコードは1500）は、1.0.0のセーブを移すときにだけ{@link #legacyCpBonus}で使う。
@@ -16,8 +16,8 @@ public final class GenericSkills {
     public static final Identifier MIND = Identifier.fromNamespaceAndPath("academy", "mind_course");
     private GenericSkills() { }
     /**
-     * 受動技能か（装備できない）。1.4.0のS2から、登録簿の発動の種類（PASSIVE）で決める。本体の受動技能は1.3.0と同じ6つ
-     * （3つのコースと、Meltdowner自身のRadiation Intensify、Teleporterの次元折り畳み・空間の揺らぎ）。登録されていない技能は受動でない。
+     * パッシブ技能か（装備できない）。1.4.0から、レジストリの発動の種類（PASSIVE）で決める。本体のパッシブ技能は1.3.0と同じ6つ
+     * （3つのコースと、Meltdowner自身のRadiation Intensify、Teleporterの次元折り畳み・空間の揺らぎ）。登録されていない技能はパッシブでない。
      */
     public static boolean isPassive(Identifier id) {
         return io.github.pinchan4273.reacademycraft.ability.RegistryViews.kind(id) == io.github.pinchan4273.reacademycraft.api.ActivationKind.PASSIVE;

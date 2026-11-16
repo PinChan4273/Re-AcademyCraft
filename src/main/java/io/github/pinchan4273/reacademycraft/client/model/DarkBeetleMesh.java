@@ -7,7 +7,7 @@ import net.minecraft.client.model.geom.builders.LayerDefinition;
 import net.minecraft.client.model.geom.builders.MeshDefinition;
 import net.minecraft.client.model.geom.builders.PartDefinition;
 
-/** 未元物質の甲虫の骨（面は dark_matter_beetle.facets）。 art-src/dark_matter/generate_models.py が作る。手で書き換えない。 */
+/** 未元物質の甲虫のボーン（面は dark_matter_beetle.facets）。 art-src/dark_matter/generate_models.py が作る。手で書き換えない。 */
 public final class DarkBeetleMesh {
     private DarkBeetleMesh() { }
     private static final float DEG = (float) (Math.PI / 180);

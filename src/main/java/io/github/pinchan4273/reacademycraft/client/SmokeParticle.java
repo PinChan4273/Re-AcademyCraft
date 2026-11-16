@@ -14,7 +14,8 @@ import net.neoforged.fml.common.Mod;
 /**
  * 原作SmokeEffect（generic/client/effect/SmokeEffect.scala）: effects/smokes.pngの4分割のいずれかを、幅2ブロックの
  * ビルボードで描く。毎tick自身の動きで漂い、重力も抵抗も無い。アルファは、生きた秒数を0.5〜0.7の寿命で割った値に対し:
- * 最初の0.3で上がり、1.5まで最大、2で0まで下がる。原作は4秒保持し、その後は見えない。
+ * 最初の0.3で上がり、1.5まで最大、2で0まで下がる。原作は4秒保持し、その後は見えない。1.5.2 からは、見えなくなったら消し、
+ * 深度も書かない（{@link io.github.pinchan4273.reacademycraft.client.render.AcademyPipelines#PARTICLE_KEEP}）。
  */
 public final class SmokeParticle extends SingleQuadParticle {
     private final float life;
@@ -31,7 +32,11 @@ public final class SmokeParticle extends SingleQuadParticle {
     }
     @Override public void tick() {
         super.tick();
-        alpha = alpha(age / 20f / life);
+        float dt = age / 20f / life;
+        alpha = alpha(dt);
+        // 1.5.2: 見えなくなったら（アルファが0になった後）消す。原作は4秒（80 tick）まで見えないまま保持したが、見た目は
+        // 変わらず、見えない四角形が残るだけなので、見える間だけ残す（深度を書かない直しと合わせる）。
+        if (dt > 2) remove();
     }
     static float alpha(float dt) {
         if (dt <= .3f) return dt / .3f;

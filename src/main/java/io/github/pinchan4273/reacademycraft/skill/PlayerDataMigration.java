@@ -9,10 +9,10 @@ import net.minecraft.nbt.StringTag;
 import net.minecraft.nbt.Tag;
 
 /**
- * 以前の版の保存形式（schema 1: 根に平らなキーを並べた形）を、schema 2（{@link AbilityDataSchema}）へ移す。
+ * 以前の版の保存形式（schema 1: ルートに平らなキーを並べた形）を、schema 2（{@link AbilityDataSchema}）へ移す。
  * 旧形式のキーの名前を知っているのはこのクラスだけで、PlayerAbilityDataは新形式しか読まない。
  * 値は型ごとそのまま移し、範囲の検証は新形式を読むPlayerAbilityData.loadに任せる（移す前と同じ結果になる）。
- * 旧形式のキーは取り除き、知らないキーは根に残す。
+ * 旧形式のキーは取り除き、知らないキーはルートに残す。
  */
 final class PlayerDataMigration {
     private static final String[] OLD_KEYS = {"ability", "level", "level_experience", "max_cp", "cp", "max_overload", "overload",
@@ -32,7 +32,7 @@ final class PlayerDataMigration {
     static CompoundTag fromSchemaOne(CompoundTag old) {
         CompoundTag root = old.copy();
         CompoundTag ability = new CompoundTag(), cp = new CompoundTag(), preset = new CompoundTag();
-        // 根に既にCooldownDataという区分があれば（以前の版にとっては知らないキー）、その中身を引き継ぐ。
+        // ルートに既にCooldownDataという区分があれば（以前の版にとっては知らないキー）、その中身を引き継ぐ。
         CompoundTag cooldown = io.github.pinchan4273.reacademycraft.world.NbtCompat.contains(old, COOLDOWN, Tag.TAG_COMPOUND) ? old.getCompoundOrEmpty(COOLDOWN).copy() : new CompoundTag();
 
         String category = io.github.pinchan4273.reacademycraft.world.NbtCompat.contains(old, "ability", Tag.TAG_STRING) ? old.getStringOr("ability", "") : "";

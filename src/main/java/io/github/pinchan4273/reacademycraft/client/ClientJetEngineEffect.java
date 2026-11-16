@@ -31,7 +31,7 @@ import net.neoforged.bus.api.SubscribeEvent;
  * 原作が設定する179は画面に出ない。この輪も、輪のalphaだけで描く。
  *
  * 飛行: 術者の近くのすべてのclientが、EntityDiamondShieldを出す。単位の菱形の1.5ブロック先の1点で4枚の三角形が
- * 合わさる形で、diamond_shield.pngを光の影響なしで描く（原作は壁越しに描いたが、この移植は深度テストをかける: VIS-JET-DEPTH-001）。術者の1ブロック前、1.1上に置き、頭のyawと
+ * 合わさる形で、diamond_shield.pngを光の影響なしで描く（原作は壁越しに描いたが、この移植は深度テストをかける）。術者の1ブロック前、1.1上に置き、頭のyawと
  * ピッチへ向ける。さらに毎tick、術者から3分の1ブロック以内にmdの粒子を11個出す。どちらも飛行が終わると消える。
  *
  * 原作は、その11個の粒子ごとに飛行の経路上の点を計算するが、使っていない。また飛行中は術者の歩く速さを
@@ -107,7 +107,7 @@ public final class ClientJetEngineEffect {
         });
     }
     static double range(double min, double max) { return min + RANDOM.nextDouble() * (max - min); }
-    /** テスト用の入口: その実体の飛行の菱形が今あるか。 */
+    /** テスト用の入口: そのエンティティの飛行の菱形が今あるか。 */
     public static boolean showing(int entityId) { return FLIGHTS.values().stream().anyMatch(flight -> flight.entityId == entityId); }
 
     @SubscribeEvent public static void render(net.neoforged.neoforge.client.event.ExtractLevelRenderStateEvent extract) {
@@ -115,7 +115,7 @@ public final class ClientJetEngineEffect {
         io.github.pinchan4273.reacademycraft.client.render.WorldSubmits.on(extract, io.github.pinchan4273.reacademycraft.client.render.WorldSubmits.Stage.BEFORE_TRANSLUCENT_TERRAIN, event -> renderFrame(event, false));
     }
     private static void renderFrame(io.github.pinchan4273.reacademycraft.client.render.WorldFrame event, boolean marksStage) {
-        // VIS-JET-DEPTH-001（第2版）: 狙いの目印は粒子の後、菱形はエンティティの直後（術者の体の深度が確定し、半透明のブロックより前）に描く。
+        // 狙いの目印は粒子の後、菱形はエンティティの直後（術者の体の深度が確定し、半透明のブロックより前）に描く。
         // 粒子の後に深度テストをして描くと、手前の色付きガラスや水が先に深度を書いていて、その奥の菱形がすべて落ちた（自動撮影で確認）。
         // エンティティの直後なら、手前のガラスや水は後から菱形の上へ色を重ねる（バニラの半透明なエンティティと同じ順）。
         boolean shieldStage = !marksStage;
@@ -141,12 +141,12 @@ public final class ClientJetEngineEffect {
         io.github.pinchan4273.reacademycraft.client.render.Immediate.setShader(io.github.pinchan4273.reacademycraft.client.render.Immediate.Shader.TEX_COLOR_KEEP);
         io.github.pinchan4273.reacademycraft.client.render.Immediate.setShaderTexture(0, TEXTURE);
         io.github.pinchan4273.reacademycraft.client.render.Immediate.enableBlend(); io.github.pinchan4273.reacademycraft.client.render.Immediate.defaultBlendFunc(); io.github.pinchan4273.reacademycraft.client.render.Immediate.disableCull();
-        // VIS-JET-DEPTH-001: 原作は盾を深度テストなしで描いたが、この移植では術者の前方だけの菱形なので、術者の体や不透明な地形の
+        // 原作は盾を深度テストなしで描いたが、この移植では術者の前方だけの菱形なので、術者の体や不透明な地形の
         // 後ろにある部分は隠す（深度テストなしでは、背後の視点から体越しに見え、全身の盾のように見えた）。深度は比べるだけで書かない:
         // 半透明の盾が深度バッファを書くと、後に描く半透明の演出や粒子が盾の後ろで消える。比較の関数はMinecraftの標準のLEQUAL。
         io.github.pinchan4273.reacademycraft.client.render.Immediate.enableDepthTest(); io.github.pinchan4273.reacademycraft.client.render.Immediate.depthMask(false);
         // シェーダーパックの間は、パックのプログラムがアルファ 0.1 未満を捨てるので、盾の淡い外周が texel の段差で切れ、斜めの輪郭がギザギザになる
-        // （1.21.1 の T178-01 と同じ）。その間だけテクスチャを線形補間・端で止めて読み、切れ目を滑らかな線にする。形・色・位置は変えない。
+        // （1.21.1 と同じ）。その間だけテクスチャを線形補間・端で止めて読み、切れ目を滑らかな線にする。形・色・位置は変えない。
         io.github.pinchan4273.reacademycraft.client.render.Immediate.linearClamp(ShaderPackCompat.inUse());
         try {
             for (var flight : FLIGHTS.values()) {
@@ -168,10 +168,10 @@ public final class ClientJetEngineEffect {
                 } finally { pose.popPose(); }
             }
         } finally {
-            // 標準の状態（深度テストあり・深度の書き込みあり・背面の省略あり）へ戻す。
+            // 標準の状態（深度テストあり・深度の書き込みあり・背面カリングあり）へ戻す。
             io.github.pinchan4273.reacademycraft.client.render.Immediate.linearClamp(false);
             io.github.pinchan4273.reacademycraft.client.render.Immediate.depthMask(true); io.github.pinchan4273.reacademycraft.client.render.Immediate.enableCull(); io.github.pinchan4273.reacademycraft.client.render.Immediate.enableDepthTest();
-            // エンティティの直後に描くので、後に続く描画のために混色も切っておく（エンティティの描画の確定の後の状態）。
+            // エンティティの直後に描くので、後に続く描画のためにブレンドも切っておく（エンティティの描画の確定の後の状態）。
             io.github.pinchan4273.reacademycraft.client.render.Immediate.disableBlend();
         }
     }

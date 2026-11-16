@@ -27,26 +27,39 @@ import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.neoforged.neoforge.event.server.ServerStoppedEvent;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.Mod;
+import net.neoforged.neoforge.event.entity.living.LivingEvent;
+import io.github.pinchan4273.reacademycraft.event.AcademyLivingHurtEvent;
 
 /**
  * Body Intensify（電撃使いレベル3）。熟練度で段階の付く切り替え型（原作とは異なる仕様として採用）。原作はキーを押し続けている間
  * 溜め、離すと数秒のランダムな強化効果を与えた。ここでは1回押すとオン、次に押すとオフになる。
  *
- * オン: キーはlerp(60, 30, p)のオーバーロード（2026-10-16の統合指示書3章。原作はlerp(200, 120, p)）で受け付けられ、準備が始まる。準備の各tickに原作の溜めの代価lerp(20, 15, p)の
- * CPを払い（熟練度帯により20、15、10、5、2tick。設定body_intensify.warmup_ticks）、オーバーロードはキーの時点のまま保つ。
+ * オン: キーはlerp(60, 30, p)のオーバーロード（原作はlerp(200, 120, p)）で受け付けられ、準備が始まる。準備の各tickに原作の溜めの代価lerp(20, 15, p)の
+ * CPを払う（熟練度帯により20、15、10、5、2tick。設定body_intensify.warmup_ticks）。1.5.2から、準備の間もオーバーロードは回復する
+ * （キーの時点の値に保たない）。
  * 最後の支払いが済むと強化が始まる: 100%未満では帯が許す数だけ5つの中から重複無しで1回引く。100%では5つ全部で、Speed・
  * Regeneration・StrengthはV、Jump BoostとResistanceはII（どの帯でもIIを超えない）。帯・抽選・準備はキーを受け付けたときの
- * 熟練度のもの。成功で原作の0.01の経験値と音を1回だけ与える。強化が続く間、切り替え型技能の維持コストを現在の熟練度で払い、
+ * 熟練度のもの。成功で原作の0.01の経験値と音を1回だけ与える。強化が続く間、部類の外の切り替え型の共通の維持コスト（1.5.2:
+ * 回復の lerp(100%, 25%) ＋ toggle_upkeep.body_intensify × (1 − 熟練度)。{@link PlayerAbilityData.Upkeep#recoveryShare}）を現在の熟練度で払い、
  * 原作のHunger IIIの代わりにbody_intensify.extra_exhaustion（0.005）の空腹度消耗を毎tick加える。
+ *
+ * 1.5.2: 強化を「使った」ときだけ費用がかかる。使ったのは、その強化があるときの、移動（速さ）・ジャンプ（跳躍）・
+ * 近接攻撃（筋力）・体力の回復（再生）・被ダメージの軽減（耐性）。1秒ごとに、その秒に移動以外を使っていれば{@link #combatOverload}、
+ * 移動だけなら{@link #moveOverload}を「稼働」の過負荷として払う（熟練度100%・最大過負荷1,000で、移動だけは5分、それ以外は90秒でロック）。
+ * CPの維持費は、最後に使ってから20tickの間だけ払う（使っていない間は払わない）。
  *
  * オフ: 再度のキー、CP切れ、能力やスロットが無くなる、プリセットやカテゴリの変更、妨害、オーバーロード、死亡、ログアウト、
  * ディメンションの移動、サーバーの停止、術者自身のクライアントのフォーカス喪失。準備は画面が開いても終わる。強化の終了でだけ
  * クールダウンfloor(lerp(900, 600, p))を1回設定する。途中で切れた準備は何も返さず、何も与えない。
  *
- * v1.5.0（採用仕様・版41の§0、文書版26〜28・R03・R04）: 強化はバニラの状態効果ではなく、技能由来の直接効果（{@link DirectEffects}、
+ * v1.5.0: 強化はバニラの状態効果ではなく、技能由来の直接効果（{@link DirectEffects}、
  * トグル中だけ続く{@link DirectEffects#BOUND}）。発動で付け、オフ（停止の規則のどれか）で外すので、オフの後に補正は残らない。
  * ポーションの同種の効果とは別に両方が効く。牛乳・他MODの効果の削除では外れず、トグルも続く。権限のある{@code /effect clear}で
  * 外れたらトグルをOFFにし、付け直さない（{@link #stopByCommand}）。熟練度帯・起動時の抽選・費用・クールダウンは変えていない。
+ *
+ * 1.5.2: 能力設定でパッシブにすると、能力使用モードの間に{@link PassiveSkills}が自動で始める（スロットのインデックスは{@link PassiveSkills#SLOT}）。
+ * 準備・費用・抽選・クールダウンはキーで始めるときと同じ。パッシブのセッションはプリセットとスロットを見ず、パッシブのままかを見る。
+ * 術者のクライアントのフォーカス喪失の停止は、スロットのキーで始めたものだけ（パッシブは止めてもすぐ起動し直すため）。
  */
 @net.neoforged.fml.common.EventBusSubscriber(modid = "academy")
 public final class BodyIntensify {
@@ -60,7 +73,7 @@ public final class BodyIntensify {
         /** この強化の直接効果の種類。 */
         public DirectEffects.Kind kind() { return kind; }
         /**
-         * 同じ種類のバニラの効果（名前を指定した{@code /effect clear}の対象の照合と、試験の比較のため。強化自身は付けない）。
+         * 同じ種類のバニラの効果（名前を指定した{@code /effect clear}の対象の照合と、テストの比較のため。強化自身は付けない）。
          * 1.20.5から効果はHolderで扱う（Forge版はMobEffect）。
          */
         public net.minecraft.core.Holder<MobEffect> effect() { return kind.vanilla(); }
@@ -87,10 +100,13 @@ public final class BodyIntensify {
     private static final Map<UUID, Session> ACTIVE = new HashMap<>();
     private static long nextEffectSession;
     private static final class Session {
-        final Level level; final int preset, slot; final UUID owner; final int entityId; final long effectSession;
+        final Level level; final int preset; int slot; final UUID owner; final int entityId; final long effectSession;
         final Set<UUID> listeners = new LinkedHashSet<>();
-        final float warmupCost, overloadFloor; final Band band; final int warmup;
+        final float warmupCost; final Band band; final int warmup;
         boolean active; int ticks, age; long lastTick = Long.MIN_VALUE;
+        /** 1.5.2: 最後に強化を使ったage、この1秒に移動・それ以外を使ったか、前のtickの位置と体力。 */
+        int lastUse = Integer.MIN_VALUE / 2; boolean movedThisSecond, foughtThisSecond;
+        @org.jetbrains.annotations.Nullable net.minecraft.world.phys.Vec3 lastPosition; float lastHealth = -1;
         List<Buff> buffs = List.of();
         PlayerAbilityData.Upkeep upkeep; double exhaustion;
         Session(ServerPlayer p, PlayerAbilityData d, int slot, float proficiency) {
@@ -99,19 +115,20 @@ public final class BodyIntensify {
             listeners.add(owner);
             for (var observer : level.players()) if (observer.distanceToSqr(p) <= 25 * 25) listeners.add(observer.getUUID());
             band = band(proficiency); warmup = band.warmup();
-            warmupCost = ArcGen.lerp(20, 15, proficiency); overloadFloor = d.getOverload();
+            warmupCost = ArcGen.lerp(20, 15, proficiency);
         }
     }
     private BodyIntensify() { }
     private static PlayerAbilityData data(ServerPlayer p) { return AbilityCapabilities.of(p).orElse(null); }
     private static boolean allowed(ServerPlayer p, PlayerAbilityData d) {
-        return d != null && !d.isReadOnly() && p.isAlive() && d.isActive() && !d.isOverloadLocked() && !d.isInterfering()
+        return d != null && !d.isReadOnly() && p.isAlive() && d.isActive() && !d.lockBlocks(ID) && !d.isInterfering()
                 && ArcGen.CATEGORY.equals(d.getAbility()) && d.hasLearned(ID);
     }
     private static boolean valid(ServerPlayer p, PlayerAbilityData d, Session s) {
-        // TOGGLE-GUI-001: 予備動作（WARMUP）も強化（ACTIVE）も、コンテナの画面を開いただけでは止めない。予備動作の
+        // 予備動作（WARMUP）も強化（ACTIVE）も、コンテナの画面を開いただけでは止めない。予備動作の
         // 各tickのCPの消費と完了は通常どおり。画面を開いている間の新しい開始は、start()が拒否する。
-        return allowed(p, d) && p.level() == s.level && d.getCurrentPreset() == s.preset && ID.equals(d.getSlot(s.preset, s.slot));
+        // 1.5.2: パッシブで動いているものは、プリセットとスロットを見ず、パッシブのままかを見る。
+        return allowed(p, d) && p.level() == s.level && PassiveSkills.sessionMatches(d, ID, s.preset, s.slot);
     }
     /** このセッション自体がまだ術者のものか: 支払いや成長の際に発したイベントが終わらせたかもしれない。 */
     private static boolean running(ServerPlayer p, Session s) { return ACTIVE.get(p.getUUID()) == s; }
@@ -138,13 +155,27 @@ public final class BodyIntensify {
     public static double exhaustion(ServerPlayer p) { var s = ACTIVE.get(p.getUUID()); return s == null ? 0 : s.exhaustion; }
     /** このスロットからオンにしたセッションが動いたtick数。そこからオンでなければ-1。 */
     public static int ageOn(ServerPlayer p, int slot) { var s = ACTIVE.get(p.getUUID()); return s != null && s.slot == slot ? s.age : -1; }
+    /** 1.5.2: パッシブ（自動で起動）で動いているか（準備中を含む。スロットのキーで始めたものはfalse）。 */
+    public static boolean passive(ServerPlayer p) { var s = ACTIVE.get(p.getUUID()); return s != null && s.slot == PassiveSkills.SLOT; }
+    /**
+     * 1.5.2: パッシブにした時に、スロットのキーで始めたセッションが動いていたら、止めずにパッシブのセッションにする
+     * （準備・強化・費用・抽選はそのまま。起動の費用を二度払わない）。術者のクライアントへ、今の段階を新しいスロットのインデックスで伝え直す。
+     */
+    public static void adoptPassive(ServerPlayer p) {
+        var s = ACTIVE.get(p.getUUID());
+        if (s == null || s.slot == PassiveSkills.SLOT) return;
+        s.slot = PassiveSkills.SLOT;
+        BodyIntensifyState.send(p, s.active ? BodyIntensifyState.ACTIVE : BodyIntensifyState.WARMUP, s.slot);
+    }
 
     public static String start(ServerPlayer p, PlayerAbilityData d, int slot) {
-        if (slot < 0 || slot >= 4 || d == null || d.isReadOnly() || !p.isAlive()
+        // 1.5.2: slotが{@link PassiveSkills#SLOT}なら、パッシブの自動の起動（パッシブに切り替えていること）。
+        if (d == null || d.isReadOnly() || !p.isAlive()
                 || !ArcGen.CATEGORY.equals(d.getAbility()) || !d.hasLearned(ID)
-                || !ID.equals(d.getSlot(d.getCurrentPreset(), slot))) return "academy.cast.unlearned";
+                || !PassiveSkills.slotMatches(d, ID, slot)) return "academy.cast.unlearned";
         if (!d.isActive()) return "academy.cast.inactive";
-        if (d.isOverloadLocked()) return "academy.cast.overload";
+        // 1.5.2: ロック中は断る。ただしロック中の再稼働を許した技能（パッシブ。優先順位の順）は通す。
+        if (d.lockBlocks(ID)) return "academy.cast.overload";
         if (d.isInterfering()) return "academy.cast.interfered";
         if (p.containerMenu != p.inventoryMenu) return "academy.cast.unlearned";
         if (isCharging(p)) return "";
@@ -153,7 +184,7 @@ public final class BodyIntensify {
         if (!d.consume(ID, 0, startOverload(proficiency), p.getAbilities().instabuild)) return "academy.cast.cp";
         // そのオーバーロードで術者がオーバーロードしたかもしれず、そのイベントはすべてのモードを終える: その場合は何も始めない。
         // 支払いのリスナーが能力やスロットに何かをした後も同じ。
-        if (!allowed(p, d) || !ID.equals(d.getSlot(d.getCurrentPreset(), slot)) || p.containerMenu != p.inventoryMenu) {
+        if (!allowed(p, d) || !PassiveSkills.slotMatches(d, ID, slot) || p.containerMenu != p.inventoryMenu) {
             AbilitySyncEvents.sync(p, true); return "academy.cast.overload";
         }
         var s = new Session(p, d, slot, proficiency);
@@ -191,12 +222,28 @@ public final class BodyIntensify {
         if (d != null) AbilitySyncEvents.sync(p, true);
     }
     /**
-     * 権限のある{@code /effect clear}が強化の直接効果を外した（v1.5.0、文書版28）: 既存の停止の規則でトグルをOFFにし、継続更新で付け直さない。
+     * 権限のある{@code /effect clear}が強化の直接効果を外した（v1.5.0）: 既存の停止の規則でトグルをOFFにし、継続更新で付け直さない。
      */
     public static void stopByCommand(ServerPlayer p) { if (isActive(p)) stop(p); }
     public static int cooldown(float proficiency) { return (int) Math.floor(ArcGen.lerp(900, 600, proficiency)); }
-    /** 起動のオーバーロード（2026-10-16、統合指示書3章。原作lerp(200, 120)から）。 */
+    /** 起動のオーバーロード（原作lerp(200, 120)から）。 */
     public static float startOverload(float proficiency) { return ArcGen.lerp(60, 30, proficiency); }
+    /** 1.5.2: 移動だけに強化を使った1秒の過負荷（熟練度100%・最大過負荷1,000で5分）。 */
+    public static float moveOverload(float proficiency) { return ArcGen.lerp(1000 / 150f, 1000 / 300f, proficiency); }
+    /** 1.5.2: 移動以外（ジャンプ・攻撃・回復・軽減）に強化を使った1秒の過負荷（熟練度100%・最大過負荷1,000で90秒）。移動の分とは重ねない。 */
+    public static float combatOverload(float proficiency) { return ArcGen.lerp(1000 / 45f, 1000 / 90f, proficiency); }
+    /** 1.5.2: 強化を使っている（最後に使ってから20tick以内）か。CPの維持費はこの間だけ払う。 */
+    public static boolean inUse(ServerPlayer p) { var s = ACTIVE.get(p.getUUID()); return s != null && s.active && s.age - s.lastUse < 20; }
+    /** 強化を使った（1.5.2）。fought: 移動以外の使い方。 */
+    private static void used(Session s, boolean fought) {
+        s.lastUse = s.age;
+        if (fought) s.foughtThisSecond = true; else s.movedThisSecond = true;
+    }
+    private static @org.jetbrains.annotations.Nullable Session activeWith(net.minecraft.world.entity.Entity entity, Buff buff) {
+        if (!(entity instanceof ServerPlayer p)) return null;
+        var s = ACTIVE.get(p.getUUID());
+        return s != null && s.active && s.buffs.contains(buff) ? s : null;
+    }
 
     public static void tick(ServerPlayer p) {
         var s = ACTIVE.get(p.getUUID()); if (s == null) return; var d = data(p);
@@ -204,7 +251,6 @@ public final class BodyIntensify {
         long now = p.level().getGameTime(); if (s.lastTick == now) return; s.lastTick = now;
         s.age++;
         if (!s.active) {
-            if (d.getOverload() < s.overloadFloor) d.setOverload(s.overloadFloor);
             if (!d.consume(ID, s.warmupCost, 0, p.getAbilities().instabuild)) { stop(p); return; }
             if (!carriesOn(p, s)) return;
             if (++s.ticks >= s.warmup) { activate(p, d, s); return; }
@@ -214,11 +260,28 @@ public final class BodyIntensify {
         }
         // 維持コストはこのtickの始めに精算済み。払えなかった要求は外れている。
         if (!d.upkeepHeld(s.upkeep)) { stop(p); return; }
-        // バフが効いている時間の熟練度（1.1.0、T178-10）。有効化の瞬間の+0.01は廃止した。
+        // バフが効いている時間の熟練度（1.1.0）。有効化の瞬間の+0.01は廃止した。
         d.upkeepEarn(s.upkeep);
         // 熟練度のイベントのリスナーが技能を取り上げたら、そこで終える。
         if (!carriesOn(p, s)) return;
         s.ticks++;
+        // 1.5.2: 移動（速さ）と体力の回復（再生）は、前のtickとの差で見る。乗り物に乗っている間の移動は数えない。
+        var position = p.position();
+        if (s.buffs.contains(Buff.SPEED) && s.lastPosition != null && !p.isPassenger()
+                && walked(position.subtract(s.lastPosition).horizontalDistanceSqr())) used(s, false);
+        s.lastPosition = position;
+        if (s.buffs.contains(Buff.REGENERATION) && s.lastHealth >= 0 && p.getHealth() > s.lastHealth) used(s, true);
+        s.lastHealth = p.getHealth();
+        // 1秒ごとに、その秒の使い方で稼働の過負荷を払う（移動以外があればそちら、移動だけなら移動の分）。次の1秒まで稼働中にする。
+        if (s.ticks % 20 == 0) {
+            float proficiency = d.getProficiency(ID);
+            float overload = s.foughtThisSecond ? combatOverload(proficiency) : s.movedThisSecond ? moveOverload(proficiency) : 0;
+            s.foughtThisSecond = false; s.movedThisSecond = false;
+            if (overload > 0) {
+                d.chargeActionOverload(ID, overload, p.getAbilities().instabuild, 21);
+                if (!carriesOn(p, s)) return;
+            }
+        }
         float exhaustion = AcademyConfig.bodyExtraExhaustion();
         // Player.causeFoodExhaustionは、すべての消耗と同じく無敵（クリエイティブ、スペクテイター）のプレイヤーを飛ばす。
         if (exhaustion > 0 && !p.getAbilities().invulnerable) { p.causeFoodExhaustion(exhaustion); s.exhaustion += exhaustion; }
@@ -226,11 +289,12 @@ public final class BodyIntensify {
     }
     private static void activate(ServerPlayer p, PlayerAbilityData d, Session s) {
         s.buffs = choose(s.band, p.getRandom()); s.active = true; s.ticks = 0;
-        s.upkeep = d.startUpkeep(ID, () -> p.getAbilities().instabuild);
+        // 1.5.2: CPの維持費は、強化を使っている間（最後に使ってから20tick）だけ払う。
+        s.upkeep = d.startUpkeep(ID, () -> p.getAbilities().instabuild || s.age - s.lastUse >= 20);
         if (s.upkeep == null) { stop(p); return; }
-        // バフは常に効いているので、移動キーを離しても待機にならない（CPの精算）。維持の熟練度は、待機と同じ0.1パーセントポイント/秒を
-        // 技能だけに受け取り、能力レベルの経験値は受け取らない（2026-10-16、案B）。
-        s.upkeep.alwaysActing().skillOnlyHold();
+        // 維持の熟練度は、待機と同じ0.1パーセントポイント/秒を技能だけに受け取り、能力レベルの経験値は受け取らない。
+        // CPは部類の外の切り替え型の共通の形で払う（1.5.2。待機と行動の区別は無い）。
+        s.upkeep.alwaysActing().skillOnlyHold().recoveryShare();
         if (!carriesOn(p, s)) return;
         for (var buff : s.buffs) { add(p, s, buff); if (!carriesOn(p, s)) return; }
         p.level().playSound(null, p, AcademySounds.EM_INTENSIFY_ACTIVATE.get(), SoundSource.AMBIENT, .5f, 1f);
@@ -251,9 +315,44 @@ public final class BodyIntensify {
     /** テスト用の入口: ゲーム時刻に関係なくサーバー1tick分を進める（テストは1回に多数進める）。 */
     public static void tickForTest(ServerPlayer p) { var s = ACTIVE.get(p.getUUID()); if (s != null) s.lastTick = Long.MIN_VALUE; tick(p); }
 
-    // v1.5.0: 牛乳・トーテム・他MODによるバニラの効果の削除（MobEffectEvent.Remove）では、もう止めない（文書版27・28）。
+    // v1.5.0: 牛乳・トーテム・他MODによるバニラの効果の削除（MobEffectEvent.Remove）では、もう止めない。
     // 権限のある/effect clearは、DirectEffects.commandがstopByCommandを呼ぶ。
     @SubscribeEvent public static void playerTick(PlayerTickEvent.Post e) { if (e.getEntity() instanceof ServerPlayer p) tick(p); }
+    /** 1.5.2: 跳躍の強化があるときのジャンプは、強化を使ったものとして数える。 */
+    @SubscribeEvent public static void jump(LivingEvent.LivingJumpEvent e) {
+        var s = activeWith(e.getEntity(), Buff.JUMP);
+        if (s != null) used(s, true);
+    }
+    /**
+     * 1.5.2: 歩く・走るとして数える1tickの水平の移動（距離の2乗）。動いていて、1tickに {@link #MAX_WALK_PER_TICK} ブロック以下。
+     * それより大きい移動（瞬間移動・押し出しなど）は、強化を使った移動に数えない。
+     */
+    public static final double MAX_WALK_PER_TICK = 1.5;
+    public static boolean walked(double horizontalDistanceSqr) {
+        return horizontalDistanceSqr > 1.0E-6 && horizontalDistanceSqr <= MAX_WALK_PER_TICK * MAX_WALK_PER_TICK;
+    }
+    /** 1.5.2: 筋力の強化を使った攻撃か。プレイヤー自身の素手・武器の近接攻撃（バニラの player_attack）だけ。能力の攻撃は数えない。 */
+    public static boolean meleeUse(net.minecraft.world.damagesource.DamageSource source) {
+        var attacker = source.getEntity();
+        return attacker != null && attacker == source.getDirectEntity()
+                && source.is(net.minecraft.world.damagesource.DamageTypes.PLAYER_ATTACK);
+    }
+    /** 1.5.2: 筋力の強化での近接攻撃と、耐性の強化で軽減した被ダメージは、強化を使ったものとして数える。 */
+    @SubscribeEvent public static void hurt(AcademyLivingHurtEvent e) {
+        if (e.isCanceled() || e.getAmount() <= 0) return;
+        var source = e.getSource();
+        var attacker = source.getEntity();
+        if (meleeUse(source)) {
+            var s = activeWith(attacker, Buff.STRENGTH);
+            if (s != null) used(s, true);
+        }
+        if (!source.is(net.minecraft.tags.DamageTypeTags.BYPASSES_RESISTANCE) && !source.is(net.minecraft.tags.DamageTypeTags.BYPASSES_EFFECTS)) {
+            var s = activeWith(e.getEntity(), Buff.RESISTANCE);
+            if (s != null) used(s, true);
+        }
+    }
+    /** テスト用: 強化を使ったものとして数える（fought: 移動以外）。 */
+    public static void useForTest(ServerPlayer p, boolean fought) { var s = ACTIVE.get(p.getUUID()); if (s != null && s.active) used(s, fought); }
     @SubscribeEvent public static void logout(PlayerEvent.PlayerLoggedOutEvent e) { if (e.getEntity() instanceof ServerPlayer p) stop(p); }
     @SubscribeEvent public static void dimension(PlayerEvent.PlayerChangedDimensionEvent e) { if (e.getEntity() instanceof ServerPlayer p) stop(p); }
     /** 死亡またはエンドからの帰還: 新しいプレイヤーはセッションを持たない。クールダウンは既存の死亡と帰還の規則に従うので、ここでは設定しない。 */

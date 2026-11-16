@@ -27,8 +27,8 @@ import net.neoforged.fml.common.Mod;
 /**
  * 原作PlasmaCannon: ベクトル操作のレベル5技能。
  *
- * 押し続けて、術者が立っていた所の15ブロック上にプラズマ体を溜める: オンにするとlerp(500, 400, exp)のオーバーロードが加わり、
- * それは下がらなくなる。lerp(60, 30, exp)までの溜めの各tickにlerp(18, 25, exp)のCP。溜め終えて離すと、対象は100ブロック以内で
+ * 押し続けて、術者が立っていた所の15ブロック上にプラズマ体を溜める: オンにするとlerp(500, 120, exp)のオーバーロードが加わる
+ * （1.5.2。1.5.1はlerp(500, 400)）。1.5.2から、溜めの間もオーバーロードは下がる。ロック中は始められない。lerp(60, 30, exp)までの溜めの各tickにlerp(18, 25, exp)のCP。溜め終えて離すと、対象は100ブロック以内で
  * 視線が生き物（目の高さの60%だけ上げた所）かブロックに当たる所になる。プラズマ体は1tickに1ブロックそこへ飛び、到達したとき、途中で
  * ブロックに当たったとき、または240tick後に弾ける。爆発は常に対象の位置で起きる: 10ブロック以内のすべて（術者も）がlerp(80, 150, exp)の
  * ダメージを受け、ワールドが技能によるブロック破壊を許す所ではlerp(12, 15, exp)の威力の爆発が続く。経験値0.008、クールダウンは
@@ -45,7 +45,7 @@ public final class PlasmaCannon {
     private static final Map<UUID, Session> ACTIVE = new HashMap<>();
 
     private static final class Session {
-        final Level level; final int preset, slot; final float exp; long heartbeat; int ticks; float overloadKeep; long visual;
+        final Level level; final int preset, slot; final float exp; long heartbeat; int ticks; long visual;
         Vec3 body, target;
         Session(ServerPlayer player, PlayerAbilityData data, int slot) {
             level = player.level(); preset = data.getCurrentPreset(); this.slot = slot; heartbeat = level.getGameTime();
@@ -62,7 +62,8 @@ public final class PlasmaCannon {
                 && player.containerMenu == player.inventoryMenu;
     }
     public static float chargeTicks(float exp) { return ArcGen.lerp(60, 30, exp); }
-    public static float startOverload(float exp) { return ArcGen.lerp(500, 400, exp); }
+    /** 起動のオーバーロード（1.5.2でlerp(500, 400)からlerp(500, 120)へ。再使用の待ちは変えない）。 */
+    public static float startOverload(float exp) { return ArcGen.lerp(500, 120, exp); }
     public static float chargeConsumption(float exp) { return ArcGen.lerp(18, 25, exp); }
     public static float damage(float exp) { return ArcGen.lerp(80, 150, exp); }
     public static float power(float exp) { return ArcGen.lerp(12, 15, exp); }
@@ -83,9 +84,9 @@ public final class PlasmaCannon {
         if (player.containerMenu != player.inventoryMenu) return "academy.cast.unlearned";
         if (ACTIVE.containsKey(player.getUUID())) return "";
         var session = new Session(player, data, slot);
-        // 原作s_madeAlive: オーバーロードは収まるかどうかに関係なく加え、その後保つ。
+        // 原作s_madeAlive: オーバーロードは収まるかどうかに関係なく加える（ロック中の起動は上とconsumeInModeが拒否する。1.5.2）。
+        // 原作はその後その値に保ったが、1.5.2から保たない。
         data.consumeInMode(ID, 0, startOverload(session.exp), player.getAbilities().instabuild);
-        session.overloadKeep = data.getOverload();
         ACTIVE.put(player.getUUID(), session);
         // コンテキストを持つ各クライアントでの原作c_begin: 溜めている場所のプラズマ体と、その下の竜巻。このセッションが続く間表示し、
         // プラズマ体の位置は毎tick付いて行く。
@@ -132,7 +133,6 @@ public final class PlasmaCannon {
         if (session == null) return;
         var data = data(player);
         if (!player.isAlive() || session.level != player.level() || data == null || data.isReadOnly()) { ACTIVE.remove(player.getUUID()); return; }
-        if (data.getOverload() < session.overloadKeep) data.setOverload(session.overloadKeep);
         session.ticks++;
         // 原作l_tick: 溜めの終わりは、完了したtickに術者だけが聞く。
         if (!session.flying() && session.ticks == (int) chargeTicks(session.exp))
@@ -152,7 +152,7 @@ public final class PlasmaCannon {
         var delta = session.target.subtract(session.body);
         if (delta.length() >= 1) session.body = session.body.add(delta.normalize());
         io.github.pinchan4273.reacademycraft.network.SkillVisual.move(session.visual, session.body, 1);
-        // 選別無しの原作Raytrace.perform(world, last, body): このtickの区間にあるブロック、または当たりうるどのエンティティ（術者も）でも起爆する。
+        // フィルター無しの原作Raytrace.perform(world, last, body): このtickの区間にあるブロック、または当たりうるどのエンティティ（術者も）でも起爆する。
         boolean struck = player.level().clip(new ClipContext(last, session.body, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, player))
                 .getType() != HitResult.Type.MISS || ProjectileHitSeam.firstEntity(player.level(), null, last, session.body) != null;
         if (struck || session.ticks >= MAX_FLIGHT_TICKS || session.body.distanceTo(session.target) < 1.5) {

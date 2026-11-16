@@ -24,8 +24,8 @@ import net.neoforged.fml.ModList;
 import net.neoforged.fml.common.EventBusSubscriber;
 
 /**
- * 外部の演出の光線（公開API{@link ExternalPresentation}の中身。演出API版1、Issue #5 AAA-RE-VFX-20261025-001）。
- * 自然能力の{@link ClientMdEffects}の光線・球の一覧とは別の帳簿（{@link ExternalBeamBook}、持ち主ごと）で持ち、同じ描画の部品で、
+ * 外部の演出の光線（公開API{@link ExternalPresentation}の中身。演出API版1）。
+ * 自然能力の{@link ClientMdEffects}の光線・球の一覧とは別の管理テーブル（{@link ExternalBeamBook}、持ち主ごと）で持ち、同じ描画の部品で、
  * 同じ段階（{@code AFTER_BLOCK_ENTITIES}）の、自然能力の光線の後（イベントの優先度を最も低くする）に描く。自然能力のコードは変えない。
  * 寿命と終わり方は自然能力のMeltdownerの光線と同じ（50tick、一時停止の間は進まない、ログアウト・世界の切り替え・資源の読み直し・
  * オーバーレイの最中に終える）。術者がいなくなっても、受け付けた光線は寿命まで描く。
@@ -36,7 +36,7 @@ public final class ClientExternalBeams {
 
     /** 外部の光線の最大の長さ（{@link ExternalBeamRules#MAX_LENGTH}）。 */
     public static final double MAX_LENGTH = ExternalBeamRules.MAX_LENGTH;
-    /** 持ち主ごとの上限の既定（既定の32は、クライアントごと・持ち主のMOD IDごとの同時32本として採用した値（2026-10-25のユーザーの決定、Issue #5 6399564392）。）と、設定で選べる範囲。 */
+    /** 持ち主ごとの上限の既定（既定の32は、クライアントごと・持ち主のMOD IDごとの同時32本として採用した値）と、設定で選べる範囲。 */
     public static final int DEFAULT_LIMIT = 32, MIN_LIMIT = 1, MAX_LIMIT = 256;
 
     /** 未元光線（{@link io.github.pinchan4273.reacademycraft.api.client.BeamStyle#DARK_MATTER_RAY}）の寿命（tick）。本体の当たりの間隔と同じ。 */
@@ -151,7 +151,7 @@ public final class ClientExternalBeams {
 
     private static double wiggle(RandomSource random) { return -.015 + random.nextDouble() * .03; }
 
-    /** 術者（番号とUUIDの両方が合う、この世界の生きたプレイヤー）。いなければnull。 */
+    /** 術者（IDとUUIDの両方が合う、この世界の生きたプレイヤー）。いなければnull。 */
     private static @Nullable Player caster(BeamRequest request) {
         var client = Minecraft.getInstance();
         if (request.casterId() == null || request.casterEntityId() < 0 || client.level == null) return null;
@@ -249,9 +249,9 @@ public final class ClientExternalBeams {
 
     @SubscribeEvent public static void externalBeamLogout(ClientPlayerNetworkEvent.LoggingOut event) { BOOK.cancelAll(); world = null; }
 
-    /** 試験用の入口: 帳簿の数も含めて捨てる。 */
+    /** テスト用の入口: 管理テーブルの数も含めて捨てる。 */
     public static void resetForTest() { BOOK.reset(); world = null; lastFrameQuads = lastFrameBatches = 0; lastFrameNanos = totalQuads = 0; }
-    /** 試験用の入口: 持ち主の最新の光線のアニメーションの値（撮影の前に、伸び切るまで待つため）。 */
+    /** テスト用の入口: 持ち主の最新の光線のアニメーションの値（撮影の前に、伸び切るまで待つため）。 */
     public static @Nullable LegacyMdRayAnimation.Snapshot newest(String ownerModId) {
         var all = BOOK.all();
         for (int i = all.size() - 1; i >= 0; i--) {
@@ -260,7 +260,7 @@ public final class ClientExternalBeams {
         }
         return null;
     }
-    /** 試験用の入口: 描いているすべての外部の光線の長さ（足した順）。 */
+    /** テスト用の入口: 描いているすべての外部の光線の長さ（足した順）。 */
     public static java.util.List<Double> lengths() {
         return BOOK.all().stream().map(beam -> beam.request.from().distanceTo(beam.request.to())).toList();
     }

@@ -11,11 +11,11 @@ import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerPlayer;
 
 /**
- * 天界発現の設定の画面からの変更（クライアント→サーバー、v1.5.0 §10〜§12）。送るのはキーと値の文字列だけで、サーバーが検証して適用し、受け入れても断っても今の値を送り返す
+ * 天界発現の設定の画面からの変更（クライアント→サーバー、v1.5.0）。送るのはキーと値の文字列だけで、サーバーが検証して適用し、受け入れても断っても今の値を送り返す
  * （{@link HeavenSettingsSnapshot}）。画面は送り返された値だけを表示する。
  * <ul>
  * <li>{@link #SYNC}: 変更せず、今の値を送り返す（画面を開いた時）。</li>
- * <li>{@link #STOP}: 領域を解除する（§13: プリセットから外れた領域の個別停止）。</li>
+ * <li>{@link #STOP}: 領域を解除する（プリセットから外れた領域の個別停止）。</li>
  * <li>{@code player.<UUID>}: 個別プレイヤーの登録。値はauto・ally・exclude。</li>
  * <li>それ以外は{@link HeavenSettings#apply}。</li>
  * </ul>
@@ -35,7 +35,7 @@ public record HeavenSettingEdit(String key, String value) implements AcademyPayl
     public void encode(FriendlyByteBuf buffer) { buffer.writeUtf(key, MAX_KEY); buffer.writeUtf(value, MAX_VALUE); }
     public static HeavenSettingEdit decode(FriendlyByteBuf buffer) { return new HeavenSettingEdit(buffer.readUtf(MAX_KEY), buffer.readUtf(MAX_VALUE)); }
 
-    /** 受け取った変更を適用する。変わったらtrue（試験のため）。 */
+    /** 受け取った変更を適用する。変わったらtrue（テストのため）。 */
     public boolean handle(@Nullable ServerPlayer player) {
         if (player == null) return false;
         long[] budget = BUDGET.computeIfAbsent(player, ignored -> new long[]{Long.MIN_VALUE, 0});
@@ -50,7 +50,8 @@ public record HeavenSettingEdit(String key, String value) implements AcademyPayl
     }
     private boolean apply(ServerPlayer player) {
         if (SYNC.equals(key)) return false;
-        if (STOP.equals(key)) { boolean was = HeavenManifest.active(player); HeavenManifest.stop(player); return was; }
+        // 1.5.2: パッシブの領域は解除しない（すぐ起動し直し、開始の費用を二度払うため）。止めるのはアクティブへ戻すか、能力使用モードをオフにする。
+        if (STOP.equals(key)) { if (HeavenManifest.passive(player)) return false; boolean was = HeavenManifest.active(player); HeavenManifest.stop(player); return was; }
         var data = io.github.pinchan4273.reacademycraft.capability.AbilityCapabilities.of(player).orElse(null);
         if (data == null || data.isReadOnly()) return false;
         var settings = data.getHeavenSettings();

@@ -44,7 +44,7 @@ repositories {
     flatDir { dirs '../../build/libs' }
 }
 
-def academyVersion = project.findProperty('academyVersion') ?: '1.5.1'
+def academyVersion = project.findProperty('academyVersion') ?: '1.5.2'
 
 dependencies {
     // 本体のJARに対してコンパイルする。サンプルのJARには入らない（配布では、本体のJARをmodsに置く）。

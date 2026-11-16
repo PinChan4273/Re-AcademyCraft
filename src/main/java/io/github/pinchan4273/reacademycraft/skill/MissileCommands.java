@@ -10,14 +10,14 @@ import net.neoforged.neoforge.event.RegisterCommandsEvent;
 import net.neoforged.bus.api.SubscribeEvent;
 
 /**
- * 通常のプレイヤー向けのElectron Missileの設定コマンド（F9-02）。{@link ShieldCommands}と同じ方針。
+ * 通常のプレイヤー向けのElectron Missileの設定コマンド。{@link ShieldCommands}と同じ方針。
  * <ul>
  * <li>{@code /academy missile mode}（照会）、{@code /academy missile mode auto|semi}: 照準のモード。</li>
  * <li>{@code /academy missile target}（4分類の照会）、{@code /academy missile target hostile|neutral|friendly|player on|off}: 攻撃対象のフィルター。</li>
  * <li>オペレーター権限も{@code /aim cheats_on}も要らない（権限のレベル0）。実行した本人の設定だけを読む・変える。コンソールなどプレイヤーでない実行者は使えない。</li>
  * <li>変える処理は{@link ElectronMissileSettings}だけが行う。</li>
  * </ul>
- * {@code /academy}の根は{@link ShieldCommands}も登録する。Brigadierは同じ名前の根へ子を合わせるので、{@code shield}と{@code missile}は
+ * {@code /academy}のルートは{@link ShieldCommands}も登録する。Brigadierは同じ名前のルートへ子を合わせるので、{@code shield}と{@code missile}は
  * 同じ{@code /academy}の下に並ぶ。
  */
 @net.neoforged.fml.common.EventBusSubscriber(modid = "academy")

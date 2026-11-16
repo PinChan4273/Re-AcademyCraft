@@ -3,7 +3,7 @@ package io.github.pinchan4273.reacademycraft.client;
 import io.github.pinchan4273.reacademycraft.visual.LegacyIntensifyHudAnimation;
 import net.minecraft.resources.Identifier;
 
-/** 原作のマスクとspriteの絵を変えずに、状態を保つForgeのGUIのadapterで描く。 */
+/** 原作のマスクとspriteのテクスチャを変えずに、状態を保つForgeのGUIのadapterで描く。 */
 public final class LegacyIntensifyHudRenderer {
     public static final Identifier MASK = id("em_intensify_mask.png");
     private static Identifier id(String path) { return Identifier.fromNamespaceAndPath("academy", "textures/effects/" + path); }

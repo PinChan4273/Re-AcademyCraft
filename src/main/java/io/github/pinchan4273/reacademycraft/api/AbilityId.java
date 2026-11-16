@@ -8,7 +8,7 @@ import java.util.regex.Pattern;
  * （26.x系で{@code Identifier}の名前が変わっても、この型は変えない）。
  * <p>
  * 書式は {@code namespace:path}。名前空間は {@code [a-z0-9_.-]}、パスは {@code [a-z0-9_./-]}（Minecraftの資源の名前と同じ文字の集合）。
- * 名前空間 {@code academy} は本体だけが使う（アドオンの登録は断る。登録簿が確かめる）。
+ * 名前空間 {@code academy} は本体だけが使う（アドオンの登録は断る。レジストリが確かめる）。
  */
 public record AbilityId(String namespace, String path) implements Comparable<AbilityId> {
     private static final Pattern NAMESPACE = Pattern.compile("[a-z0-9_.-]+"), PATH = Pattern.compile("[a-z0-9_./-]+");

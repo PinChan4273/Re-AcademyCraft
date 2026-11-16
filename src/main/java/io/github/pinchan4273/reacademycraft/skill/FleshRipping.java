@@ -83,6 +83,7 @@ public final class FleshRipping {
         // 原作s_end: 最後のtickに何も取っていなければ中断で、コストはかからない。
         if (session.target == null) return;
         float exp = session.exp;
+        // ロック中は強制の支払いも拒否される（1.5.2）。
         if (!data.consumeWithForce(ID, consumption(exp), overload(exp), player.getAbilities().instabuild)) return;
         SkillCombat.attackIgnoreArmor(player, session.target, ID, damage(exp) * TPSkillHelper.critical(player, data, session.target, roll));
         player.level().playSound(null, player, io.github.pinchan4273.reacademycraft.world.AcademySounds.TP_GUTS.get(), net.minecraft.sounds.SoundSource.AMBIENT, .6f, 1f);

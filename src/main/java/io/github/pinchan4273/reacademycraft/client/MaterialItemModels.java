@@ -14,7 +14,7 @@ import net.neoforged.neoforge.client.event.RegisterRangeSelectItemModelPropertyE
 import org.jspecify.annotations.Nullable;
 
 /**
- * 原作ItemEnergyBase/IFItemManagerの絵の切り替え閾値。正確なFEは既存のNBTに残る。
+ * 原作ItemEnergyBase/IFItemManagerのテクスチャの切り替え閾値。正確なFEは既存のNBTに残る。
  * WeAthFolD。このクライアント側アダプタは耐久値を書かず、他modのcapabilityも問い合わせない。
  * 26.2: 1.21.1 の ItemProperties は assets/academy/items の range_dispatch と、このプロパティになった。
  */

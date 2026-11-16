@@ -14,26 +14,26 @@ import net.neoforged.neoforge.event.server.ServerStoppedEvent;
 import net.neoforged.bus.api.SubscribeEvent;
 
 /**
- * 天界発現の表示（v1.5.0、ユーザーの決定）: 領域の範囲の中のプレイヤー全員（使用者本人、個別の強化・弱体を受けていない人も）へ、表示専用の中立の効果
+ * 天界発現の表示（v1.5.0）: 領域の範囲の中のプレイヤー全員（使用者本人、個別の強化・弱体を受けていない人も）へ、表示専用の中立の効果
  * 「天界」（{@link AcademyEffects#HEAVEN}）を1件だけ付ける。標準のHUD・インベントリの効果の一覧に出るので、同じ一覧を読む表示改善MODにも見える。
  * <p>
  * 天界由来の強化・弱体・状態異常は今どおりサーバーが直接処理し（{@link HeavenEffects}・{@link HeavenPhenomena}・{@link DirectEffects}）、バニラの状態効果を
  * 付けないので、個別の名前や残り時間は出ない。表示の効果は何もしないので、外部から消されても直接の作用は続き（次の走査で付け直す）、コマンドで表示だけを
  * 付けても領域や怪現象は起きない。
  * <p>
- * 付け外しは{@link HeavenManifest}の走査（{@link HeavenManifest#SCAN_TICKS}ごと、変更・解除の直後）に載せ、走査が見つけた範囲の中の実体だけを見る。
+ * 付け外しは{@link HeavenManifest}の走査（{@link HeavenManifest#SCAN_TICKS}ごと、変更・解除の直後）に載せ、走査が見つけた範囲の中のエンティティだけを見る。
  * 領域が重なっても「天界」の表示は1件。最後の有効な領域から出たことを検出した時点で解除する。付与する効果は無期限・粒子なし・アイコンあり。
  * <p>
- * こちらが付けた物の見分け: 付けたプレイヤーの永続データに{@link #MARK}を置く。領域は再起動・再ログインで残らないので、印のあるまま接続したプレイヤーからは
- * 外す（範囲の中なら次の走査で付け直す）。印の無い「天界」（コマンドで付けた物）は勝手に消さない。外す時も、こちらの付け方（無期限）の物だけを外す。
+ * こちらが付けた物の見分け: 付けたプレイヤーの永続データに{@link #MARK}を置く。領域は再起動・再ログインで残らないので、マーカーのあるまま接続したプレイヤーからは
+ * 外す（範囲の中なら次の走査で付け直す）。マーカーの無い「天界」（コマンドで付けた物）は勝手に消さない。外す時も、こちらの付け方（無期限）の物だけを外す。
  */
 @net.neoforged.fml.common.EventBusSubscriber(modid = "academy")
 public final class HeavenDisplay {
-    /** こちらが付けたことの印（プレイヤーの永続データのキー）。 */
+    /** こちらが付けたことのマーカー（プレイヤーの永続データのキー）。 */
     public static final String MARK = "academy_heaven_display";
-    /** 今こちらが表示を付けているプレイヤー（UUIDと、最後に見た実体）。 */
+    /** 今こちらが表示を付けているプレイヤー（UUIDと、最後に見たエンティティ）。 */
     private static final Map<UUID, ServerPlayer> SHOWN = new HashMap<>();
-    /** 試験用: 世界に入れないFakePlayerを、世界の中で範囲を判定されるプレイヤーとして扱う。 */
+    /** テスト用: 世界に入れないFakePlayerを、世界の中で範囲を判定されるプレイヤーとして扱う。 */
     private static final List<ServerPlayer> BYSTANDERS = new ArrayList<>();
 
     private HeavenDisplay() { }
@@ -56,7 +56,7 @@ public final class HeavenDisplay {
     }
     /** 表示の対象か。観戦者は世界の中の対象ではない（領域の区分{@link HeavenManifest#classify}と同じ）ので付けない。 */
     private static boolean eligible(ServerPlayer player) { return player.isAlive() && !player.isSpectator(); }
-    /** 同じUUIDの今の実体（死亡・エンドからの帰還で入れ替わる）。一覧に無ければ最後に見た実体。 */
+    /** 同じUUIDの今のエンティティ（死亡・エンドからの帰還で入れ替わる）。一覧に無ければ最後に見たエンティティ。 */
     private static ServerPlayer current(UUID id, ServerPlayer last) {
         var live = last.level().getServer().getPlayerList().getPlayer(id);
         return live != null ? live : last;
@@ -78,7 +78,7 @@ public final class HeavenDisplay {
         if (current != null && current.isInfiniteDuration()) player.removeEffect(effect);
     }
 
-    // ---- 接続・実体の入れ替わり ----
+    // ---- 接続・エンティティの入れ替わり ----
 
     /** 再起動・再ログインで残った表示を外す（領域は残らない）。今も他人の領域の範囲の中なら、次の走査で付け直す。 */
     @SubscribeEvent public static void login(PlayerEvent.PlayerLoggedInEvent e) {
@@ -88,7 +88,7 @@ public final class HeavenDisplay {
     @SubscribeEvent public static void logout(PlayerEvent.PlayerLoggedOutEvent e) {
         if (e.getEntity() instanceof ServerPlayer player && SHOWN.remove(player.getUUID()) != null) hide(player);
     }
-    /** 実体が入れ替わった（死亡・エンドからの帰還）: 新しい実体を覚え、効果が写っていれば印も写す。範囲の外なら次の走査で外れる。 */
+    /** エンティティが入れ替わった（死亡・エンドからの帰還）: 新しいエンティティを覚え、効果が写っていればマーカーも写す。範囲の外なら次の走査で外れる。 */
     @SubscribeEvent public static void clone(PlayerEvent.Clone e) {
         if (!(e.getEntity() instanceof ServerPlayer player) || !SHOWN.containsKey(player.getUUID())) return;
         SHOWN.put(player.getUUID(), player);
@@ -96,11 +96,11 @@ public final class HeavenDisplay {
     }
     @SubscribeEvent public static void stopped(ServerStoppedEvent e) { SHOWN.clear(); BYSTANDERS.clear(); }
 
-    // ---- 試験用の入口 ----
+    // ---- テスト用の入口 ----
 
-    /** 試験用: このプレイヤーを世界の中にいるものとして範囲の判定に加える（{@link #clearBystandersForTest}で外す）。 */
+    /** テスト用: このプレイヤーを世界の中にいるものとして範囲の判定に加える（{@link #clearBystandersForTest}で外す）。 */
     public static void addBystanderForTest(ServerPlayer player) { BYSTANDERS.add(player); }
     public static void clearBystandersForTest() { BYSTANDERS.clear(); }
-    /** 試験用: こちらが今このプレイヤーへ表示を付けているか。 */
+    /** テスト用: こちらが今このプレイヤーへ表示を付けているか。 */
     public static boolean shownForTest(ServerPlayer player) { return SHOWN.containsKey(player.getUUID()); }
 }

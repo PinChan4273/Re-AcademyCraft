@@ -15,18 +15,18 @@ import java.util.function.Supplier;
 import net.minecraft.resources.Identifier;
 
 /**
- * 登録簿の読み取りの窓（1.4.0のS2の互換の層）。既存の定数（SkillCatalog.IMPLEMENTED、AbilityCategory.REGISTERED、AbilityAction.HELD_SKILLSなど）は、
- * 名前を残したまま、ここで作る変えられない窓になる。窓は、登録簿の版（{@link AbilityRegistry#revision}）が変わったときだけ作り直す
+ * レジストリの読み取りビュー（1.4.0の互換の層）。既存の定数（SkillCatalog.IMPLEMENTED、AbilityCategory.REGISTERED、AbilityAction.HELD_SKILLSなど）は、
+ * 名前を残したまま、ここで作る変えられないビューになる。ビューは、レジストリの版（{@link AbilityRegistry#revision}）が変わったときだけ作り直す
  * （凍結の後は変わらない）。要素の変換は登録の順のまま。
  */
 public final class RegistryViews {
     private RegistryViews() { }
 
-    /** 名前空間付きの名前をMinecraftの名前へ（読み取りの窓の中だけで使う。公開の型には出さない）。 */
+    /** 名前空間付きの名前をMinecraftの名前へ（読み取りビューの中だけで使う。公開の型には出さない）。 */
     public static Identifier location(AbilityId id) { return Identifier.fromNamespaceAndPath(id.namespace(), id.path()); }
     public static AbilityId id(Identifier location) { return new AbilityId(location.getNamespace(), location.getPath()); }
 
-    /** 登録簿の要素を変換した、変えられない一覧の窓。 */
+    /** レジストリの要素を変換した、変えられない一覧のビュー。 */
     public static <S, T> List<T> list(Supplier<List<S>> source, Function<S, T> convert) {
         return new AbstractList<>() {
             private int revision = -1;
@@ -93,7 +93,7 @@ public final class RegistryViews {
     }
     /**
      * カテゴリの表示の名前。登録されていればその翻訳、登録されていなければ（アドオンを外した後の保存データなど）
-     * 「導入されていない系統（名前）」（1.4.0のS4。手動確認 2026-10-25: 翻訳のキーがそのまま出ていた）。
+     * 「導入されていない系統（名前）」（1.4.0）。
      */
     public static net.minecraft.network.chat.Component categoryName(Identifier category) {
         io.github.pinchan4273.reacademycraft.api.CategoryDefinition definition = null;

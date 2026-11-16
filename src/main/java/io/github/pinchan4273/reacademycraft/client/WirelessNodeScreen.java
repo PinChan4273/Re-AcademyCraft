@@ -32,7 +32,7 @@ public final class WirelessNodeScreen extends TechScreen<WirelessNodeMenu> {
     public WirelessNodeScreen(WirelessNodeMenu menu, Inventory inventory, Component title) {
         super(menu, inventory, title);
         enableWireless(menu.pos, true);
-        // nodeの最大値と容量は、画面の生成後にメニューのデータで届く。GUI-ENERGY-001: 届く前は0 IFでなく「同期中」と表示し、
+        // nodeの最大値と容量は、画面の生成後にメニューのデータで届く。届く前は0 IFでなく「同期中」と表示し、
         // 届いた後はバーと数値を同じ組み立てた値から出す。
         histogram(new Hist(hist("energy"), 0xff25c4ff, () -> menu.synced() ? menu.storedIF() / (double) menu.maxIF() : 0,
                         () -> menu.synced() ? String.format(java.util.Locale.ROOT, "%d IF", menu.storedIF())

@@ -35,7 +35,7 @@ import net.neoforged.bus.api.SubscribeEvent;
  *   EntityArc（長さは固定でない。揺れはtexWiggle 1、showWiggle 0.1、hideWiggle 0.6）と、術者に付いて回る
  *   em.move_loop（FollowEntitySound、ループ）。どちらもcontextと一緒に終わる。
  * - Magnetic Manipulation（MagManipContextC）: ブロックを持っている間、術者に付いて回るem.lf_loop。
- * 弧は、Current Chargingの主の弧と同じく、足元から1.6上から対象へ向け、一人称では手元へずらして描く
+ * 弧は、Current Chargingの主の弧と同じく、足元から1.6上から対象へ向け、一人称では手元へオフセットして描く
  * （どちらもプレイヤーから出るEntityArc）。
  */
 @net.neoforged.fml.common.EventBusSubscriber(modid = "academy", value = Dist.CLIENT)

@@ -1,7 +1,7 @@
 {
   "replace": false,
   "values": [
-    "academy:skill_ignore_armor",
-    "academy:skill_pierce"
+    "#academy:hit/ignore_armor",
+    "#academy:hit/pierce"
   ]
 }

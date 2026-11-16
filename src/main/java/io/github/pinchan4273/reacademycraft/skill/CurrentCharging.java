@@ -146,7 +146,7 @@ public final class CurrentCharging {
         boolean supported = target != null && target.canReceive();
         if (supported) {
             int ifAmount = (int) Math.floor(ArcGen.lerp(15, 35, session.proficiency));
-            // 原作RFSupport: 1 IF = 4 RF/FE。ENERGY-RATE-001: 今の能力Lvの倍率（[10, 30, 100, 300, 1000]）を毎tickサーバーで掛ける。
+            // 原作RFSupport: 1 IF = 4 RF/FE。今の能力Lvの倍率（[10, 30, 100, 300, 1000]）を毎tickサーバーで掛ける。
             // 受け取る量は受電先のreceiveEnergyの上限に従う。CP・過負荷・熟練度の精算は変えない。
             target.receiveEnergy(ChargingRate.offeredFe(ifAmount, data.getLevel()), false);
             player.getInventory().setChanged();

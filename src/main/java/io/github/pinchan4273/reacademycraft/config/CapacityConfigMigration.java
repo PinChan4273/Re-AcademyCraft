@@ -15,7 +15,7 @@ import net.neoforged.fml.common.EventBusSubscriber;
 import org.slf4j.Logger;
 
 /**
- * 1.0.0の後に承認したCPの容量・回復（docs/CP_RECOVERY_TOGGLE_SPEC_JA.md）の設定の移し方。
+ * 1.0.0の後のCPの容量・回復の設定の移し方。
  *
  * <p>Forge 1.20.1は、ファイルに無い新しい項目を既定値で足してファイルを書き直すが、そのときバックアップは取らなかった（ForgeConfigSpec.setConfigは
  * "Correcting"のログを出して保存するだけ）。NeoForge（FML 4のConfigTracker.loadConfig）は補正の前に番号付きのバックアップを取るが、

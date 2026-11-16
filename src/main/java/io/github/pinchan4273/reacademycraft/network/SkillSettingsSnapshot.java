@@ -7,12 +7,16 @@ import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.resources.Identifier;
 
 /**
- * 本人の能力設定の今の値（サーバー→クライアント、1.4.0のS1）。能力設定の画面は、この値だけを表示する（サーバーが正本）。
+ * 本人の能力設定の今の値（サーバー→クライアント、1.4.0）。能力設定の画面は、この値だけを表示する（サーバーが正本）。
  * readableがfalseなら、能力データが読めないか読み取り専用で、値は空（画面は変更を受け付けない）。
  * 値はサーバーの並び（{@link AbilitySettings#all()}の順）のまま送る。
  */
 public record SkillSettingsSnapshot(boolean readable, Map<Identifier, String> values) implements AcademyPayload {
-    private static final int MAX_ENTRIES = 32, MAX_ID = 64;
+    /**
+     * 値の数の上限。1.5.2で設定が32になり、前の上限（32）にちょうど達したので、余裕を持たせて64にした。送る形は変えていない
+     * （値の数32は、前の上限のリーダーも読める）。
+     */
+    private static final int MAX_ENTRIES = 64, MAX_ID = 64;
 
     public SkillSettingsSnapshot {
         if (values == null || values.size() > MAX_ENTRIES || (!readable && !values.isEmpty())) throw new IllegalArgumentException("Invalid settings snapshot");

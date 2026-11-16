@@ -9,7 +9,7 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.monster.Monster;
 
 /**
- * 原作EntityAffection: Vector DeviationとVector Reflectionが触れられるエンティティと、逸らしたエンティティに残す印。
+ * 原作EntityAffection: Vector DeviationとVector Reflectionが触れられるエンティティと、逸らしたエンティティに残すマーカー。
  *
  * どちらのリストも、原作がdefault.confから読んだのと同じく、サーバーの設定（vecmanip.affected_entities）から来る。既定では
  * アイテム、エンチャントの瓶、すべての生き物とすべてのモンスターを除外し、矢（1.0）、ポーション（1.4）、雪玉（0.1）に難しさを与える。

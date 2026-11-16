@@ -6,7 +6,7 @@ import java.util.Set;
 import net.minecraft.resources.Identifier;
 
 /**
- * 能力設定の画面が送った変更の保留（1.4.0のS1、WORK-143 F140-S1-F01の修正）。クライアントのクラスに依存しないので、GameTestでも試せる。
+ * 能力設定の画面が送った変更の保留（1.4.0）。クライアントのクラスに依存しないので、GameTestでも試せる。
  * <p>
  * サーバーは、受け入れても断っても今の値を返す（{@link SkillSettingEdit#handle}）。その値が届けば、保留はすべて終わる
  * （{@link #answered()}）。返事が届かないまま{@link #TIMEOUT_TICKS}tickが経った変更は、念のため保留を終える（{@link #expire}）。

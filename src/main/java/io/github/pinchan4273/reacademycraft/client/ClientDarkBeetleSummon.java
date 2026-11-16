@@ -17,15 +17,15 @@ import net.neoforged.neoforge.client.event.ExtractLevelRenderStateEvent;
 import org.joml.Matrix4f;
 
 /**
- * 甲虫の出現と回収の演出（v1.5.1、Forge 17561eb5・c0b3c070 の試作の移植）。輪は天界発現の予兆と同じ水平の輪（{@link ClientHeavenEffects#ring}、加算の半透明で地形の深度を見る）を、
+ * 甲虫の出現と回収の演出（v1.5.1）。輪は天界発現の予兆と同じ水平の輪（{@link ClientHeavenEffects#ring}、加算の半透明で地形の深度を見る）を、
  * 甲虫（判定の幅2.0、角を含む長さ約3ブロック）より大きい半径{@link #RADIUS}で描く。
  * <ul>
- * <li>出現: 実体の同期データ{@link DarkMatterBeetle#emergeLeft()}の間、体は描かず（{@link DarkBeetleRenderer}）、地面の輪が明るくなりながら、
+ * <li>出現: エンティティの同期データ{@link DarkMatterBeetle#emergeLeft()}の間、体は描かず（{@link DarkBeetleRenderer}）、地面の輪が明るくなりながら、
  * 3本の輪が上から降りて縮む。現れ終わった瞬間に、地面の輪が外へ広がって消え、1本の輪が体を下から上へなでる。体は0.6倍から1倍へ広がる。</li>
- * <li>回収: 実体のイベント{@link DarkMatterBeetle#EVENT_RECALL}を受けたら、消えた実体を写しとして残し、体を縮めながら、出現の逆に輪が上がって広がり消える。</li>
+ * <li>回収: エンティティのイベント{@link DarkMatterBeetle#EVENT_RECALL}を受けたら、消えたエンティティを写しとして残し、体を縮めながら、出現の逆に輪が上がって広がり消える。</li>
  * <li>長押し: 自分の甲虫生成のキーを長押ししている間、自分の甲虫の足元に、回収の近さに合わせて明るく縮む輪を描く（本人だけ）。</li>
  * </ul>
- * どれも追加の通信を使わない（同期データ、バニラの実体のイベント、本人のキーの状態）。
+ * どれも追加の通信を使わない（同期データ、バニラのエンティティのイベント、本人のキーの状態）。
  * <p>
  * 26.2: 輪はこのMODの演出の提出（{@link WorldSubmits}の AFTER_PARTICLES、{@link Immediate}の position_color・加算）で描く。
  * 回収の写しの体は、Forge版のように描く時に実体を描くのではなく、レベルの描画の状態を作る時（{@link ExtractLevelRenderStateEvent}。
@@ -50,9 +50,9 @@ public final class ClientDarkBeetleSummon {
 
     private ClientDarkBeetleSummon() { }
 
-    /** 回収の通知（この直後に実体はクライアントから消える）。 */
+    /** 回収の通知（この直後にエンティティはクライアントから消える）。 */
     public static void recalled(DarkMatterBeetle beetle) { GHOSTS.add(new Ghost(beetle)); }
-    /** 試験用: 描いている回収の写しの数。 */
+    /** テスト用: 描いている回収の写しの数。 */
     public static int ghosts() { return GHOSTS.size(); }
 
     @SubscribeEvent public static void tick(ClientTickEvent.Post event) {
@@ -66,7 +66,7 @@ public final class ClientDarkBeetleSummon {
     @SubscribeEvent public static void extract(ExtractLevelRenderStateEvent event) {
         var minecraft = Minecraft.getInstance();
         if (minecraft.level == null) return;
-        // 回収の写しの体（縮みながら消える）。普通の実体と同じ描き方で、倍率だけ変える。
+        // 回収の写しの体（縮みながら消える）。普通のエンティティと同じ描き方で、倍率だけ変える。
         if (!GHOSTS.isEmpty()) {
             float partial = event.getDeltaTracker().getGameTimeDeltaPartialTick(false);
             var dispatcher = minecraft.getEntityRenderDispatcher();

@@ -6,7 +6,7 @@ import javax.annotation.Nullable;
 import net.minecraft.resources.Identifier;
 
 /**
- * 能力開発機の画面（DeveloperScreen）で、習得した技能の熟練度の行とアイコンの周りのリングに何を出すか（GUI-PASSIVE-PROFICIENCY-001）。
+ * 能力開発機の画面（DeveloperScreen）で、習得した技能の熟練度の行とアイコンの周りのリングに何を出すか。
  * 表示だけで、データを何も書き換えない。client専用のクラスから分けてあるのは、サーバー側のGameTestから同じ判断を確かめるため。
  * 参加中のサーバーの規則（SyncedAcademyRules）はここでは読まず、画面が渡す（{@link SkillStatusLines}と同じ決まり）。
  * <ul>
@@ -35,7 +35,7 @@ public final class PassiveSkillDisplay {
     public static float ring(PlayerAbilityData data, Identifier skill, @Nullable Float level5BaseCp) {
         if (RadiationIntensify.ID.equals(skill))
             return level5BaseCp == null ? 0 : RadiationIntensify.derivedProficiency(data.getMaxCp(), level5BaseCp);
-        if (course(skill) || DarkMatter.BODY.equals(skill)) return 1; // §2: 人体生成は習得時完成で熟練度なし。
+        if (course(skill) || DarkMatter.BODY.equals(skill)) return 1; // 人体生成は習得時完成で熟練度なし。
         return data.getProficiency(skill);
     }
 

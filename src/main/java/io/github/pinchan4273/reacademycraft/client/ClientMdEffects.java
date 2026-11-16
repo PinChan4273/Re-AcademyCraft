@@ -57,7 +57,7 @@ public final class ClientMdEffects {
         }
         /**
          * 原作EntityMdBall.Rは、球をentityの位置から1.6上げて描く（"HACK: Force set the render pos":
-         * y = ent.posY - clientPlayer.posY + 1.6、1.12が描く基準の足元から）。つまり術者の足元、-1.2〜0.2のsubのずれ、
+         * y = ent.posY - clientPlayer.posY + 1.6、1.12が描く基準の足元から）。つまり術者の足元、-1.2〜0.2のsubのオフセット、
          * そして1.6（胸から頭の高さ）。球が撃つ光線の始点（ball.posY + 目の高さ）と同じ高さになる。
          */
         Vec3 position(float partial) {
@@ -133,7 +133,7 @@ public final class ClientMdEffects {
         }
         return arcs;
     }
-    /** 外部の光線の、Ray Barrageの副光線（{@link #drawSubrays}と同じ描き方。自然能力の計数は増やさない）。描いた四角形の数を返す。 */
+    /** 外部の光線の、Ray Barrageの副光線（{@link #drawSubrays}と同じ描き方。自然能力のカウンターは増やさない）。描いた四角形の数を返す。 */
     static int drawExternalSubrays(WorldDraw draw, com.mojang.blaze3d.vertex.PoseStack pose, LegacyMdRayAnimation.Snapshot clipped, LegacyMdRayAnimation.Profile profile,
                                    float yaw, float pitch, float[][] scatter, Vec3 view) {
         int quads = 0;
@@ -287,7 +287,7 @@ public final class ClientMdEffects {
     }
 
     /**
-     * VIS-WATER-001の候補: 球と光線を描く段階を、AFTER_PARTICLESからAFTER_BLOCK_ENTITIES（半透明の地形の直前）へ移す。
+     * 球と光線を描く段階を、AFTER_PARTICLESからAFTER_BLOCK_ENTITIES（半透明の地形の直前）へ移す。
      * 実画面で確かめていない候補で、受入要件を満たすとは扱わない（before/afterの画像で判定する）。
      *
      * <p>確認済み（逆アセンブルとソース）: 1.20.1のLevelRendererは、通常・Fabulousのどちらでも、AFTER_BLOCK_ENTITIES →
@@ -323,7 +323,7 @@ public final class ClientMdEffects {
             pose.pushPose();
             try {
                 pose.translate(at.x, at.y, at.z);
-                // 原作は球をカメラへ向けて描く。2枚の絵を描く前に、カメラの方向へ向ける。
+                // 原作は球をカメラへ向けて描く。2枚のスプライトを描く前に、カメラの方向へ向ける。
                 pose.mulPose(rotation);
                 int drawn = LegacyMdRenderer.drawOrb(draw, pose, orb.animation.snapshot());
                 lastOrbQuads += drawn; orbQuads += drawn;
@@ -352,7 +352,7 @@ public final class ClientMdEffects {
             try {
                 pose.translate(at.x, at.y, at.z);
                 // 光の帯はカメラへ向ける必要があるので、光線自身の回転を掛ける前に、ワールドの軸から作る。
-                // 円柱は、その回転を掛けた空間で描く。
+                // 円柱は、その回転を掛けた座標系で描く。
                 var view = origin.subtract(camera);
                 if (beam.scatter.length > 0) drawSubrays(draw, pose, clipped, profile, beam.orientation.yawDegrees(), beam.orientation.pitchDegrees(), beam.scatter, view);
                 else {
@@ -370,10 +370,10 @@ public final class ClientMdEffects {
     }
 
     /**
-     * Ray BarrageのSubRayを、poseの原点から、光線のyawとピッチ（度）からのそれぞれのずれの方向へ描く。
+     * Ray BarrageのSubRayを、poseの原点から、光線のyawとピッチ（度）からのそれぞれのオフセットの方向へ描く。
      * 光の帯は、viewの方向のカメラへ向ける。原作EntityMdRayBarrage.BarrageRendererは、SubRayごとに光線のentityの向きを
      * 変えてplainDoRenderを呼ぶ。そのため、細い光線を1本ずつ、光の帯・内側の円柱・外側の円柱（RendererRayComposite）の順で
-     * 描き終えてから次へ進む。半透明の合成は描く順序に依存するので、重なる所では、後の光線の光の帯が前の光線の円柱の上に重なる。
+     * 描き終えてから次へ進む。半透明のブレンドは描く順序に依存するので、重なる所では、後の光線の光の帯が前の光線の円柱の上に重なる。
      * テストの固定の場面からも呼ぶので、publicにしている。
      */
     public static void drawSubrays(WorldDraw draw, com.mojang.blaze3d.vertex.PoseStack pose, LegacyMdRayAnimation.Snapshot clipped, LegacyMdRayAnimation.Profile profile,
@@ -397,7 +397,7 @@ public final class ClientMdEffects {
     }
 
     /**
-     * 原作SubArcHandler.drawAll（光線自身の空間で）: このtickに見えている弧を、光線上のそれぞれの位置に、
+     * 原作SubArcHandler.drawAll（光線自身の座標系で）: このtickに見えている弧を、光線上のそれぞれの位置に、
      * 3つの角度で回し、3分の1の大きさで中心を合わせて描く。
      */
     private static int drawArcs(WorldDraw draw, com.mojang.blaze3d.vertex.PoseStack pose, Beam beam) { return drawSubArcs(draw, pose, beam.arcs); }

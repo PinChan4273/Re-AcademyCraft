@@ -18,7 +18,7 @@ import net.minecraft.server.level.ServerPlayer;
  * </ul>
  * サーバーは受け取った時点の自分の状態へその操作だけを適用し、他のキーの値をクライアントから受け取らない。
  * そのため、応答の前に続けて別のキーを編集しても、先の編集を巻き戻さない。
- * 置ける技能は、プレイヤーのカテゴリの、実装済み・習得済み・レベルの足りた能動技能で、同じプリセットの他のキーに無いもの
+ * 置ける技能は、プレイヤーのカテゴリの、実装済み・習得済み・レベルの足りたアクティブ技能で、同じプリセットの他のキーに無いもの
  * （原作PresetEditUIの選択肢と同じ）。空にするのはいつでもよい。受け入れても断っても、サーバーの状態を送り返す。
  */
 public record PresetEdit(boolean selection, int preset, int slot, @Nullable Identifier skill) implements AcademyPayload {
@@ -63,7 +63,8 @@ public record PresetEdit(boolean selection, int preset, int slot, @Nullable Iden
     public static boolean canEquip(PlayerAbilityData data, int preset, int slot, Identifier skill) {
         if (data.isReadOnly() || !data.hasAbility()) return false;
         var definition = SkillCatalog.find(skill);
-        if (definition == null || !definition.offeredTo(data.getAbility()) || definition.passive()
+        // 1.5.2: パッシブに切り替えた技能は、パッシブの間はスロットに置けない。
+        if (definition == null || !definition.offeredTo(data.getAbility()) || definition.passive() || data.isPassiveSkill(skill)
                 || !data.hasLearned(skill) || data.getLevel() < definition.level()) return false;
         for (int other = 0; other < KEYS; other++)
             if (other != slot && skill.equals(data.getSlot(preset, other))) return false;

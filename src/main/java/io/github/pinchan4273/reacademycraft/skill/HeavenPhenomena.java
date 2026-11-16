@@ -28,10 +28,10 @@ import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.neoforged.bus.api.SubscribeEvent;
 
 /**
- * 天界発現の怪現象（§11）。領域全体につき1回の抽選で1対象・1現象で、範囲を広げても抽選の回数は増えない。
+ * 天界発現の怪現象。領域全体につき1回の抽選で1対象・1現象で、範囲を広げても抽選の回数は増えない。
  * <p>
  * 抽選: 対象のいない現象とOFFの現象を外し、残った枠の重みを合計1へ直す。枠ごとの頻度fは間隔の倍率なので、枠iの発生の頻度は w_i／(間隔×f_i)。これを1回の抽選で満たすために、抽選の間隔を
- * 標準の間隔×(残った枠のfの最小)とし、枠iを w_i×(fの最小)／f_i の確率で選ぶ（残りの確率は何も起きない）。全枠が標準なら間隔どおりに必ず1つ起きて§11の平均の式に一致する。
+ * 標準の間隔×(残った枠のfの最小)とし、枠iを w_i×(fの最小)／f_i の確率で選ぶ（残りの確率は何も起きない）。全枠が標準なら間隔どおりに必ず1つ起きる。
  * 状態異常の枠が当たったら、適用可能でONの種類から等確率で選ぶ（種類ごとの頻度は枠の中の重み。低は1/2倍、高は2倍）。
  * <p>
  * 予兆は発生の直前の0.5秒（{@link #TELEGRAPH}）。追加費用は抽選の時と発生の直前に確かめ、足りない・セーフティなら消費せず見送る（領域は解除しない）。回復待ちを作らない。
@@ -43,15 +43,38 @@ import net.neoforged.bus.api.SubscribeEvent;
 public final class HeavenPhenomena {
     /** 予兆の長さ（tick）。 */
     public static final int TELEGRAPH = 10;
-    /** 領域の状態異常の損傷。通常攻撃の倍率（{@link HeavenEffects#dealer}）を掛けないために区別する。 */
+    /**
+     * 領域の状態異常の損傷。通常攻撃の倍率（{@link HeavenEffects#dealer}）を掛けないために区別する。
+     * <p>1.5.2: 天界発現の各種ダメージは貫通なので、種類は未元物質の貫通の種類（{@code academy:dark_matter_pierce}。
+     * {@link SkillDamageSource#type}）にし、元の性質（炎・魔法・衰弱のバニラの種類）は{@link #nature}として持つ。タグと種類の問い合わせ
+     * （{@code is}）は、両方の種類のどちらかに当たれば真を返す。これで、炎の耐性・魔女の耐性・ライト・シールドや白翼自動防御の「魔法と衰弱は防がない」など、
+     * 性質で決まる判定は今までどおり効き、貫通（{@code #academy:hit/pierce}）と未元物質の能力のタグも付く。死亡文は Re の技能の形。</p>
+     */
     public static final class StatusSource extends DamageSource {
-        StatusSource(Holder<DamageType> type, Entity causing) { super(type, causing); }
+        private final Holder<DamageType> nature;
+        StatusSource(Holder<DamageType> type, Holder<DamageType> nature, Entity causing) { super(type, causing); this.nature = nature; }
         /** この損傷を起こした技能（天界発現）。公開APIの{@code AcademySafety.skillOf}が答える。 */
         public net.minecraft.resources.Identifier skill() { return HeavenManifest.ID; }
+        /** 元の性質（炎・魔法・衰弱のバニラの種類）。 */
+        public Holder<DamageType> nature() { return nature; }
+        @Override public boolean is(net.minecraft.tags.TagKey<DamageType> tag) { return super.is(tag) || nature.is(tag); }
+        @Override public boolean is(ResourceKey<DamageType> key) { return super.is(key) || nature.is(key); }
+        @Override public net.minecraft.network.chat.Component getLocalizedDeathMessage(LivingEntity victim) {
+            var definition = SkillCatalog.find(skill()); var caster = getEntity();
+            return net.minecraft.network.chat.Component.translatable("death.attack." + type().msgId(), victim.getDisplayName(),
+                    caster == null ? net.minecraft.network.chat.Component.literal("?") : caster.getDisplayName(),
+                    definition == null ? net.minecraft.network.chat.Component.literal(skill().toString()) : net.minecraft.network.chat.Component.translatable(definition.translation()));
+        }
     }
-    /** 試験用の入口: 状態異常の損傷の源を作る（公開APIの技能の識別を確かめるため）。 */
+    /** 状態異常の損傷の源（性質のバニラの種類と、帰属）。種類は天界発現の貫通の種類。 */
+    private static StatusSource statusSource(LivingEntity entity, Entity causing, ResourceKey<DamageType> nature) {
+        var access = entity.level().registryAccess();
+        return new StatusSource(SkillDamageSource.type(access, HeavenManifest.ID, SkillDamageSource.Style.PIERCE),
+                access.lookupOrThrow(Registries.DAMAGE_TYPE).getOrThrow(nature), causing);
+    }
+    /** テスト用の入口: 状態異常のダメージ源を作る（公開APIの技能の識別を確かめるため）。 */
     public static DamageSource statusSourceForTest(LivingEntity entity, Entity causing, ResourceKey<DamageType> type) {
-        return new StatusSource(entity.level().registryAccess().lookupOrThrow(Registries.DAMAGE_TYPE).getOrThrow(type), causing);
+        return statusSource(entity, causing, type);
     }
     /** 対象に付いている1つの状態。 */
     private static final class Status {
@@ -71,6 +94,15 @@ public final class HeavenPhenomena {
 
     /** 標準の抽選の間隔（tick）。 */
     public static int interval(float p) { return Math.round(ArcGen.lerp(200, 100, p)); }
+    /** 1.5.2: 現象が起き続けたときの毎秒の過負荷（最大過負荷1,000なら90秒でロック）。 */
+    public static final float OVERLOAD_PER_SECOND = 1000 / 90f;
+    /**
+     * 1.5.2: 現象が起きた1回の過負荷（稼働の払い）。毎秒 {@link #OVERLOAD_PER_SECOND} × その枠の抽選の間隔の秒数
+     * （標準の間隔 × 頻度の倍率。低2・標準1・高0.5）。どの頻度・枠の組み合わせでも、起き続けたときの毎秒の量が同じになる。
+     */
+    public static float overload(HeavenSettings settings, Phenomenon phenomenon, float p) {
+        return OVERLOAD_PER_SECOND * interval(p) * settings.frameFrequency(phenomenon.frame()).interval() / 20f;
+    }
     public static int statusTicks(float p) { return Math.round(ArcGen.lerp(80, 160, p)); }
     public static int glowTicks(float p) { return Math.round(ArcGen.lerp(120, 280, p)); }
     /** 現象の発生の費用（CP）。 */
@@ -183,6 +215,8 @@ public final class HeavenPhenomena {
     }
     /** 領域ごとの毎tick: 予兆の時間と、次の抽選までの時間を進める。 */
     static void tick(Session session) {
+        // 1.5.2: ロック中は現象を起こさない（稼働しない）。予兆中の物は取り消し、抽選の時計も止める。
+        if (session.data.isOverloadLocked()) { session.pending = null; return; }
         if (session.pending != null && --session.pending.left <= 0) {
             var pending = session.pending;
             session.pending = null;
@@ -191,7 +225,7 @@ public final class HeavenPhenomena {
         if (--session.drawIn <= 0) draw(session);
     }
     /**
-     * 現象を発生させる（予兆の後。試験からも呼ぶ）。対象がまだ有効で、費用を払えたら起こす。起きたらtrue。
+     * 現象を発生させる（予兆の後。テストからも呼ぶ）。対象がまだ有効で、費用を払えたら起こす。起きたらtrue。
      */
     public static boolean fire(Session session, LivingEntity target, Phenomenon phenomenon) {
         if (!target.isAlive() || !session.alive() || !session.area.contains(target) || !applicable(session, phenomenon, target)) return false;
@@ -209,6 +243,8 @@ public final class HeavenPhenomena {
         };
         if (!done) return false;
         session.tryPay(cost);
+        // 1.5.2: 現象が起きた瞬間が稼働。払ってから、ほかの技能と同じく過負荷の回復の待ち（コースの待ち）の間だけ稼働中にする。
+        session.data.chargeActionOverload(HeavenManifest.ID, overload(session.settings(), phenomenon, p), session.player().getAbilities().instabuild, 0);
         if (target != session.player()) session.useful = true;
         HeavenVisuals.occurred(session, target, phenomenon);
         return true;
@@ -270,24 +306,31 @@ public final class HeavenPhenomena {
         }
     }
     private static DamageSource source(Status status, LivingEntity entity, ResourceKey<DamageType> type) {
-        return new StatusSource(entity.level().registryAccess().lookupOrThrow(Registries.DAMAGE_TYPE).getOrThrow(type), status.by.player());
+        return statusSource(entity, status.by.player(), type);
+    }
+    /**
+     * 状態異常の1回の損傷（1.5.2: 貫通）。当てる前に、天界発現の害の判定（PvP・チーム・Re の設定・飼い主の保護。{@link HeavenManifest#mayHarm}）を
+     * 確かめ直し、貫通の打撃として{@link PierceHits#hurt}で当てる。
+     */
+    private static boolean statusHurt(LivingEntity entity, Status status, ResourceKey<DamageType> type, float amount) {
+        return HeavenManifest.mayHarm(status.by, entity) && PierceHits.hurt(entity, source(status, entity, type), amount);
     }
     /** 炎のダメージ。炎耐性を尊重し（火炎の種類なのでバニラの判定も効く）、地形へ延焼しない（実際の火は付けない）。 */
     private static void burn(LivingEntity entity, Status status) {
         if (entity.fireImmune() || entity.hasEffect(MobEffects.FIRE_RESISTANCE)) return;
-        HeavenEffects.pulseDamage(entity, () -> entity.hurtServer((net.minecraft.server.level.ServerLevel) entity.level(), source(status, entity, DamageTypes.ON_FIRE), status.value));
+        HeavenEffects.pulseDamage(entity, () -> statusHurt(entity, status, DamageTypes.ON_FIRE, status.value));
     }
     /** 毒は通常の生物の1HPで止まる。 */
     private static void poison(LivingEntity entity, Status status) {
         float amount = Math.min(status.value, entity.getHealth() - 1);
         if (amount <= 0) return;
-        HeavenEffects.pulseDamage(entity, () -> entity.hurtServer((net.minecraft.server.level.ServerLevel) entity.level(), source(status, entity, DamageTypes.MAGIC), amount));
+        HeavenEffects.pulseDamage(entity, () -> statusHurt(entity, status, DamageTypes.MAGIC, amount));
     }
     /** 衰弱は致死可能。 */
     private static void wither(LivingEntity entity, Status status) {
-        HeavenEffects.pulseDamage(entity, () -> entity.hurtServer((net.minecraft.server.level.ServerLevel) entity.level(), source(status, entity, DamageTypes.WITHER), status.value));
+        HeavenEffects.pulseDamage(entity, () -> statusHurt(entity, status, DamageTypes.WITHER, status.value));
     }
-    /** 試験用の入口: 状態の周期の損傷を今すぐ1回与える。 */
+    /** テスト用の入口: 状態の周期の損傷を今すぐ1回与える。 */
     public static void actForTest(LivingEntity entity, Phenomenon phenomenon) {
         var map = STATUSES.get(entity);
         var status = map == null ? null : map.get(phenomenon);
@@ -299,13 +342,13 @@ public final class HeavenPhenomena {
             default -> act(entity, phenomenon, status);
         }
     }
-    /** 試験用の入口: 状態を今すぐ1tick進める。 */
+    /** テスト用の入口: 状態を今すぐ1tick進める。 */
     public static void tickStatusesForTest() { tickStatuses(); }
-    /** 試験用の入口: 今の範囲で1回抽選する。 */
+    /** テスト用の入口: 今の範囲で1回抽選する。 */
     public static void drawForTest(Session session) { draw(session); }
-    /** 試験用の入口: 予兆中の現象（無ければnull）。 */
+    /** テスト用の入口: 予兆中の現象（無ければnull）。 */
     public static @Nullable Phenomenon pendingForTest(Session session) { return session.pending == null ? null : session.pending.phenomenon; }
-    /** 試験用の入口: 次の抽選までのtick。 */
+    /** テスト用の入口: 次の抽選までのtick。 */
     public static int drawInForTest(Session session) { return session.drawIn; }
 
     /** 変異の前後で、同じ個体の状態を移す。 */

@@ -36,28 +36,28 @@ import net.neoforged.neoforge.event.entity.EntityJoinLevelEvent;
 import net.neoforged.bus.api.SubscribeEvent;
 
 /**
- * 天界発現の変異（§11。ユーザーの決定で「恒久化・再変異の回数無制限」へ作り直した版で、旧仕様の79種の独自の組による一時変異を置き換える）。
+ * 天界発現の変異（恒久化・再変異の回数無制限）。
  * <p>
- * 対象は Java版1.20.1 のバニラで実際に起こり得る変異だけ（{@link Route}の表）。天界発現では落雷・水没・感染・治療・次元・粉雪・成長などの発生条件を省略し、場所や次元を問わず起こす。
+ * 対象は Java版1.20.1 のバニラで実際に起こり得る変異だけ（{@link Route}の表）。天界発現では落雷・水没・感染・治療・ディメンション・粉雪・成長などの発生条件を省略し、場所やディメンションを問わず起こす。
  * 1回の当選で1段階だけ進め、毎回その時点の姿から有効な変異先を等確率で選ぶ。同じ個体が同じ領域で何度当選してもよく、個体ごと・再入場ごとの回数制限は無い
  * （例: 陸上のハスク→ゾンビ→ドラウンド、村人↔村人ゾンビ、ムーシュルームの赤↔茶）。有効な変異先が無い個体は抽選の候補にならず、追加CPも払わない。
  * <p>
- * 恒久: 変異の結果はバニラの変換と同じ普通の個体で、印も復元の情報も持たない。領域外への移動、変異の設定のOFF、領域の解除、チャンクの再読み込み、サーバーの再起動のどれでも最後の姿のまま。
+ * 恒久: 変異の結果はバニラの変換と同じ普通の個体で、マーカーも復元の情報も持たない。領域外への移動、変異の設定のOFF、領域の解除、チャンクの再読み込み、サーバーの再起動のどれでも最後の姿のまま。
  * 変異の瞬間は元の個体を{@link Entity#discard}で消すので、ドロップ・経験値・死亡イベントは出ない。その後に死んだ時は今の姿のバニラの通常の死亡として一度だけ処理される。
  * <p>
  * 他MODとの互換: 種類が変わる変異の前に{@link ForgeEventFactory#canLivingConvert}（{@code LivingConversionEvent.Pre}）を出し、取り消されたら見送る（費用なし）。
  * 変換の後は{@link ForgeEventFactory#onLivingConvert}（{@code LivingConversionEvent.Post}）を出す。同じ種類のままの状態変化（ムーシュルームの色・帯電クリーパー）は
- * 実体が変わらずバニラもこのイベントを出さないので出さない（実装で決めた）。
+ * エンティティが変わらずバニラもこのイベントを出さないので出さない（実装で決めた）。
  * <p>
  * 引き継ぎ（全行に共通）: HP割合（全回復させない）、名前と名前の表示、AIなし、無敵、消えない設定、子ども（年齢を持つ種類どうしは年齢そのもの）、リード（乗り物に乗っていない時）、乗り物。
  * 乗せていた相手は降ろす。装備や村人の情報などの行ごとの引き継ぎはバニラの変換に合わせる（{@link Route}の各行の説明）。
  * <p>
- * 旧方式の印: 旧仕様（一時変異）の個体は永続データ{@value #LEGACY_KEY}に元の個体の全データを持っていた。読み込まれたら印だけを外し、今の姿のまま普通の個体として扱う。
- * 恒久化の決定どおり今の姿を最後の姿とし、保存されていた元の個体は作り直さない（作り直すと旧仕様の復元をすることになり、個体が増える恐れもあるため）。
+ * 旧方式のマーカー: 旧仕様（一時変異）の個体は永続データ{@value #LEGACY_KEY}に元の個体の全データを持っていた。読み込まれたらマーカーだけを外し、今の姿のまま普通の個体として扱う。
+ * 恒久化の決まりどおり今の姿を最後の姿とし、保存されていた元の個体は作り直さない（作り直すと旧仕様の復元をすることになり、個体が増える恐れもあるため）。
  */
 @net.neoforged.fml.common.EventBusSubscriber(modid = "academy")
 public final class HeavenMutation {
-    /** 旧方式（一時変異）の変異後の実体に付いていた永続データのキー。読み込まれた個体から外す。 */
+    /** 旧方式（一時変異）の変異後のエンティティに付いていた永続データのキー。読み込まれた個体から外す。 */
     public static final String LEGACY_KEY = "academy_heaven_mutation";
 
     /**
@@ -85,11 +85,11 @@ public final class HeavenMutation {
         ZOMBIE_VILLAGER_TO_VILLAGER(EntityTypes.ZOMBIE_VILLAGER, EntityTypes.VILLAGER),
         /** 落雷。装備は移さず金の剣を持たせ、常に消えない設定（{@code Pig.thunderHit}）。 */
         PIG_TO_ZOMBIFIED_PIGLIN(EntityTypes.PIG, EntityTypes.ZOMBIFIED_PIGLIN),
-        /** ネザー以外の次元。装備を移し、吐き気（10秒）を付ける（{@code AbstractPiglin.finishConversion}）。 */
+        /** ネザー以外のディメンション。装備を移し、吐き気（10秒）を付ける（{@code AbstractPiglin.finishConversion}）。 */
         PIGLIN_TO_ZOMBIFIED_PIGLIN(EntityTypes.PIGLIN, EntityTypes.ZOMBIFIED_PIGLIN),
-        /** ネザー以外の次元。ピグリンと同じ。 */
+        /** ネザー以外のディメンション。ピグリンと同じ。 */
         PIGLIN_BRUTE_TO_ZOMBIFIED_PIGLIN(EntityTypes.PIGLIN_BRUTE, EntityTypes.ZOMBIFIED_PIGLIN),
-        /** ネザー以外の次元。吐き気（10秒）を付ける（{@code Hoglin.finishConversion}）。 */
+        /** ネザー以外のディメンション。吐き気（10秒）を付ける（{@code Hoglin.finishConversion}）。 */
         HOGLIN_TO_ZOGLIN(EntityTypes.HOGLIN, EntityTypes.ZOGLIN),
         /** 落雷（状態変化）。赤→茶（{@code MushroomCow.thunderHit}）。 */
         MOOSHROOM_RED_TO_BROWN(EntityTypes.MOOSHROOM, EntityTypes.MOOSHROOM),
@@ -170,7 +170,7 @@ public final class HeavenMutation {
     }
 
     /**
-     * この行の変異を今すぐ起こす（試験からも呼ぶ）。変異後の個体（状態変化なら同じ個体）を返す。起こせない・イベントで取り消された・世界へ入れられなかった時はnullで、元の個体は変わらない。
+     * この行の変異を今すぐ起こす（テストからも呼ぶ）。変異後の個体（状態変化なら同じ個体）を返す。起こせない・イベントで取り消された・世界へ入れられなかった時はnullで、元の個体は変わらない。
      */
     public static @Nullable Mob convert(Mob mob, Route route) {
         if (!(mob.level() instanceof ServerLevel level) || !route.applies(mob)) return null;
@@ -363,15 +363,15 @@ public final class HeavenMutation {
         }
     }
 
-    // ---- 旧方式の印 ----
+    // ---- 旧方式のマーカー ----
 
-    /** 旧方式の印を外す。外したらtrue（試験からも呼ぶ）。元の個体へは戻さない（クラスの説明）。 */
+    /** 旧方式のマーカーを外す。外したらtrue（テストからも呼ぶ）。元の個体へは戻さない（クラスの説明）。 */
     public static boolean clearLegacy(Entity entity) {
         if (!entity.getPersistentData().contains(LEGACY_KEY)) return false;
         entity.getPersistentData().remove(LEGACY_KEY);
         return true;
     }
-    /** 読み込まれた時（チャンクの読み直し・再起動・次元の移動）に旧方式の印を外す。 */
+    /** 読み込まれた時（チャンクの読み直し・再起動・ディメンションの移動）に旧方式のマーカーを外す。 */
     @SubscribeEvent public static void join(EntityJoinLevelEvent event) {
         if (!event.getLevel().isClientSide()) clearLegacy(event.getEntity());
     }

@@ -19,8 +19,8 @@ import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 
 /**
- * 原作ArcGen（LambdaInnovation、WeAthFolD・KSkun）。判定はサーバーで行い、コスト・射程・ダメージ・経験値・クールダウンは原作のもの
- * （オーバーロードの終端だけ、1.1.0の基準値の偶数化で11から12）。
+ * 原作ArcGen（LambdaInnovation、WeAthFolD・KSkun）。判定はサーバーで行い、射程・ダメージ・経験値・クールダウンは原作のもの。
+ * コストは1.5.2の値。
  */
 public final class ArcGen {
     public static final Identifier ID = Identifier.fromNamespaceAndPath("academy", "arc_gen");
@@ -29,11 +29,12 @@ public final class ArcGen {
     private ArcGen() {}
     public static float lerp(float from, float to, float progress) { return from + (to - from) * progress; }
     /**
-     * 発動1回のCP（熟練度0%で30、100%で70）とオーバーロード（18から12）。Electron Bombも同じ式で払う（1.1.0、T178-11）。
-     * オーバーロードの終端は原作の11を、基準値を偶数にする方針（T178-12）で12にした。
+     * 発動1回のCP（熟練度0%で30、100%で54。1.5.2で、威力あたりのCPが熟練度で悪くならないよう70から下げた）と
+     * オーバーロード（18から10。1.5.2で、1.5.1の12から下げた）。1.5.1まではElectron Bombも同じ式で払っていたが、
+     * 1.5.2で値が分かれたので、Electron Bombは自身の式（{@link ElectronBomb#consumption}・{@link ElectronBomb#overload}）で払う。
      */
-    public static float consumption(float exp) { return lerp(30, 70, exp); }
-    public static float overload(float exp) { return lerp(18, 12, exp); }
+    public static float consumption(float exp) { return lerp(30, 54, exp); }
+    public static float overload(float exp) { return lerp(18, 10, exp); }
 
     /** 翻訳キーを返す。発動に成功したとき（外れを含む）は空。 */
     public static String cast(ServerPlayer player, PlayerAbilityData data) {
@@ -50,7 +51,7 @@ public final class ArcGen {
             if (!level.hasChunkAt(BlockPos.containing(start.add(direction.scale(Math.min(i, range)))))) return "academy.cast.unloaded";
         if (!data.consume(ID, consumption(exp), overload(exp), player.getAbilities().instabuild)) return "academy.cast.cp";
 
-        // 原作blockFilter: 水（静止・流水）またはfilNormal（当たり判定の箱）。溶岩は電弧を止めない。
+        // 原作blockFilter: 水（静止・流水）またはfilNormal（当たり判定のバウンディングボックス）。溶岩は電弧を止めない。
         var block = level.clip(new ClipContext(start, end, ClipContext.Block.COLLIDER, ClipContext.Fluid.WATER, player));
         double nearest = block.getType() == HitResult.Type.MISS ? range * range : start.distanceToSqr(block.getLocation());
         Entity target = null; Vec3 hit = block.getType() == HitResult.Type.MISS ? end : block.getLocation();

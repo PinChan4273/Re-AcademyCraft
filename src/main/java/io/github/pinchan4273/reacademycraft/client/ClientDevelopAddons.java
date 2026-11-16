@@ -5,7 +5,7 @@ import java.util.List;
 import net.minecraft.client.Minecraft;
 import net.minecraft.resources.Identifier;
 
-/** クライアントが受け取った、開いている開発機で学べる外部の技能（1.4.0のS4）。表示のためだけの値。 */
+/** クライアントが受け取った、開いている開発機で学べる外部の技能（1.4.0）。表示のためだけの値。 */
 public final class ClientDevelopAddons {
     private ClientDevelopAddons() { }
     private static int menu = -1;

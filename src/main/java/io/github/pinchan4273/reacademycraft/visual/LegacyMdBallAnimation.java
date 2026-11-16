@@ -12,7 +12,7 @@ import net.minecraft.util.RandomSource;
 public final class LegacyMdBallAnimation {
     public static final int TEXTURE_COUNT = 5;
     public static final double SECONDS_PER_TICK = .05;
-    /** 原作burstTime、ブレンドの窓、オーブが落ち着くアルファ。 */
+    /** 原作burstTime、ブレンドにかける時間、オーブが落ち着くアルファ。 */
     public static final float BURST_SECONDS = .4f, BLEND_SECONDS = .15f, RESTING_ALPHA = .6f;
     public static final float FADE_IN_SECONDS = .3f;
     private static final double MAX_ACCELERATION = 4;

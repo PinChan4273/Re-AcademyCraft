@@ -1,7 +1,7 @@
 package io.github.pinchan4273.reacademycraft.visual;
 
 /**
- * 原作RenderCatEngine（AcademyCraft commit 7b1401c）: 無限発電機は立方体ではなく、見る人の方を向いた猫の1枚の絵で、少し上下し、
+ * 原作RenderCatEngine（AcademyCraft commit 7b1401c）: 無限発電機は立方体ではなく、見る人の方を向いた猫の1枚のスプライトで、少し上下し、
  * 引き出されている速さに応じて水平軸の周りに回る。ワールド・テクスチャ・GPUの状態は持たない。
  */
 public final class LegacyCatEnginePose {
@@ -21,6 +21,6 @@ public final class LegacyCatEnginePose {
     /** 秒単位のGameTimer.getTime()に対する0.03の上下動。 */
     public static double bob(double seconds) { return .03 * Math.sin(seconds * .006); }
 
-    /** yaw = カメラから見たブロックの中央のatan2(x, z)。絵はyaw + 180だけ回る。 */
+    /** yaw = カメラから見たブロックの中央のatan2(x, z)。スプライトはyaw + 180だけ回る。 */
     public static double facing(double dx, double dz) { return Math.toDegrees(Math.atan2(dx, dz)) + 180; }
 }

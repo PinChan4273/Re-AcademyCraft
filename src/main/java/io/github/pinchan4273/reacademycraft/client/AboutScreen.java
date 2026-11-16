@@ -18,7 +18,7 @@ import net.minecraft.resources.Identifier;
 import net.minecraft.util.Mth;
 
 /**
- * 原作AppAboutのAboutUI（guis/about.xml、config/about.conf）: Aboutの窓を、742×923の4分の1の大きさで中央に置く。
+ * 原作AppAboutのAboutUI（guis/about.xml、config/about.conf）: Aboutのウィンドウを、742×923の4分の1の大きさで中央に置く。
  * スクロールする領域の上にCreditsとDonateのタブがある。Creditsは原作の見出し・スタッフ・寄付者・謝辞を流し、
  * ホイールか右のバーでスクロールする。Donateは、プレイヤーの言語（無ければ英語）の原作の文とリンクを表示する。
  *

@@ -65,14 +65,13 @@ public final class SkillTreeLayout {
                     node(BloodRetrograde.ID, "vecmanip", 204, 83, DirectedBlastwave.ID),
                     node(VecReflection.ID, "vecmanip", 210, 50, VecDeviation.ID),
                     node(PlasmaCannon.ID, "vecmanip", 175, 14, StormWing.ID)),
-            // v1.5.0の未元物質（採用仕様・版41の§1）。線は§1の前提の技能から引く。汎用コースの段（y = 110）には重ねない。
+            // v1.5.0の未元物質。線は前提の技能から引く。汎用コースの段（y = 110）には重ねない。
             DarkMatter.CATEGORY, List.of(
                     node(DarkMatter.STAB, "dark_matter", 16, 25, null),
                     node(DarkMatter.FLIGHT, "dark_matter", 16, 75, null),
                     node(DarkMatter.RAY, "dark_matter", 68, 20, DarkMatter.STAB),
                     node(DarkMatter.GUARD, "dark_matter", 68, 80, DarkMatter.FLIGHT),
                     node(DarkMatter.AIR_CANNON, "dark_matter", 120, 15, DarkMatter.RAY),
-                    node(DarkMatter.ARMOR, "dark_matter", 120, 85, DarkMatter.GUARD),
                     node(DarkMatter.BEETLE, "dark_matter", 172, 35, DarkMatter.AIR_CANNON),
                     node(DarkMatter.HEAVEN, "dark_matter", 220, 15, DarkMatter.BEETLE),
                     node(DarkMatter.BODY, "dark_matter", 220, 65, DarkMatter.BEETLE)));
@@ -80,8 +79,8 @@ public final class SkillTreeLayout {
     private SkillTreeLayout() { }
 
     /**
-     * その技能の印: 木の場所の印、木に出ない外部の技能なら表示の情報の画像（無ければ{@link #DEFAULT_ICON}）。登録されていなければnull
-     * （1.4.0のS4。プリセットの画面とキーの案内が使う）。
+     * その技能のアイコン: 木の場所のアイコン、木に出ない外部の技能なら表示の情報の画像（無ければ{@link #DEFAULT_ICON}）。登録されていなければnull
+     * （1.4.0。プリセットの画面とキーの案内が使う）。
      */
     public static @Nullable Identifier icon(@Nullable Identifier skill) {
         if (skill == null) return null;
@@ -96,11 +95,11 @@ public final class SkillTreeLayout {
         var icon = definition.presentation().icon();
         return icon == null ? DEFAULT_ICON : io.github.pinchan4273.reacademycraft.ability.RegistryViews.location(icon);
     }
-    /** 場所を持たない外部の技能・カテゴリの印（1.4.0のS4）。 */
+    /** 場所を持たない外部の技能・カテゴリのアイコン（1.4.0）。 */
     public static final Identifier DEFAULT_ICON = Identifier.fromNamespaceAndPath("academy", "textures/guis/icons/icon_nocategory.png");
     /**
-     * 外部の技能の場所（1.4.0のS4）。技能の定義の木の場所（{@code SkillDefinition.tree}）から作り、無い技能は木に出ない。
-     * 印は表示の情報の画像（無ければ{@link #DEFAULT_ICON}）。登録の順。
+     * 外部の技能の場所（1.4.0）。技能の定義の木の場所（{@code SkillDefinition.tree}）から作り、無い技能は木に出ない。
+     * アイコンは表示の情報の画像（無ければ{@link #DEFAULT_ICON}）。登録の順。
      */
     private static List<Node> addons() {
         var out = new java.util.ArrayList<Node>();
@@ -121,7 +120,7 @@ public final class SkillTreeLayout {
     }
 
     /**
-     * カテゴリの木と、その後の汎用コース。原作のaddSkillの順。1.4.0のS4から、本体のカテゴリの木の後ろ（汎用コースの前）に、そのカテゴリの
+     * カテゴリの木と、その後の汎用コース。原作のaddSkillの順。1.4.0から、本体のカテゴリの木の後ろ（汎用コースの前）に、そのカテゴリの
      * 外部の技能（と、どのカテゴリにも出る外部の技能）が登録の順で続く。外部のカテゴリの木は、その外部の技能と汎用コース。
      * 登録されていないカテゴリなら空。
      */
@@ -145,7 +144,7 @@ public final class SkillTreeLayout {
     }
     /** 原作Category.getDeveloperIcon: textures/guis/icons/icon_<category>.png。 */
     public static Identifier categoryIcon(@Nullable Identifier category) {
-        // 1.4.0のS4: 外部のカテゴリは、表示の情報の画像（無ければ既定の印）。
+        // 1.4.0: 外部のカテゴリは、表示の情報の画像（無ければ既定のアイコン）。
         if (category != null && !"academy".equals(category.getNamespace())) {
             io.github.pinchan4273.reacademycraft.api.CategoryDefinition definition = null;
             try {

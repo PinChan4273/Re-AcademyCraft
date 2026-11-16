@@ -9,7 +9,7 @@ import net.minecraft.world.phys.Vec3;
 
 /**
  * 外部の演出の光線の要求の検査（演出API版1）。描画とMinecraftのクライアントに依存しない（GameTestで確かめる）。
- * 結果はnullなら通る。順番: 見た目（無い）→ 持ち主 → 効果ID → 次元 → 座標 → 長さ。
+ * 結果はnullなら通る。順番: 見た目（無い）→ 持ち主 → 効果ID → ディメンション → 座標 → 長さ。
  */
 public final class ExternalBeamRules {
     private ExternalBeamRules() { }
@@ -21,7 +21,7 @@ public final class ExternalBeamRules {
 
     /**
      * @param request      要求
-     * @param currentDimension 今のクライアントの世界の次元（無ければnull。その場合は呼び出し側がNOT_READYを先に返す）
+     * @param currentDimension 今のクライアントの世界のディメンション（無ければnull。その場合は呼び出し側がNOT_READYを先に返す）
      * @param modLoaded    MOD IDが読み込まれているか
      */
     public static @Nullable BeamResult check(BeamRequest request, @Nullable Identifier currentDimension, Predicate<String> modLoaded) {

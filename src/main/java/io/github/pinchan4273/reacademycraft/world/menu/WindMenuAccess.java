@@ -71,7 +71,7 @@ public final class WindMenuAccess {
 
     /**
      * このメニューの所有者と、まだ所有しているカーソル・ホットバーのアイテムに限って入れ替える。
-     * GUIは、返った取引が成功した後でだけ元を消費する。
+     * GUIは、返ったトランザクションが成功した後でだけ元を消費する。
      */
     public WindItemExchange exchange(Player player, ItemStack incoming,
             java.util.function.BooleanSupplier sourceStillValid) {

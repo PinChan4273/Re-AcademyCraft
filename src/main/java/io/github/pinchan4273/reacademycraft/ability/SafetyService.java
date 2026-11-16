@@ -9,7 +9,6 @@ import io.github.pinchan4273.reacademycraft.skill.SkillDamageSource;
 import java.util.function.Predicate;
 import javax.annotation.Nullable;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.registries.Registries;
 import net.minecraft.network.protocol.game.ClientboundExplodePacket;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -32,18 +31,18 @@ import net.neoforged.neoforge.common.util.FakePlayer;
 import net.neoforged.neoforge.event.EventHooks;
 import net.neoforged.neoforge.event.level.BlockEvent;
 
-/** 共通の安全のサービスの実装（1.4.0のS5、内部の実装。公開の説明は{@code api.mc.AcademySafety}）。 */
+/** 共通の安全のサービスの実装（1.4.0、内部の実装。公開の説明は{@code api.mc.AcademySafety}）。 */
 public final class SafetyService {
     private static final org.slf4j.Logger LOGGER = com.mojang.logging.LogUtils.getLogger();
     private SafetyService() { }
 
-    /** 帰属先が今ログインしている本物のプレイヤーか（試験だけが差し替える）。 */
+    /** 帰属先が今ログインしている本物のプレイヤーか（テストだけが差し替える）。 */
     private static volatile Predicate<ServerPlayer> online = SafetyService::loggedIn;
     private static boolean loggedIn(ServerPlayer player) {
         var server = player.level().getServer();
         return server != null && server.getPlayerList().getPlayer(player.getUUID()) == player && !player.hasDisconnected();
     }
-    /** 試験のため、ログインの判定を差し替える（nullで元へ戻す）。治具のプレイヤーはログインしないので、本物のプレイヤーの代わりにする。 */
+    /** テストのため、ログインの判定を差し替える（nullで元へ戻す）。テスト用のFakePlayerはログインしないので、本物のプレイヤーの代わりにする。 */
     public static void onlineForTest(@Nullable Predicate<ServerPlayer> check) { online = check == null ? SafetyService::loggedIn : check; }
 
     private static net.minecraft.resources.Identifier loc(AbilityId id) { return RegistryViews.location(id); }
@@ -104,11 +103,11 @@ public final class SafetyService {
         if (target == null || !target.isAlive() || target.isSpectator() || target.level() != actor.level() || target == actor.entity()) return false;
         var player = verifiedPlayer(actor);
         if (target instanceof Player other) {
-            // 司令室11の裁定D9: 帰属先を確かめられなければ、プレイヤーへの攻撃は断る。確かめられれば、その人の規則をすべて当てる。
+            // 帰属先を確かめられなければ、プレイヤーへの攻撃は断る。確かめられれば、その人の規則をすべて当てる。
             return player != null && other != player && AcademyConfig.ATTACK_PLAYERS.get()
                     && player.level().isPvpAllowed() && player.canHarmPlayer(other);
         }
-        // 絵と額縁は地形と同じく扱う（裁定S5-01）。
+        // 絵と額縁は地形と同じく扱う。
         if (target instanceof Painting || target instanceof ItemFrame) return mayModifyBlock(actor, target.blockPosition(), skill);
         return true;
     }
@@ -118,7 +117,8 @@ public final class SafetyService {
         float scaled = (float) (damage * AcademyConfig.DAMAGE_SCALE.get() * AcademyConfig.skillDamageScale(loc(skill)));
         if (!Float.isFinite(scaled) || scaled <= 0) return false;
         var player = verifiedPlayer(actor);
-        var holder = actor.level().registryAccess().lookupOrThrow(Registries.DAMAGE_TYPE).getOrThrow(SkillDamageSource.TYPE);
+        // 1.5.2: 種類は技能のカテゴリで選ぶ。アドオンのカテゴリの技能は、1.5.1と同じ共通の種類（academy:skill）。
+        var holder = SkillDamageSource.type(actor.level().registryAccess(), loc(skill), SkillDamageSource.Style.PLAIN);
         Entity causing = player != null ? player : actor.entity();
         return target.hurtServer((net.minecraft.server.level.ServerLevel) target.level(), new SkillDamageSource(holder, actor.entity(), causing, loc(skill)), scaled);
     }
@@ -195,7 +195,7 @@ public final class SafetyService {
 
     /**
      * そのブロックを、その技能の地形の変更として壊してよいか: {@link #mayModifyBlock}に加え、確かめた帰属先のプレイヤーとしての
-     * NeoForgeの破壊のイベント（BreakEvent）が取り消されないこと（{@link #breakBlock}と同じ判定。WORK-147 F141-S5-F01: 爆発は
+     * NeoForgeの破壊のイベント（BreakEvent）が取り消されないこと（{@link #breakBlock}と同じ判定。爆発は
      * このイベントを出しておらず、保護が断ったブロックも壊せた）。空気と壊せないブロックは壊さない。
      */
     private static boolean mayBreak(AbilityActor actor, ServerLevel level, BlockPos pos, AbilityId skill) {
@@ -206,15 +206,15 @@ public final class SafetyService {
     }
 
     /**
-     * 爆発させる（1.4.0のS5。WORK-148 F141-S5-F01-R1で作り直した）。
+     * 爆発させる（1.4.0）。
      * <p>
-     * Minecraft 1.21.1の爆発の手順（{@code Explosion.explode}: 光線で壊すブロックを選ぶ → NeoForgeのDetonateのイベント → 実体へのダメージと
+     * Minecraft 1.21.1の爆発の手順（{@code Explosion.explode}: 光線で壊すブロックを選ぶ → NeoForgeのDetonateのイベント → エンティティへのダメージと
      * 押し出し）を、ここでなぞる。こうすると、Detonateのイベントの配送がすべて終わった後で（リスナーの順番に頼らずに）、実際に壊すブロックと
      * 実際に当てる相手の最終の一覧を、その時点の条件で検査してから効果を当てられる。
      * <ul>
      * <li>ブロック: 光線の選択では{@link #mayModifyBlock}で絞り込むだけにし（破壊のイベントは出さない）、最終の一覧の1つずつに、その時点の
      * {@link #mayBreak}（地形の条件と、確かめた帰属先としてのNeoForgeの破壊のイベント）を1回だけ当てる。前の判定の結果は使い回さない。</li>
-     * <li>実体: 最終の一覧の1つずつに、その時点の{@link #mayAttack}を当て、許されない相手にはダメージも押し出しも当てない。</li>
+     * <li>エンティティ: 最終の一覧の1つずつに、その時点の{@link #mayAttack}を当て、許されない相手にはダメージも押し出しも当てない。</li>
      * </ul>
      * 壊すのは{@code finalizeExplosion}で、検査を通した一覧だけ。NeoForgeの爆発の開始のイベントが取り消せば、何もせずfalse。
      */
@@ -257,10 +257,10 @@ public final class SafetyService {
         var area = new net.minecraft.world.phys.AABB(at.x - diameter - 1, at.y - diameter - 1, at.z - diameter - 1, at.x + diameter + 1, at.y + diameter + 1, at.z + diameter + 1);
         var entities = level.getEntities(actor.entity(), area);
         EventHooks.onExplosionDetonate(level, explosion, entities, blocks);
-        // 3. イベントの配送の後の最終の一覧を、その時点の条件で検査する（WORK-148: 前の判定の使い回しと、後から足された位置の抜けを無くす）。
+        // 3. イベントの配送の後の最終の一覧を、その時点の条件で検査する（前の判定の使い回しと、後から足された位置の抜けを無くす）。
         blocks.removeIf(pos -> !mayBreak(actor, level, pos, skill));
         entities.removeIf(entity -> !mayAttack(actor, entity, skill));
-        // 4. 実体へのダメージと押し出し（Minecraft 1.21.1のExplosion.explodeと同じ式。ダメージと押し出しの倍率は1.21からcalculatorが持つ）。
+        // 4. エンティティへのダメージと押し出し（Minecraft 1.21.1のExplosion.explodeと同じ式。ダメージと押し出しの倍率は1.21からcalculatorが持つ）。
         for (var entity : entities) {
             if (entity.ignoreExplosion(explosion)) continue;
             double distance = Math.sqrt(entity.distanceToSqr(at)) / diameter;
@@ -323,11 +323,11 @@ public final class SafetyService {
         ServerLevel level = actor.level();
         if (mover == null || !mover.isAlive() || mover.level() != level) return null;
         if (!destination(level, to)) return null;
-        // 主体の実体でない相手を動かすのは、攻撃と同じ判定（プレイヤーなら帰属先とPvPが要る）。
+        // 主体のエンティティでない相手を動かすのは、攻撃と同じ判定（プレイヤーなら帰属先とPvPが要る）。
         if (mover != actor.entity() && !mayAttack(actor, mover, skill)) return null;
         var event = new net.neoforged.neoforge.event.entity.EntityTeleportEvent(mover, level, to.x, to.y, to.z);
         if (NeoForge.EVENT_BUS.post(event).isCanceled()) return null;
-        // リスナーが行き先を変えたときも、実際に使う行き先を同じ条件で検査し直す（WORK-147 F141-S5-F02: 変えた先を検査せずに使っていた）。
+        // リスナーが行き先を変えたときも、実際に使う行き先を同じ条件で検査し直す（変えた先を検査せずに使っていた）。
         var target = event.getTarget();
         return destination(level, target) ? target : null;
     }

@@ -68,7 +68,7 @@ public final class ClientDirectEffects {
         if (spin > 0 && client.player.portalEffectIntensity < spin) client.player.portalEffectIntensity = spin;
     }
     /**
-     * 吐き気の歪みだけを出し、ネザーポータルの紫の重ね絵は出さないか（バニラの吐き気と同じ見え方。ポータルの中なら通常どおり出す）。
+     * 吐き気の歪みだけを出し、ネザーポータルの紫のオーバーレイは出さないか（バニラの吐き気と同じ見え方。ポータルの中なら通常どおり出す）。
      * {@code mixin/client/HudPortalOverlayMixin}が描画の直前に聞く。
      */
     public static boolean hidesPortalOverlay() {

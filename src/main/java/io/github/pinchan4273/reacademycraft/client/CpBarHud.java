@@ -35,7 +35,7 @@ import net.neoforged.bus.api.SubscribeEvent;
  * 原作のフォントは使わず、ゲームのフォントを原作の大きさで描く。原作と同じく、キーは0.3秒以内に離したときに能力を
  * 切り替え（AbilityControls）、押している間は数値を表示する。
  *
- * v1.5.0 §14: セーフティが作動している間は、CPのゲージ（数値のみの形式なら数値）を低残量の赤で約1秒周期に明滅させる。
+ * v1.5.0: セーフティが作動している間は、CPのゲージ（数値のみの形式なら数値）を低残量の赤で約1秒周期に明滅させる。
  * CP表示の形式（{@link ClientSettings#cpDisplay()}）と、非使用時の大きさ（{@link ClientSettings#cpIdleScale()}）を持つ。
  * 大きさは右上の角を動かさずに変える。VキーOFFでゲージがフェードアウトして消える原作の動きはそのままで、大きさはフェードと同じ
  * 進み具合で動く。
@@ -44,13 +44,19 @@ import net.neoforged.bus.api.SubscribeEvent;
 public final class CpBarHud {
     static final float WIDTH = 964, HEIGHT = 147, SCALE = .2f;
     static final float CP_BALANCE_SPEED = 2, O_BALANCE_SPEED = 2;
+    /** 1.5.2: 過負荷のゲージが増えるときに追いつくまでの時定数（秒）。 */
+    static final float O_RISE_SECONDS = .5f;
     private static final double SIN41 = Math.sin(Math.toRadians(44.0));
     private static final Identifier BACK_NORMAL = tex("back_normal"), BACK_OVERLOAD = tex("back_overload"), CP = tex("cp"),
             FRONT_OVERLOAD = tex("front_overload"), HIGHLIGHT = tex("highlight_overload"), MASK = tex("mask");
     /** テクスチャの大きさ。原作の「画素÷大きさ」のテクスチャ座標に使う。 */
     private static final float TEX_W = 964, TEX_H = 147, FRONT_W = 974;
     private static final double[][] CP_COLORS = {{0, 0xf0, 0x67, 0x67, 0xff}, {.35, 0xff, 0xae, 0x44, 0xff}, {1, 0xff, 0xff, 0xff, 0xff}};
-    private static final double[][] OVERLOAD_COLORS = {{0, 0xdf, 0xdf, 0xdf, 0x0a}, {.55, 0xf0, 0xd4, 0x9d, 0x23}, {1, 0xf5, 0x64, 0x64, 0x50}};
+    /**
+     * 過負荷のゲージの色（進み具合、R、G、B、不透明度）。1.5.2: 過負荷が戦いの長さを決めるので、低いうちから見えるよう
+     * 不透明度を 25%・40%・60% に上げた（原作は 4%・14%・31% で、300/1,000 を超えるまでほとんど見えなかった）。色と変わり方は原作のまま。
+     */
+    private static final double[][] OVERLOAD_COLORS = {{0, 0xdf, 0xdf, 0xdf, 0x40}, {.55, 0xf0, 0xd4, 0x9d, 0x66}, {1, 0xf5, 0x64, 0x64, 0x99}};
 
     private static long presetChangeTime, lastPresetTime, lastDrawTime, showTime, lastShowValueChange;
     private static int lastPreset = -1;
@@ -64,7 +70,7 @@ public final class CpBarHud {
     /** 文字の大きさ（1文字の画素がGUIの1画素に載る）と、数値を右揃えにする位置。ゲージと数値のときは、プリセットの四角（下端193）の下に置く。 */
     private static final float NUMBER_SIZE = 5, NUMBER_RIGHT = WIDTH - 20, NUMBER_ONLY_Y = 55, NUMBER_BELOW_Y = 194;
     private static long frames;
-    // 原作の干渉のkeyframe: 80〜400msおきの60個のずれと、それを通るalphaの曲線。
+    // 原作の干渉のkeyframe: 80〜400msおきの60個のオフセットと、それを通るalphaの曲線。
     private static final long[] FRAME_TIME = new long[60];
     private static final double[][] FRAME_OFFSET = new double[60][2];
     private static final LegacyCubicCurve ALPHA_CURVE = new LegacyCubicCurve();
@@ -91,7 +97,7 @@ public final class CpBarHud {
     private static Identifier tex(String name) { return Identifier.fromNamespaceAndPath("academy", "textures/guis/cpbar/" + name + ".png"); }
     /** 原作Category.getOverlayIcon。 */
     static @javax.annotation.Nullable Identifier overlay(Identifier category) {
-        // 1.4.0のS4: 外部のカテゴリには、本体の重ね絵が無い（カテゴリの無いときと同じく描かない）。
+        // 1.4.0: 外部のカテゴリには、本体のオーバーレイのテクスチャが無い（カテゴリの無いときと同じく描かない）。
         if (!"academy".equals(category.getNamespace())) return null;
         return Identifier.fromNamespaceAndPath("academy", "textures/abilities/" + category.getPath() + "/icon_overlay.png");
     }
@@ -128,10 +134,10 @@ public final class CpBarHud {
         long deltaTime = Math.min(100L, time - lastFrameTime);
         lastFrameTime = time;
         mAlpha = time - showTime < 200 ? (time - showTime) / 200f : active ? 1 : Math.max(0, 1 - (time - lastDrawTime) / 200f);
-        // §14: 使用中の判定はVモードだけ。技能を撃っても変わらない。
+        // 使用中の判定はVモードだけ。技能を撃っても変わらない。
         sizeScale = CpHudStyle.sizeAt(ClientSettings.cpIdleScale(), mAlpha);
-        // 非使用時の表示の設定。大きさはVのON/OFFだけで決め、技能を使うたびに変えない（§14）。
-        // §14: 未元物質人間はCPが生命力なので、能力OFFでも必ず出す。
+        // 非使用時の表示の設定。大きさはVのON/OFFだけで決め、技能を使うたびに変えない。
+        // 未元物質人間はCPが生命力なので、能力OFFでも必ず出す。
         boolean idleShown = !active && (data.isDarkBody() || ClientSettings.cpIdleShow().visible(data.getCp(), data.getMaxCp()));
         idleFade = balance(idleFade, idleShown ? 1 : 0, deltaTime * 1e-3f * CpHudStyle.IDLE_FADE_PER_SECOND);
         mAlpha = Math.max(mAlpha, idleFade);
@@ -151,16 +157,20 @@ public final class CpBarHud {
             g.pose().translate((float) FRAME_OFFSET[frame][0], (float) FRAME_OFFSET[frame][1]);
             // 精度を下げることで、ちらつきがぎざぎざに見える。
             float wave = (float) ALPHA_CURVE.valueAt(input / 10 * 10);
-            // §14: 未元物質人間は干渉中もCPを読めるように、暗くしすぎない。
+            // 未元物質人間は干渉中もCPを読めるように、暗くしすぎない。
             mAlpha *= data.isDarkBody() ? Math.max(.7f, wave) : wave;
         }
         float pOverload = mAlpha > 0 ? data.getOverload() / Math.max(1e-6f, data.getMaxOverload()) : 0;
-        bufferedOverload = balance(bufferedOverload, pOverload, deltaTime * 1e-3f * O_BALANCE_SPEED);
+        // 1.5.2: 稼働の過負荷は1秒ごと・1回ごとにまとまって増えるので、増えるときは指数的に追って段を見せない。
+        // 減るとき（回復）は今までどおり。表示だけで、値は変えない。
+        bufferedOverload = pOverload > bufferedOverload
+                ? approach(bufferedOverload, pOverload, deltaTime * 1e-3f / O_RISE_SECONDS)
+                : balance(bufferedOverload, pOverload, deltaTime * 1e-3f * O_BALANCE_SPEED);
         float pCp = mAlpha > 0 ? data.getCp() / Math.max(1e-6f, data.getMaxCp()) : 0;
         bufferedCp = balance(bufferedCp, pCp, deltaTime * 1e-3f * CP_BALANCE_SPEED);
         if (mAlpha > 0) {
             var category = data.getAbility();
-            // 原作CPBar: 過負荷の絵は、isOverloaded（回復の待ち時間）の間だけ。
+            // 原作CPBar: 過負荷のテクスチャは、isOverloaded（回復の待ち時間）の間だけ。
             if (display.gauge()) { if (!data.isOverloaded()) drawNormal(g, bufferedOverload); else drawOverload(g, time); }
             // 原作は、干渉されている間と過負荷の回復中にバーを暗くする。
             boolean low = interfering || data.isOverloadLocked();
@@ -188,6 +198,11 @@ public final class CpBarHud {
         lastFrameActive = active;
         g.pose().popMatrix();
         io.github.pinchan4273.reacademycraft.client.render.GuiImmediate.setShaderColor(1, 1, 1, 1);
+    }
+    /** 指数的に近づける（step は経過秒 ÷ 時定数）。差が十分小さければ着く。 */
+    static float approach(float from, float to, float step) {
+        float next = from + (to - from) * (1 - (float) Math.exp(-Math.max(0, step)));
+        return Math.abs(to - next) < 1e-4f ? to : next;
     }
     private static float balance(float from, float to, float max) {
         float delta = to - from;
@@ -333,7 +348,7 @@ public final class CpBarHud {
         g.pose().popMatrix();
     }
     /**
-     * §14: 常に出す数値（現在CP/最大CP）。数値のみなら、ゲージの残量色とセーフティの明滅を数値へ移す。ゲージと数値なら、色と明滅はゲージが持つ。
+     * 常に出す数値（現在CP/最大CP）。数値のみなら、ゲージの残量色とセーフティの明滅を数値へ移す。ゲージと数値なら、色と明滅はゲージが持つ。
      * 過負荷・干渉の間も読めるように、ゲージの.3より明るい.6までしか暗くしない。
      */
     private static void drawCpNumber(GuiGraphicsExtractor g, Minecraft client, PlayerAbilityData data, CpHudStyle.Display display, float progress, boolean low) {
@@ -366,7 +381,7 @@ public final class CpBarHud {
         drawAt(g, font, text, x0 - len, y0, s, 0xa0);
     }
     /**
-     * F4（DebugConsole）が避ける、このフレームでCPバーが描く範囲（GUI座標、WORK-045のFQ-03）。描き方は変えず、上のdrawと同じ数で
+     * F4（DebugConsole）が避ける、このフレームでCPバーが描く範囲（GUI座標）。描き方は変えず、上のdrawと同じ数で
      * 囲む: バー（964x147）、drawPresetHintの四角4つ（(580, 136)から幅52、間隔10）、drawActivateKeyHintの案内（(500, 140)に右揃え、
      * 余白8、高さ44）、どちらも光の縁5。干渉の間は揺れ（FRAME_OFFSETの最大: 横9×縦横比、縦9）も含む。いずれも0.2倍。
      * F4はRenderGuiEvent.Pre、バーはPostで描くので、前のフレームのalphaでフェードアウトの途中も含める。能力が無いか、描かないならnull。

@@ -19,6 +19,8 @@ import net.minecraft.world.phys.Vec3;
  * 原作の円錐の判定には2つの不具合があり、意図した修正を推測するのは挙動の創作になるので、Light ShieldやJet Engineの入れ替わった引数と
  * 同じく、両方とも書かれたとおりに移植している。コスト自体にはその不具合は無い: 能力自身のconsume()呼び出しの原作の
  * overload/CPの引数順は、ここでは正しい。
+ *
+ * オーバーロードは1.5.2でlerp(300, 140)からlerp(300, 80)へ下げた（熟練度100%で1回120以下）。
  */
 public final class RayBarrage {
     public static final Identifier ID = Identifier.fromNamespaceAndPath("academy", "ray_barrage");
@@ -26,6 +28,8 @@ public final class RayBarrage {
     private static final double RANGE = 20, CONE_DEGREES = 55;
 
     private RayBarrage() { }
+    /** 1回のオーバーロード（1.5.2でlerp(300, 140)からlerp(300, 80)へ）。 */
+    public static float overload(float exp) { return ArcGen.lerp(300, 80, exp); }
 
     public static String cast(ServerPlayer player, PlayerAbilityData data) {
         if (!player.isAlive() || data.isReadOnly()
@@ -35,7 +39,7 @@ public final class RayBarrage {
         if (data.getCooldown(ID) > 0) return "academy.cast.cooldown";
         float exp = data.getProficiency(ID);
         // 原作自身のconsume(overload, cp)呼び出しは、兄弟の技能と違い入れ替わっていない。
-        if (!data.consume(ID, ArcGen.lerp(450, 380, exp), ArcGen.lerp(300, 140, exp), player.getAbilities().instabuild))
+        if (!data.consume(ID, ArcGen.lerp(450, 380, exp), overload(exp), player.getAbilities().instabuild))
             return "academy.cast.cp";
         var target = findSilbarn(player);
         // 原作EntityBarrageRayPre.onFirstUpdate: 前段の光線は常に術者の頭の高さから。
@@ -74,7 +78,7 @@ public final class RayBarrage {
 
     /**
      * 原作はSilbarn自体を砕き、次に55度の円錐の中のすべての生きたエンティティにダメージを与える（yawとpitchのどちらも半分ずつではなく
-     * その全幅を使い、pitchの見積もり自体も対象のZのずれしか見ない。どちらも原作の不具合で、書かれたとおりに移植している）。
+     * その全幅を使い、pitchの見積もり自体も対象のZのオフセットしか見ない。どちらも原作の不具合で、書かれたとおりに移植している）。
      */
     private static void barrage(ServerPlayer player, PlayerAbilityData data, SilbarnEntity target, float exp) {
         target.shatter();
@@ -106,7 +110,7 @@ public final class RayBarrage {
     private static void beam(ServerPlayer player, Vec3 from, Vec3 to, int kind) {
         var effect = new io.github.pinchan4273.reacademycraft.network.MdRayEffect(player.level().dimension().identifier(), player.getUUID(),
                 player.getId(), player.level().getGameTime() + 1, from, to, kind);
-        // 術者を先に: テストの治具プレイヤーはlevelのプレイヤー一覧に居ない。
+        // 術者を先に: テストのFakePlayerはlevelのプレイヤー一覧に居ない。
         io.github.pinchan4273.reacademycraft.network.AcademyNetwork.send(player, effect);
         for (var observer : player.level().players())
             if (observer != player && observer.distanceToSqr(player) <= PRESENTATION_RANGE * PRESENTATION_RANGE)

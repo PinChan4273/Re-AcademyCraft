@@ -6,9 +6,12 @@ import java.util.Map;
 import java.util.UUID;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.tags.DamageTypeTags;
 import net.minecraft.world.damagesource.DamageSource;
+import net.minecraft.world.damagesource.DamageTypes;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.projectile.arrow.AbstractArrow;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.event.tick.PlayerTickEvent;
@@ -20,140 +23,133 @@ import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.Mod;
 
 /**
- * 原作LightShield（WeAthFolD）: meltdownerのもう1つのレベル2技能。
+ * 原作LightShield（WeAthFolD）: meltdownerのもう1つのレベル2技能。1.5.2から防御の部類の基準に従う。
  *
- * 盾が術者の前にあり、前方60度の弧に入ったものを焼き、18tickごとに受ける攻撃1回の大部分を吸収する。
- * Scatter Bombと同じく、オーバーロードは開始時に1回払ってそこを下限にするので、続けている間は回復しない。
+ * <p>盾は術者の前にある、盾の形をしたビーム（反射ではない）。1回押すとON、もう一度押すとOFFのトグルで、時間制限は無い。
+ * <ul>
+ * <li>維持（1.5.2）: 盾が動いている間（手動・パッシブとも）、基本の維持を払う（額は0。開始の過負荷の確保だけ）
+ *     （{@link DefenseCost#startUpkeep}。1.5.1までの toggle_upkeep.light_shield は使わない）。維持が外れたら盾は止まる。起動のオーバーロードは無い。
+ *     起動はロック中・クールダウン中は拒否する。</li>
+ * <li>防御（1.5.2）: 効く範囲（{@link #covers}: 近接・射撃などの直接の原因がある攻撃、飛び道具、爆発）の攻撃で、盾の円を通るものを
+ *     一般に{@link #GENERAL_RATE}（30%）軽減する。原子崩しの通常ビーム（{@link #NORMAL_BEAMS}）は100%相殺する（反射ではない）。
+ *     Re 本体の{@code Style.PIERCE}の打撃は盾を完全に通る（軽減も費用も無い）。1回の大きさに上限は無い。防いだ1回ごとに
+ *     {@link DefenseCost.Kind#LIGHT_SHIELD}の値段（30→20 CP ＋ 防いだダメージ × 6→3 CP、過負荷4→0）を回復待ちを作らずに払い、払えなければ
+ *     その1回は防がない。</li>
+ * <li>触れた相手への攻撃（おまけの効果）: 生き物には、盾のセッションごと・対象ごとに、前の接触から{@link #CONTACT_INTERVAL}tickに
+ *     最大1回、標準の被ダメージ後の待ちには従わない専用の型（{@link SkillDamageSource.Style#CONTACT}）で当てる。1体ごとにCP 30→15・
+ *     過負荷2→0を、防御と同じく回復待ちを作らずに払う（1.5.1はCP 50→30・過負荷5→3）。払えなければ当てない。間隔は課金して攻撃した時刻から測る。
+ *     生き物でないもの（ドロップしたアイテム、経験値オーブなど）は以前どおり、そのinvulnerableTimeだけを見て、通常の型で焼く。</li>
+ * <li>止めた後: 熟練度で60→20tickの決まった長さのクールダウン（1.5.1の「張っていた時間 × 2 → 1」から変えた）。
+ *     1.5.1の5秒の鈍足の反動は無くした。</li>
+ * </ul>
  *
- * <p>原作は押し続け型で、熟練度に応じて6〜9秒で切れた。1.0.0の後に承認した案B（docs/CP_RECOVERY_TOGGLE_SPEC_JA.md 9章）で、
- * 1回押すとON、もう一度押すとOFFのトグルにし、固定の時間制限を外した。キーを離しても切れない。続く間の費用は切り替え型技能の
- * 維持の経路（toggle_upkeep.light_shield、熟練度0%で9 CP/tick。原作の1tickあたりlerp(9, 4)の0%値）で払い、払えなくなると終わる。
- * 熟練度100%で単独・待機（防御も接触攻撃も無い）なら、通常の回復の半分が正味で残る。実際に防いだとき・焼いたときの費用は原作のまま残す。
- *
- * 終えると5秒の鈍化と、続けた長さに比例するクールダウン（熟練度最大で半分）がかかる。長さは原作の上限lerp(120, 180)tickで打ち切るので、
- * クールダウンは原作で起こりえた最大（0%で240tick、100%で180tick）を超えない。起動と吸収のオーバーロードは2026-10-16に変えた（下）。起動のCP（0）・吸収のCP・接触の費用・鈍化は原作のまま。
- *
- * 原作は吸収のコストを、盾が敵に触れたときは(overload, cp)、攻撃を吸収したときは(cp, overload)として渡しており、
- * 両方が意図どおりということはありえない。どちらかを選ばず、両方とも書かれたとおりに移植している。
- * 2026-10-16から、吸収のオーバーロードだけをlerp(10, 4)にした（統合指示書の100%の5を、ユーザーの確定で偶数の4へ。吸収のCPと、接触のCP・オーバーロードは原作のまま）。
- *
- * <p>接触攻撃（2026-10-16、統合指示書4章）: 生き物には、盾のセッションごと・対象ごとに、前の接触から{@link #CONTACT_INTERVAL}tickに
- * 最大1回。標準の被ダメージ後の待ちには従わない専用の型（{@link SkillDamageSource#CONTACT}）で当てる。以前は対象の
- * invulnerableTimeが0になるまで飛ばしていたので、生き物には実質20tickに1回だった。間隔は、課金して攻撃した時刻から測る
- * （攻撃が通らなかったとき、例えばPvPが無効・相手が無敵でも、8tickは空ける。毎tick課金しないため）。
- * 生き物でないもの（ドロップしたアイテム、経験値オーブなど）は以前どおり、そのinvulnerableTimeだけを見て、通常の型で焼く。
- * 防御吸収の間隔（{@link #ABSORB_INTERVAL}）は接触とは別で、変えていない。
- *
- * <p>共通の盾面と自動追従（工程2、2026-10-23の司令室8の指示）: 盾はサーバーが持つ1枚の有限の面（法線・距離・半径、
+ * <p>共通の盾面と自動追従: 盾はサーバーが持つ1枚の有限の面（法線・距離・半径、
  * {@link LightShieldGeometry}）で、防御の判定とクライアントの描画（{@link io.github.pinchan4273.reacademycraft.network.LightShieldState}）は
  * 同じ値を使う。向きはプレイヤーの設定（{@link LightShieldMode}、AUTOかMANUAL）に従って{@link LightShieldTargeting}が選んだ目標へ、
  * 1tickに最大{@link LightShieldGeometry#TURN_DEGREES}度ずつ回る。起動したときの向きは視線。カメラは動かさない。盾は1枚で、全方向を同時には防がない。
  * <ul>
- * <li>防御吸収: 攻撃の元（直接の原因のEntity）から術者への経路が、盾の円を通るときだけ。直接の原因が無い攻撃は1.2.0どおり吸収する（P0-F3は未決）。</li>
- * <li>生き物への接触攻撃: 盾の円を、法線の向きへ{@link #REACH}まで伸ばした円柱に入った生き物。1.2.0の「視線のyawの前方±60度・半径3」から変えた。</li>
- * <li>生き物でないもの（アイテム・経験値オーブ）の焼却: 1.2.0のまま（視線のyawの前方±60度・半径3）。工程2では変えていない。</li>
+ * <li>防御: 攻撃の元（直接の原因のEntity）から術者への経路が、盾の円を通るときだけ。直接の原因が無い攻撃（爆発など）は1.2.0どおり防ぐ。</li>
+ * <li>生き物への接触攻撃: 盾の円を、法線の向きへ{@link #REACH}まで伸ばした円柱に入った生き物。</li>
+ * <li>生き物でないもの（アイテム・経験値オーブ）の焼却: 1.2.0のまま（視線のyawの前方±60度・半径3）。</li>
  * </ul>
- * 費用（起動・維持・接触・吸収）、接触の8tick、吸収の18tick、クールダウン、鈍化は変えていない。
  *
- * <p>工程3・4（暫定の試作、2026-10-23の包括指示による。数値は正式な値ではない）:
+ * <p>暫定の作り:
  * <ul>
  * <li>押し留め（{@link #hold}）: 接触の円柱に入った生き物について、毎tick、術者へ近づく速度の成分を消す。盾の面より内側へ入り込んで
- *     いれば、外への小さな補正（1tickに最大{@link #SEPARATION}、ノックバック耐性の分だけ弱める）を加える。接触攻撃の8tickとは別の時計で、
- *     費用は維持の中に含める（追加の費用なし）。プレイヤーは術者が傷つけられる相手（{@code canHarmPlayer}）だけ。無敵・傍観者・
- *     クリエイティブ・ボス・乗り物に乗っているものは押さない。</li>
- * <li>飛来物（{@link #intercept}）: 術者に当たる直前の飛来物の位置が、盾の円を通る経路にあれば、防御吸収と同じ費用・同じ
- *     {@link #ABSORB_INTERVAL}tickの待ちで、当たりを止めて消す。待ちの間や払えないとき、円の外からのものは、これまでどおり当たる。</li>
- * <li>爆発: 工程2の吸収のまま（直接の原因があれば円で判定、無ければ従来どおり。P0-F3は未決）。</li>
+ *     いれば、外への小さな補正（1tickに最大{@link #SEPARATION}、ノックバック耐性の分だけ弱める）を加える。費用は無い。
+ *     プレイヤーは術者が傷つけられる相手（{@code canHarmPlayer}）だけ。無敵・傍観者・クリエイティブ・ボス・乗り物に乗っているものは押さない。</li>
+ * <li>飛来物（{@link #intercept}）: 術者に当たる直前の飛来物の位置が、盾の円を通る経路にあれば、防御と同じ値段で当たりを止めて消す。
+ *     値段の「防いだダメージ」は、矢（{@link AbstractArrow}）はバニラと同じ速さ × 基本ダメージの見積もり、それ以外は0（回数の分だけ）。
+ *     払えないとき、円の外からのものは、これまでどおり当たる。</li>
  * </ul>
- * 費用の区別: 接触の判定と押し留めは無料（維持の中）、接触攻撃は対象ごと8tickに1回、防御（被弾の吸収・飛来物の止め）は18tickに1回。
  */
 @net.neoforged.fml.common.EventBusSubscriber(modid = "academy")
 public final class LightShield {
     public static final Identifier ID = Identifier.fromNamespaceAndPath("academy", "light_shield");
-    /** 原作ACTION_INTERVAL、届く距離、覆う前方の弧。 */
-    private static final int ABSORB_INTERVAL = 18;
-    /** 同じ生き物への接触攻撃の最小の間隔（tick。2026-10-16、統合指示書4章。旧案の1tickは撤回）。 */
+    /** 止めた後の決まったクールダウン（tick。熟練度0% → 100%）。 */
+    public static final int COOLDOWN_AT_ZERO = 60, COOLDOWN_AT_FULL = 20;
+    /** 同じ生き物への接触攻撃の最小の間隔（tick）。 */
     public static final int CONTACT_INTERVAL = 8;
     private static final double REACH = 3, ARC_DEGREES = 60;
     private static final Map<UUID, Session> ACTIVE = new HashMap<>();
     /** 盾の状態を送り直す間隔（tick）。向きや大きさが変わらなくても、この間隔で送る。 */
     private static final int RESYNC_TICKS = 10;
-    /** 押し留めの、外への補正の上限（1tickあたりの速さ。工程3の暫定値）。 */
+    /** 押し留めの、外への補正の上限（1tickあたりの速さ。暫定値）。 */
     public static final double SEPARATION = .1;
     private static long nextToken;
+    /** 一般の攻撃を軽減する割合（1.5.2）。 */
+    public static final float GENERAL_RATE = .3f;
+    /** 100%相殺する原子崩しの通常ビーム（1.5.2）。主砲（{@link Meltdowner}）と、盾・Jet の接触は含めない。 */
+    public static final java.util.Set<Identifier> NORMAL_BEAMS = java.util.Set.of(RayBarrage.ID, ElectronBomb.ID, ScatterBomb.ID, ElectronMissile.ID);
 
     private static final class Session {
-        final Level level; final int preset, slot; final float exp, overloadFloor, maxTicks;
-        int ticks; int lastAbsorb = -1;
+        final Level level; final int preset, slot; final float exp;
+        int ticks;
         /** このセッションが最近接触攻撃した生き物と、そのときのticks。CONTACT_INTERVAL tick後に忘れる（セッションと共に消える）。 */
         final Map<UUID, Integer> lastContact = new HashMap<>();
-        /** 能力データが毎tick精算する維持コストへの、この技能の要求。 */
-        PlayerAbilityData.Upkeep upkeep;
         /** 盾面の法線（単位ベクトル）。起動したときは視線。 */
         Vec3 normal;
         /** 追従の状態（標的と、選んだtick）。 */
         final LightShieldTargeting.Memory memory = new LightShieldTargeting.Memory();
-        /** 状態の通信: セッションの識別、番号、最後に送った法線・半径・tick。 */
+        /** 状態の通信: セッションのトークン、シーケンス番号、最後に送った法線・半径・tick。 */
         final long token = ++nextToken;
         int sequence; Vec3 sentNormal; float sentRadius = -1; int sentTick;
-        /** 工程3・4の数（テストと記録用）: 押し留めたtick数、止めた飛来物の数。 */
+        /** テストと記録用の数: 押し留めたtick数、止めた飛来物の数。 */
         int held, intercepted;
+        /** 1.5.2: 基本の維持。外れたら盾を止める。 */
+        PlayerAbilityData.Upkeep upkeep;
         Session(ServerPlayer player, PlayerAbilityData data, int slot) {
             level = player.level(); preset = data.getCurrentPreset(); this.slot = slot;
-            exp = data.getProficiency(ID); overloadFloor = data.getOverload();
-            maxTicks = ArcGen.lerp(120, 180, exp);
+            exp = data.getProficiency(ID);
             normal = LightShieldGeometry.unit(player.getLookAngle(), new Vec3(0, 0, 1));
         }
         float radius() { return LightShieldGeometry.radius(ticks); }
-        float absorbDamage() { return ArcGen.lerp(15, 50, exp); }
         float touchDamage() { return ArcGen.lerp(2, 6, exp); }
-        /** 接触攻撃ではオーバーロード、防御吸収ではCPとして渡る（原作の引数の順。下のクラスの説明）。 */
-        float absorbOverload() { return ArcGen.lerp(5, 3, exp); }
-        /** 接触攻撃ではCPとして渡る。防御吸収のオーバーロードは2026-10-16からdefenseOverload。 */
-        float absorbConsumption() { return ArcGen.lerp(50, 30, exp); }
-        /**
-         * 防御吸収が成立したときのオーバーロード（2026-10-16のユーザーの確定でlerp(10, 4)。統合指示書はlerp(10, 5)。原作では吸収のconsumeに
-         * absorbConsumptionのlerp(50, 30)が渡っていた）。補間の途中は丸めない。
-         */
-        float defenseOverload() { return ArcGen.lerp(10, 4, exp); }
-        /** 続けた長さに比例するクールダウン。長さは原作の時間制限で打ち切る（有限で、保存できる範囲に収まる）。 */
-        int cooldown() { float held = Math.min(ticks, maxTicks); return (int) ArcGen.lerp(2 * held, held, exp); }
     }
 
     private LightShield() { }
-    /** 起動のオーバーロード（2026-10-16、統合指示書3章。原作lerp(110, 60)から）。 */
-    public static float startOverload(float exp) { return ArcGen.lerp(40, 20, exp); }
+    /** 止めた後の決まったクールダウン（熟練度で60 → 20tick。端数は四捨五入）。 */
+    public static int cooldown(float exp) { return Math.round(ArcGen.lerp(COOLDOWN_AT_ZERO, COOLDOWN_AT_FULL, Math.max(0, Math.min(1, exp)))); }
+    /**
+     * 防ぐ攻撃か（近接・射撃などの攻撃と、爆発）。飛び道具（{@code is_projectile}）、爆発（{@code is_explosion}）、
+     * 直接の原因がある攻撃（近接、術者の技能など。Re 本体の貫通の打撃もここでは範囲に入るが、{@link #absorb}がそのまま通す）。白翼刺突、無敵を貫くもの（奈落・{@code /kill}）、
+     * 魔法・棘・衝撃波（{@code witch_resistant_to}）と衰弱は防がない。
+     */
+    public static boolean covers(DamageSource source) {
+        if (SkillDamageSource.bypassesReDefenses(source) || source.is(DamageTypeTags.BYPASSES_INVULNERABILITY)) return false;
+        if (source.is(DamageTypeTags.WITCH_RESISTANT_TO) || source.is(DamageTypes.WITHER)) return false;
+        return source.is(DamageTypeTags.IS_PROJECTILE) || source.is(DamageTypeTags.IS_EXPLOSION) || source.getDirectEntity() != null;
+    }
     private static PlayerAbilityData data(ServerPlayer p) { return AbilityCapabilities.of(p).orElse(null); }
     /**
-     * 盾を続けてよいか。妨害（能力妨害器）も含む: 押し続け型だった1.0.0では、妨害されたクライアントが中断を送り心拍も届かなくなって
+     * 盾を続けてよいか。妨害（能力妨害器）も含む: 押し続け型だった1.0.0では、妨害されたクライアントが中断を送りハートビートも届かなくなって
      * 終わっていた。トグルではキーの経路に頼れないので、サーバーが毎tick確かめ、妨害が始まったtickに通常の終了（維持・音・盾を外し、
      * 鈍化とクールダウン）をする。
      */
     private static boolean allowed(ServerPlayer player, PlayerAbilityData data) {
-        // TOGGLE-GUI-001: コンテナの画面を開いただけでは止めない。画面を開いている間の新しい開始は、start()が拒否する。
+        // コンテナの画面を開いただけでは止めない。画面を開いている間の新しい開始は、start()が拒否する。
         return player.isAlive() && data != null && !data.isReadOnly() && data.isActive() && !data.isInterfering()
                 && AbilityCategory.MELTDOWNER.id().equals(data.getAbility()) && data.hasLearned(ID);
     }
 
     public static String start(ServerPlayer player, PlayerAbilityData data, int slot) {
-        if (slot < 0 || slot >= 4 || !ID.equals(data.getSlot(data.getCurrentPreset(), slot))
+        if (!PassiveSkills.slotMatches(data, ID, slot)
                 || !player.isAlive() || data.isReadOnly()
                 || !AbilityCategory.MELTDOWNER.id().equals(data.getAbility()) || !data.hasLearned(ID))
             return "academy.cast.unlearned";
         if (!data.isActive()) return "academy.cast.inactive";
-        if (data.isOverloadLocked()) return "academy.cast.overload";
+        // 1.5.2: ロック中は断る。ただしロック中の再稼働を許した技能（パッシブ。優先順位の順）は通す。
+        if (data.lockBlocks(ID)) return "academy.cast.overload";
         if (data.getCooldown(ID) > 0) return "academy.cast.cooldown";
         if (player.containerMenu != player.inventoryMenu) return "academy.cast.unlearned";
         if (ACTIVE.containsKey(player.getUUID())) return "";
-        if (!data.consume(ID, 0, startOverload(data.getProficiency(ID)), player.getAbilities().instabuild))
-            return "academy.cast.cp";
-        // 起動のオーバーロードで術者がオーバーロードした: そのイベントが全セッションを止めた後なので、何も始めない。
-        if (data.isOverloadLocked()) return "academy.cast.overload";
+        // 1.5.2: 起動は無料（起動のオーバーロードは無い）。動いている間の基本の維持は0。開始の過負荷の確保は維持の枠で行う。
         var session = new Session(player, data, slot);
+        session.upkeep = DefenseCost.startUpkeep(data, ID, () -> player.getAbilities().instabuild);
+        if (session.upkeep == null) return "academy.cast.unlearned";
         ACTIVE.put(player.getUUID(), session);
-        session.upkeep = data.startUpkeep(ID, () -> player.getAbilities().instabuild);
         io.github.pinchan4273.reacademycraft.network.SkillModeState.send(player, ID, true);
-        // 原作c_spawn（EntityMdShield）: 術者と追跡している各クライアントへ、盾面の状態を送る（工程2からSkillVisualに代えた）。
+        // 原作c_spawn（EntityMdShield）: 術者と追跡している各クライアントへ、盾面の状態を送る（SkillVisualに代えた）。
         sync(player, session, true);
         // 原作c_start: 起動音と、盾を押している間のループ音。
         player.level().playSound(null, player, io.github.pinchan4273.reacademycraft.world.AcademySounds.MD_SHIELD_STARTUP.get(), net.minecraft.sounds.SoundSource.AMBIENT, .5f, 1f);
@@ -183,13 +179,14 @@ public final class LightShield {
         var data = data(player);
         if (data != null) data.endUpkeep(session.upkeep);
         if (data == null || data.isReadOnly() || session.level != player.level()) return;
-        // v1.5.0: 盾の終了の移動の反動（鈍足II相当、100tick）を、技能由来の直接効果で。
-        DirectEffects.add(player, DirectEffects.Kind.SLOWNESS, 1, 100, ID, player);
-        // 習得していない技能（止める前にリスナーやカテゴリの変更が外した）にはクールダウンを書かない（M-110-02）。
-        if (data.hasLearned(ID)) data.setCooldown(ID, session.cooldown());
+        // 1.5.2: 止めたときの鈍足の反動は無い。クールダウンは熟練度で60 → 20tickの決まった長さ。
+        // 習得していない技能（止める前にリスナーやカテゴリの変更が外した）にはクールダウンを書かない。
+        if (data.hasLearned(ID)) data.setCooldown(ID, cooldown(data.getProficiency(ID)));
     }
 
     public static boolean holding(ServerPlayer player) { return ACTIVE.containsKey(player.getUUID()); }
+    /** 1.5.2: パッシブ（自動で起動）で動いているか（スロットのキーで始めたものはfalse）。 */
+    public static boolean passive(ServerPlayer player) { var s = ACTIVE.get(player.getUUID()); return s != null && s.slot == PassiveSkills.SLOT; }
     public static int heldTicks(ServerPlayer player) {
         var session = ACTIVE.get(player.getUUID());
         return session == null ? 0 : session.ticks;
@@ -201,8 +198,8 @@ public final class LightShield {
     }
 
     /**
-     * 原作は術者の前方60度の弧を、yawだけで測って覆う。工程2からは、生き物でないもの（アイテム・経験値オーブ）の焼却だけに使う
-     * （1.2.0の挙動を変えないため。±180度の境目の問題P0-F2もそのまま）。生き物と防御は盾面で判定する。
+     * 原作は術者の前方60度の弧を、yawだけで測って覆う。ここでは、生き物でないもの（アイテム・経験値オーブ）の焼却だけに使う
+     * （1.2.0の挙動を変えないため。±180度の境目の問題もそのまま）。生き物と防御は盾面で判定する。
      */
     private static boolean reachable(ServerPlayer player, Entity target) {
         double yaw = -Math.toDegrees(Math.atan2(target.getX() - player.getX(), target.getZ() - player.getZ()));
@@ -211,24 +208,16 @@ public final class LightShield {
 
     /** このtickもモードを続けてよいか（tickの始めと、熟練度のイベントの後に確かめる）。 */
     private static boolean continues(ServerPlayer player, PlayerAbilityData data, Session session) {
-        return data != null && allowed(player, data) && !(session.level != player.level()
-                || data.getCurrentPreset() != session.preset
-                || !ID.equals(data.getSlot(session.preset, session.slot)));
+        // 1.5.2: パッシブで動いているものは、プリセットとスロットを見ず、パッシブのままかを見る。
+        return data != null && allowed(player, data) && data.upkeepHeld(session.upkeep) && !(session.level != player.level()
+                || !PassiveSkills.sessionMatches(data, ID, session.preset, session.slot));
     }
     private static void tick(ServerPlayer player) {
         var session = ACTIVE.get(player.getUUID());
         if (session == null) return;
         var data = data(player);
+        // 1.5.2: 維持はこのtickの始めに精算済み。外れていたら止める。維持の熟練度は無い（熟練度は防いだ・焼いた1回ごとに得る）。
         if (!continues(player, data, session)) { stop(player); return; }
-        // 続ける費用は、このtickの始めに精算した維持コスト。払えなかった要求は外れている。
-        if (!data.upkeepHeld(session.upkeep)) { stop(player); return; }
-        // 維持の熟練度（1.1.0、T178-10）。1.0.0の毎tick 1e-6はこれへ統合した。
-        data.upkeepEarn(session.upkeep);
-        // 熟練度のイベントのリスナーが、モードを終えた・置き換えた・続けられなくした（能力、スロット、プリセット）かもしれない:
-        // このtickを古いセッションで続けない（M-110-01）。
-        if (ACTIVE.get(player.getUUID()) != session) return;
-        if (!continues(player, data, session) || !data.upkeepHeld(session.upkeep)) { stop(player); return; }
-        if (data.getOverload() < session.overloadFloor) data.setOverload(session.overloadFloor);
         session.ticks++;
         // 盾の向き: モードが選んだ目標へ、1tickに最大の角度だけ回す（目標が無いAUTOは、最後の向きのまま）。
         Vec3 goal = LightShieldTargeting.aim(player, data.getLightShieldMode(), session.memory, session.ticks);
@@ -244,15 +233,15 @@ public final class LightShield {
             // 生き物は、前の接触からCONTACT_INTERVAL tick（標準の被ダメージ後の待ちは見ない）。それ以外は以前どおりinvulnerableTime。
             boolean living = target instanceof LivingEntity;
             boolean touching = living && LightShieldGeometry.touches(base, session.normal, session.radius(), target.getBoundingBox().getCenter(), target.getBbWidth() / 2, REACH);
-            // 工程3: 押し留めは毎tick（接触攻撃の8tickとは別の時計、費用なし）。
+            // 押し留めは毎tick（接触攻撃の8tickとは別の時計、費用なし）。
             if (touching) hold(player, session, base, (LivingEntity) target);
             if (living ? session.lastContact.containsKey(target.getUUID()) : target.invulnerableTime > 0) continue;
-            // 生き物は盾面に触れているか（工程2）。それ以外は1.2.0どおり視線のyawの弧。
+            // 生き物は盾面に触れているか。それ以外は1.2.0どおり視線のyawの弧。
             if (living ? !touching : !reachable(player, target)) continue;
-            // 原作はここで接触を(overload, cp)として課す。
-            if (!data.consume(ID, session.absorbConsumption(), session.absorbOverload(), player.getAbilities().instabuild)) continue;
-            // 接触攻撃のtickは待機ではない。
-            data.upkeepActed(session.upkeep);
+            // 1.5.2: 触れた相手への攻撃は、おまけの効果として1体ごとに別に払う（CP 30→15・過負荷2→0、回復待ちは作らない）。
+            float exp = data.getProficiency(ID);
+            if (!DefenseCost.payAddOn(data, ID, DefenseCost.lightShieldContactCp(exp), DefenseCost.lightShieldContactOverload(exp),
+                    player.getAbilities().instabuild)) continue;
             if (ACTIVE.get(player.getUUID()) != session) return;
             if (living) {
                 // 課金した攻撃の時刻を記録する（通らなくても、同じ対象へはCONTACT_INTERVAL tick空ける）。
@@ -265,7 +254,7 @@ public final class LightShield {
         }
     }
 
-    /** 押し留める相手か（工程3）。耐性・PvP・保護は迂回しない。 */
+    /** 押し留める相手か。耐性・PvP・保護は迂回しない。 */
     private static boolean holdable(ServerPlayer player, LivingEntity target) {
         if (target.isInvulnerable() || target.isSpectator() || target.isPassenger() || target.isVehicle()) return false;
         // NeoForgeのボスのタグは`c:bosses`（Forge版は`forge:bosses`）。どちらもエンダードラゴンとウィザーを含む。
@@ -274,7 +263,7 @@ public final class LightShield {
             return !other.isCreative() && !other.isSpectator() && player.canHarmPlayer(other);
         return true;
     }
-    /** 工程3: 術者へ近づく速度の成分を消し、盾の面より内側にいれば外への小さな補正を加える。 */
+    /** 術者へ近づく速度の成分を消し、盾の面より内側にいれば外への小さな補正を加える。 */
     private static void hold(ServerPlayer player, Session session, Vec3 base, LivingEntity target) {
         if (!holdable(player, target)) return;
         Vec3 normal = session.normal, v = target.getDeltaMovement();
@@ -294,7 +283,7 @@ public final class LightShield {
     }
 
     /**
-     * 工程4: 術者に当たる直前の飛来物を、盾の円を通るなら防御として止める。
+     * 術者に当たる直前の飛来物を、盾の円を通るなら防御として止める。
      * Forge版は結果をSTOP_AT_CURRENT_NO_DAMAGEにして飛来物を消す。NeoForge 1.21.1のこのイベントには結果の種類が無く、取り消すと
      * 衝突を処理しない（矢は貫通の繰り返しを抜ける）。取り消して消すことで、同じく「当たらずにその場で止まる」にする。
      */
@@ -307,22 +296,27 @@ public final class LightShield {
             projectile.discard();
         }
     }
-    /** 止めるなら費用を払ってtrue（吸収と同じ費用・同じ待ち）。テストからも呼ぶ。 */
+    /** 止めるなら防御の値段を払ってtrue（防御と同じ値段。間隔は無い）。テストからも呼ぶ。 */
     public static boolean intercepts(ServerPlayer player, Entity projectile) {
         var session = ACTIVE.get(player.getUUID());
         var data = data(player);
         if (session == null || data == null || data.isReadOnly() || !data.hasLearned(ID) || data.isInterfering()) return false;
-        // WORK-124: 盾自身のtickが止める前（プリセット・スロットの変更、能力のオフ、維持費が払えなかった）に届いた飛来物は止めない。
-        if (!continues(player, data, session) || !data.upkeepHeld(session.upkeep)) return false;
-        if (session.lastAbsorb != -1 && session.ticks - session.lastAbsorb <= ABSORB_INTERVAL) return false;
+        // 盾自身のtickが止める前（プリセット・スロットの変更、能力のオフ）に届いた飛来物は止めない。
+        if (!continues(player, data, session)) return false;
         if (!LightShieldGeometry.covers(LightShieldGeometry.base(player.position()), session.normal, session.radius(),
                 projectile.getBoundingBox().getCenter(), Math.min(.6, projectile.getBbWidth() / 2))) return false;
-        if (!data.consume(ID, session.absorbOverload(), session.defenseOverload(), player.getAbilities().instabuild)) return false;
-        session.lastAbsorb = session.ticks;
-        data.upkeepActed(session.upkeep);
+        if (!DefenseCost.pay(data, ID, DefenseCost.Kind.LIGHT_SHIELD, data.getProficiency(ID), DefenseCost.priced(player, estimate(projectile)),
+                player.getAbilities().instabuild)) return false;
         data.addProficiency(ID, .001f);
         session.intercepted++;
         return true;
+    }
+    /** 止める飛来物の、値段に使うダメージの見積もり: 矢はバニラと同じ「速さ × 基本ダメージ」の切り上げ、それ以外は0。 */
+    public static float estimate(Entity projectile) {
+        if (!(projectile instanceof AbstractArrow arrow)) return 0;
+        // 26.2: 矢の基本ダメージを読む入口が無いので、保存の値（"damage"、無ければバニラの既定の2）を読む。
+        double damage = Math.ceil(arrow.getDeltaMovement().length() * io.github.pinchan4273.reacademycraft.world.NbtCompat.saveEntity(arrow).getDoubleOr("damage", 2.0));
+        return (float) Math.max(0, Math.min(Integer.MAX_VALUE, Double.isFinite(damage) ? damage : 0));
     }
     /** テスト用: このセッションが押し留めた回数と、止めた飛来物の数。 */
     public static int heldCount(ServerPlayer player) { var s = ACTIVE.get(player.getUUID()); return s == null ? 0 : s.held; }
@@ -331,39 +325,49 @@ public final class LightShield {
     /** テスト用の入口: サーバーのtickループを待たずにセッションを1tick進める。 */
     public static void tickForTest(ServerPlayer player) { tick(player); }
 
-    /** 盾が自身の分を食べた後に残るダメージを返す。 */
+    /**
+     * 盾が防いだ後に残るダメージを返す（1.5.2）。効く範囲（{@link #covers}）で、攻撃の元から術者への経路が盾の円を通り、
+     * 防御の値段を払えたときだけ防ぐ。原子崩しの通常ビーム（{@link #NORMAL_BEAMS}）は0にし、それ以外は{@link #GENERAL_RATE}だけ軽減する。
+     * Re 本体の{@code Style.PIERCE}の打撃は、そのまま通す（費用も無い）。直接の原因のエンティティが無い効く範囲の攻撃（原因の無い爆発など）は、
+     * 位置を問わず一般の割合で軽減する（今のまま）。
+     */
     public static float absorb(ServerPlayer player, DamageSource source, float damage) {
         var session = ACTIVE.get(player.getUUID());
         var data = data(player);
-        // 技能が外された（次のtickでモードが終わる前の被弾）なら何もしない。熟練度の加算は未習得を拒否する（M-110-02）。
-        if (session == null || data == null || data.isReadOnly() || !data.hasLearned(ID) || damage == 0) return damage;
-        // 妨害が始まってから盾自身のtickで終わるまでの間に届いた攻撃も、盾は食べない。
-        if (data.isInterfering()) return damage;
-        if (session.lastAbsorb != -1 && session.ticks - session.lastAbsorb <= ABSORB_INTERVAL) return damage;
+        // 技能が外された（次のtickでモードが終わる前の被弾）なら何もしない。熟練度の加算は未習得を拒否する。
+        if (session == null || data == null || data.isReadOnly() || !data.hasLearned(ID) || !(damage > 0)) return damage;
+        // 妨害が始まってから盾自身のtickで終わるまでの間に届いた攻撃も、盾は防がない。維持が外れた盾も防がない。
+        if (data.isInterfering() || !data.upkeepHeld(session.upkeep) || !covers(source)) return damage;
+        // 1.5.2: Re 本体の貫通の打撃は、盾を完全に通る（盾だけの判定。ほかの防御は変えない）。
+        if (piercesShield(source)) return damage;
         var attacker = source.getDirectEntity();
-        // 範囲外では吸収を飛ばすだけ（間隔もやり直さない）。原作handleAttackedは範囲外でも.001を得たが、1.1.0（T178-10）は効果を
-        // 出していない被弾に熟練度を与えない。
-        // 工程2: 攻撃の元から術者への経路が盾の円を通るときだけ（飛来物はその位置、生き物は当たり判定の中心、円は相手の半分の幅だけ広げる）。
+        // 攻撃の元から術者への経路が盾の円を通るときだけ（飛来物はその位置、生き物は当たり判定の中心、円は相手の半分の幅だけ広げる）。
+        // 範囲外では何も払わない。
         if (attacker != null && !LightShieldGeometry.covers(LightShieldGeometry.base(player.position()), session.normal, session.radius(),
                 attacker.getBoundingBox().getCenter(), Math.min(.6, attacker.getBbWidth() / 2))) return damage;
-        session.lastAbsorb = session.ticks;
-        float result = damage;
-        // 原作は吸収を、上の接触とは逆に(cp, overload)として課す。
-        // CPは原作どおりabsorbOverloadのlerp(5, 3)、オーバーロードは2026-10-16からdefenseOverloadのlerp(10, 4)。
-        if (data.consume(ID, session.absorbOverload(), session.defenseOverload(), player.getAbilities().instabuild)) {
-            result -= Math.min(damage, session.absorbDamage());
-            // 防御吸収のtickは待機ではない。
-            data.upkeepActed(session.upkeep);
-            // 吸収できたときだけ（1.1.0、T178-10）。払えず吸収しなかった被弾には与えない（原作は払えなくても.001を得た）。
-            data.addProficiency(ID, .001f);
-        }
-        return Math.max(0, result);
+        // 1.5.2: 通常ビームは全部、それ以外は30%。回数の分 ＋ 防いだダメージ × 係数と過負荷を払えたら防ぐ。払えなければこの1回は防がない。
+        float blocked = normalBeam(source) ? damage : damage * GENERAL_RATE;
+        if (!DefenseCost.pay(data, ID, DefenseCost.Kind.LIGHT_SHIELD, data.getProficiency(ID), DefenseCost.priced(player, source, blocked),
+                player.getAbilities().instabuild)) return damage;
+        // 防げたときだけ（1.1.0）。
+        data.addProficiency(ID, .001f);
+        return Math.max(0, damage - blocked);
+    }
+    /** 盾が100%相殺する原子崩しの通常ビームか（Re 本体の技能の打撃で、技能の ID が{@link #NORMAL_BEAMS}）。 */
+    public static boolean normalBeam(DamageSource source) {
+        return source instanceof SkillDamageSource skill && NORMAL_BEAMS.contains(skill.skill());
+    }
+    /** 盾を完全に通る打撃か（Re 本体の技能の打撃で、当たり方が{@code Style.PIERCE}）。他の Mod の独自のタグは見ない。 */
+    public static boolean piercesShield(DamageSource source) {
+        return source instanceof SkillDamageSource && SkillDamageSource.isPierce(source);
     }
 
-    @SubscribeEvent public static void hurt(AcademyLivingHurtEvent event) {
+    @SubscribeEvent(receiveCanceled = true) public static void hurt(AcademyLivingHurtEvent event) { PierceHits.hurtStage(event, LightShield::hurtBody); }
+    /** 盾の本体（1.5.2: 貫通の打撃では、他の Mod の取り消しの後も {@link PierceHits} を通して動く）。 */
+    private static void hurtBody(AcademyLivingHurtEvent event) {
         if (!(event.getEntity() instanceof ServerPlayer player) || !ACTIVE.containsKey(player.getUUID())) return;
-        // v1.5.0: 50%以上の白翼刺突は防御を無視する（§4・R08）。
-        if (SkillDamageSource.ignoresDefenses(event.getSource())) return;
+        // 白翼刺突（いつも貫通）は Re の防御も通る（1.5.2）。ほかの Re 本体の貫通の打撃は、absorb がそのまま通す。
+        if (SkillDamageSource.bypassesReDefenses(event.getSource())) return;
         float left = absorb(player, event.getSource(), event.getAmount());
         event.setAmount(left);
         if (left == 0) event.setCanceled(true);
@@ -450,7 +454,7 @@ public final class LightShield {
         var session = ACTIVE.get(player.getUUID());
         return session == null ? null : state(player, session);
     }
-    /** 盾の向きを直接置く（判定の試験で、向きを決めてから確かめるため）。追従の状態も捨てる。 */
+    /** 盾の向きを直接置く（判定のテストで、向きを決めてから確かめるため）。追従の状態も捨てる。 */
     public static void pointForTest(ServerPlayer player, Vec3 normal) {
         var session = ACTIVE.get(player.getUUID());
         if (session != null) { session.normal = LightShieldGeometry.unit(normal, session.normal); session.memory.clear(); }

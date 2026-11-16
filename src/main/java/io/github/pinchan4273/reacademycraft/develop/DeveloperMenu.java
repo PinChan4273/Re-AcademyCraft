@@ -97,10 +97,37 @@ public final class DeveloperMenu extends AbstractContainerMenu {
         // 最後のアクションまでのすべて: この上限は以前汎用コース（14）で止まっていたため、画面からmeltdowner・teleporter・
         // vectorの技能を学べなかった。
         if (button < 0 || button > DevelopmentSession.MAX_ACTION || lastStartTick == player.level().getGameTime()) return false;
+        // 1.5.2: 取得と変更は、画面が見た計画を載せた要求（DevelopCategoryStart、startCategory）だけで始める。
+        // ボタンのIDだけでは、表示と違う因子で始まり得るので断る。
+        if (button == DevelopmentSession.ACQUIRE || button == DevelopmentSession.RESET) return false;
         lastStartTick = player.level().getGameTime(); return session.start(button);
     }
     /**
-     * 外部の技能の学習を始める（1.4.0のS4、通知{@code DevelopAddonSkill}）。ボタンと同じく、1tickに1回まで。
+     * 取得・変更を、画面が見た計画 expected で始める（1.5.2、通知{@code DevelopCategoryStart}）。サーバーが開始の時に
+     * 計算し直した計画と違えば始めずに、今の計画を「食い違いで断った」のフラグつきで送り直す（画面はそれを出し直し、プレイヤーがもう一度
+     * 入力する）。食い違いの断りは、1tickに1回の制限を使わない（送り直した計画で、すぐにもう一度求められる）。
+     */
+    public boolean startCategory(Player player, int action, @javax.annotation.Nullable FactorPlan expected) {
+        if (player != owner || player.containerMenu != this || session == null || !stillValid(player)
+                || lastStartTick == player.level().getGameTime()) return false;
+        var result = session.startCategory(action, expected);
+        if (result == DevelopmentSession.StartResult.PLAN_CHANGED) {
+            refusals++;
+            var plan = session.factorPlan();
+            planSent = true; sentPlan = plan;
+            if (owner instanceof ServerPlayer server)
+                io.github.pinchan4273.reacademycraft.network.AcademyNetwork.send(server,
+                        new io.github.pinchan4273.reacademycraft.network.DevelopFactorPlan(containerId, plan, true));
+            return false;
+        }
+        lastStartTick = player.level().getGameTime();
+        return result == DevelopmentSession.StartResult.STARTED;
+    }
+    /** 計画の食い違いで開始を断った回数（テストのため）。 */
+    private int refusals;
+    public int planRefusals() { return refusals; }
+    /**
+     * 外部の技能の学習を始める（1.4.0、通知{@code DevelopAddonSkill}）。ボタンと同じく、1tickに1回まで。
      */
     public boolean startAddon(Player player, net.minecraft.resources.Identifier skill) {
         if (player != owner || player.containerMenu != this || session == null || !stillValid(player)
@@ -109,9 +136,19 @@ public final class DeveloperMenu extends AbstractContainerMenu {
     }
     /** 最後に画面へ送った、学べる外部の技能の一覧。 */
     private java.util.List<net.minecraft.resources.Identifier> sentAddons;
+    /** 最後に画面へ送った、取得・変更の計画（1.5.2）。 */
+    private @javax.annotation.Nullable FactorPlan sentPlan;
+    private boolean planSent;
     public void serverTick() {
         if (session != null && owner.containerMenu == this) {
             session.tick();
+            // 1.5.2: 取得・変更の計画（ランダムか因子の指定か、候補の数、使う因子の場所）が変わったときだけ送る。
+            var plan = session.factorPlan();
+            if (owner instanceof ServerPlayer player && (!planSent || !java.util.Objects.equals(plan, sentPlan))) {
+                planSent = true; sentPlan = plan;
+                io.github.pinchan4273.reacademycraft.network.AcademyNetwork.send(player,
+                        new io.github.pinchan4273.reacademycraft.network.DevelopFactorPlan(containerId, plan));
+            }
             // 学べる外部の技能が変わったときだけ送る（メニューのデータの48ビットには入れない）。
             var addons = session.addonAvailability();
             if (owner instanceof ServerPlayer player && !addons.equals(sentAddons)) {
@@ -121,8 +158,10 @@ public final class DeveloperMenu extends AbstractContainerMenu {
             }
         }
     }
-    /** 学んでいる外部の技能（試験と画面のため。学んでいなければnull）。 */
+    /** 学んでいる外部の技能（テストと画面のため。学んでいなければnull）。 */
     public @javax.annotation.Nullable net.minecraft.resources.Identifier addonSkill() { return session == null ? null : session.addonSkill(); }
+    /** サーバーの、取得・変更の計画（テストのため。開発機が無ければnull）。 */
+    public @javax.annotation.Nullable FactorPlan factorPlan() { return session == null ? null : session.factorPlan(); }
     @SubscribeEvent public static void tick(PlayerTickEvent.Pre event) {
         if (event.getEntity() instanceof ServerPlayer player
                 && player.containerMenu instanceof DeveloperMenu menu) menu.serverTick();

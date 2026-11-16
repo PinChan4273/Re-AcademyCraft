@@ -319,7 +319,7 @@ public final class WindBodyBlockEntity extends BlockEntity {
         };
     }
     /**
-     * 一致する本体の部品すべてに撤去中の印を付けた後で1回呼ぶ。エンティティを生成する前にインベントリを空にするので、
+     * 一致する本体の部品すべてに撤去中のフラグを付けた後で1回呼ぶ。エンティティを生成する前にインベントリを空にするので、
      * 撤去のコールバックがそれを複製することはできない。
      */
     public void dropFanOnRemoval() {
@@ -370,7 +370,7 @@ public final class WindBodyBlockEntity extends BlockEntity {
         super.loadAdditional(input); loadTag(io.github.pinchan4273.reacademycraft.world.NbtCompat.readAll(input), input.lookup());
     }
     private void loadTag(CompoundTag tag, HolderLookup.Provider registries) {
-        // 外部のアイテムのコールバックが、取引の途中で所有者やセーブを置き換えることはできない。
+        // 外部のアイテムのコールバックが、トランザクションの途中で所有者やセーブを置き換えることはできない。
         if (charge.busy() || fanTransfer) return;
          CompoundTag own = tag.getCompoundOrEmpty("academy_wind_body");
         structureId = null; origin = null; future = null; removing = false;

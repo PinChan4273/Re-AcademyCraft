@@ -82,9 +82,7 @@ public final class ClientDarkWings {
         /** 防御の構え（0〜1）。 */
         public float guard(float partial) {
             if (guardTicks < 0) return 0;
-            float t = guardTicks + partial;
-            float k = t < 5 ? t / 5 : Math.max(0, 1 - (t - 10) / 8);
-            return k * k * (3 - 2 * k);
+            return io.github.pinchan4273.reacademycraft.network.DarkWingAction.guardCurve(guardTicks + partial);
         }
     }
 
@@ -100,7 +98,7 @@ public final class ClientDarkWings {
         state.deployed = packet.deployed();
     }
     public static void receive(io.github.pinchan4273.reacademycraft.network.DarkWingAction packet) {
-        // 形態の合図は翼の状態ではないので、外観の受け口へ渡す。
+        // 形態の合図は翼の状態ではないので、外観のハンドラへ渡す。
         if (packet.kind() == io.github.pinchan4273.reacademycraft.network.DarkWingAction.BODY || packet.kind() == io.github.pinchan4273.reacademycraft.network.DarkWingAction.BODY_FLASH) {
             ClientDarkBody.receive(packet);
             return;
@@ -115,18 +113,19 @@ public final class ClientDarkWings {
             case io.github.pinchan4273.reacademycraft.network.DarkWingAction.RAY_OFF -> s.rayOn = false;
             case io.github.pinchan4273.reacademycraft.network.DarkWingAction.CANNON -> { s.waveTicks = 0; s.waveRange = packet.reach(); }
             case io.github.pinchan4273.reacademycraft.network.DarkWingAction.GUARD -> {
-                s.guardTicks = 0; s.guardDir = packet.value();
+                // 動きの途中で次の防御が来たら、最初へ戻さず閉じたまま延ばす。
+                s.guardTicks = io.github.pinchan4273.reacademycraft.network.DarkWingAction.guardTicksOnHit(s.guardTicks); s.guardDir = packet.value();
                 // 翼の防御は攻撃を止める。見た目も止める。
                 s.rayOn = false; s.stabTicks = -1; s.waveTicks = -1;
             }
             default -> { }
         }
     }
-    /** 今の実体の番号の写し（描画用）。 */
+    /** 今のエンティティのIDの写し（描画用）。 */
     public static java.util.List<Integer> ids() { return java.util.List.copyOf(STATES.keySet()); }
     @Nullable public static State state(int entityId) { return STATES.get(entityId); }
     /**
-     * 体の描画が描く状態: 自然能力の状態があればそれ、無ければ外部の演出の状態（演出API版3）。自然能力の六翼が出ている実体では、
+     * 体の描画が描く状態: 自然能力の状態があればそれ、無ければ外部の演出の状態（演出API版3）。自然能力の六翼が出ているエンティティでは、
      * 外部の翼を重ねて描かない（二重の翼にしない。自然能力の状態は書き換えない）。
      */
     @Nullable public static State drawnState(int entityId) {
@@ -136,9 +135,9 @@ public final class ClientDarkWings {
 
     // ---- 外部の演出（公開APIのDARK_WINGS・DARK_WING_STAB・DARK_FEATHER_BALL、演出API版3。Forge 1.5.1 の 91f33867 の移植） ----
 
-    /** 外部の演出の六翼の状態（実体の番号ごと）。自然能力の{@link #STATES}とは別に持ち、同じ{@link #step}で動かす。 */
+    /** 外部の演出の六翼の状態（エンティティのIDごと）。自然能力の{@link #STATES}とは別に持ち、同じ{@link #step}で動かす。 */
     private static final Map<Integer, State> EXTERNAL = new HashMap<>();
-    /** 外部の翼を出したままにしている演出の札（実体の番号ごと）。札が1つでもあれば翼を出し、無くなれば本体と同じ速さで畳む。 */
+    /** 外部の翼を出したままにしている演出のハンドル（エンティティのIDごと）。ハンドルが1つでもあれば翼を出し、無くなれば本体と同じ速さで畳む。 */
     private static final Map<Integer, java.util.Set<Object>> HOLDS = new HashMap<>();
 
     private static State external(int entityId) {
@@ -146,26 +145,26 @@ public final class ClientDarkWings {
         if (level != world) { STATES.clear(); EXTERNAL.clear(); HOLDS.clear(); world = level; }
         return EXTERNAL.computeIfAbsent(entityId, id -> new State());
     }
-    /** 札で外部の翼を出したままにする。{@code instant}なら、畳んでいる翼をすぐ開いた形にする（刺突と防御は動作の間だけ翼を出すので）。 */
+    /** ハンドルで外部の翼を出したままにする。{@code instant}なら、畳んでいる翼をすぐ開いた形にする（刺突と防御は動作の間だけ翼を出すので）。 */
     static void holdExternal(int entityId, Object token, boolean instant) {
         var state = external(entityId);
         HOLDS.computeIfAbsent(entityId, id -> new java.util.HashSet<>()).add(token);
         state.deployed = true;
         if (instant) { state.open = Math.max(state.open, 1); state.openO = Math.max(state.openO, 1); }
     }
-    /** 札を離す。札が無くなれば翼を畳み始める。 */
+    /** ハンドルを離す。ハンドルが無くなれば翼を畳み始める。 */
     static void releaseExternal(int entityId, Object token) {
         var holds = HOLDS.get(entityId);
         if (holds != null && holds.remove(token) && holds.isEmpty()) HOLDS.remove(entityId);
         var state = EXTERNAL.get(entityId);
         if (state != null && !HOLDS.containsKey(entityId)) state.deployed = false;
     }
-    /** 札を離し、ほかの札が無ければ畳むのを待たずにすぐ消す（ログアウト・世界の切り替え・資源の読み直し・実体の入れ替わり）。 */
+    /** ハンドルを離し、ほかのハンドルが無ければ畳むのを待たずにすぐ消す（ログアウト・世界の切り替え・リソースの読み直し・エンティティの入れ替わり）。 */
     static void dropExternal(int entityId, Object token) {
         releaseExternal(entityId, token);
         if (!HOLDS.containsKey(entityId)) EXTERNAL.remove(entityId);
     }
-    /** 外部の翼が畳んでいる途中か（札が無く、まだ開いている）。札を離した演出は、これがfalseになるまで上限の枠を使う。 */
+    /** 外部の翼が畳んでいる途中か（ハンドルが無く、まだ開いている）。ハンドルを離した演出は、これがfalseになるまで上限の枠を使う。 */
     static boolean externalFolding(int entityId) {
         var state = EXTERNAL.get(entityId);
         return state != null && !state.deployed && (state.open > 0 || state.openO > 0);
@@ -180,7 +179,7 @@ public final class ClientDarkWings {
     /** 外部の翼で防ぐ（自然能力の{@link io.github.pinchan4273.reacademycraft.network.DarkWingAction#GUARD}と同じ動き）。 */
     static void guardExternal(int entityId, int direction) {
         var s = external(entityId);
-        s.guardTicks = 0; s.guardDir = direction;
+        s.guardTicks = io.github.pinchan4273.reacademycraft.network.DarkWingAction.guardTicksOnHit(s.guardTicks); s.guardDir = direction;
         // 自然能力と同じく、防御は刺突の見た目を止める。
         s.stabTicks = -1;
     }
@@ -208,11 +207,11 @@ public final class ClientDarkWings {
         return right > .5 ? io.github.pinchan4273.reacademycraft.network.DarkWingAction.GUARD_RIGHT
                 : right < -.5 ? io.github.pinchan4273.reacademycraft.network.DarkWingAction.GUARD_LEFT : io.github.pinchan4273.reacademycraft.network.DarkWingAction.GUARD_ALL;
     }
-    /** 試験用の入口: その実体の外部の翼が出ている（出つつある）か。 */
+    /** テスト用の入口: そのエンティティの外部の翼が出ている（出つつある）か。 */
     public static boolean externalDeployed(int entityId) { var s = EXTERNAL.get(entityId); return s != null && s.deployed; }
-    /** 試験用の入口: 外部の翼の状態の数。 */
+    /** テスト用の入口: 外部の翼の状態の数。 */
     public static int externalStates() { return EXTERNAL.size(); }
-    /** テスト用の入口: その実体の翼が出ている（出つつある）か。 */
+    /** テスト用の入口: そのエンティティの翼が出ている（出つつある）か。 */
     public static boolean deployed(int entityId) { var s = STATES.get(entityId); return s != null && s.deployed; }
 
     private static boolean step(State s, LivingEntity entity) {
@@ -254,7 +253,7 @@ public final class ClientDarkWings {
             if (!(level.getEntity(entry.getKey()) instanceof LivingEntity living) || living.isRemoved()) return true;
             return step(entry.getValue(), living);
         });
-        // 外部の翼も同じ動きで進める。札が残っている間は消さない（実体を失った演出は、自分で札を離す）。
+        // 外部の翼も同じ動きで進める。ハンドルが残っている間は消さない（エンティティを失った演出は、自分でハンドルを離す）。
         EXTERNAL.entrySet().removeIf(entry -> {
             if (!(level.getEntity(entry.getKey()) instanceof LivingEntity living) || living.isRemoved()) { HOLDS.remove(entry.getKey()); return true; }
             return step(entry.getValue(), living) && !HOLDS.containsKey(entry.getKey());

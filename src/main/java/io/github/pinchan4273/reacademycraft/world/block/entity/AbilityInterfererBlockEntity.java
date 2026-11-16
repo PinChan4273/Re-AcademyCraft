@@ -30,7 +30,7 @@ import org.jetbrains.annotations.Nullable;
  */
 public final class AbilityInterfererBlockEntity extends BlockEntity {
     public static final double MIN_RANGE = 10, MAX_RANGE = 100;
-    /** 原作自身の10000 IFのバッファ（移植版が数える単位のmilli-IF）と、10tickの拍。 */
+    /** 原作自身の10000 IFのバッファ（移植版が数える単位のmilli-IF）と、10tickの周期。 */
     public static final int MAX_MILLI_IF = 10000000, INPUT_FE = 200, INTERVAL = 10;
     public static final int SLOT_BATTERY = 0;
     private int milliIF, beat;
@@ -94,7 +94,7 @@ public final class AbilityInterfererBlockEntity extends BlockEntity {
     /**
      * この機械が今そのプレイヤーを妨害するか。
      *
-     * 原作は箱の中のすべてのサバイバルプレイヤーを選び（EntitySelectors.survivalPlayer）、独自のIInterfSourceは箱・機械の有効性・
+     * 原作はバウンディングボックスの中のすべてのサバイバルプレイヤーを選び（EntitySelectors.survivalPlayer）、独自のIInterfSourceはバウンディングボックス・機械の有効性・
      * クリエイティブ・スイッチだけを確かめ直す。ホワイトリストは保存・同期・編集されるが決して参照されないので、誰も除外しない。
      * これを参照すると、設置者がリストに入るため設置者は常に影響を受けず、機械が何もしていないように見えてしまう。
      * リストは引き続き保ち、原作と同じく設置者を含める。
@@ -106,7 +106,7 @@ public final class AbilityInterfererBlockEntity extends BlockEntity {
     }
 
     /**
-     * 読み込まれた妨害装置（1.4.0のS5。外部の主体の位置で妨害を判定するため）。弱い参照で、壊れた・読み込みを外れた物は
+     * 読み込まれた妨害装置（1.4.0から。外部の主体の位置で妨害を判定するため）。弱い参照で、壊れた・読み込みを外れた物は
      * {@link #covers(Level, net.minecraft.world.phys.Vec3)}の判定（mutable）で除かれる。サーバーのスレッドでだけ触る。
      */
     private static final java.util.Set<AbilityInterfererBlockEntity> LOADED = java.util.Collections.newSetFromMap(new java.util.WeakHashMap<>());
@@ -126,7 +126,7 @@ public final class AbilityInterfererBlockEntity extends BlockEntity {
         if (level instanceof net.minecraft.server.level.ServerLevel server && server.getServer().isSameThread()) LOADED.add(this);
     }
     /**
-     * その位置が、動いている妨害装置の範囲の中か（1.4.0のS5、裁定S5-02。外部の主体の判定）。範囲・オン・壊れていないことは
+     * その位置が、動いている妨害装置の範囲の中か（1.4.0から。外部の主体の判定）。範囲・オン・壊れていないことは
      * プレイヤーの判定（{@link #covers(Player)}）と同じ。クリエイティブの除外は、主体の側（装備を着けた人）で判定する。
      */
     public static boolean covers(Level level, net.minecraft.world.phys.Vec3 position) {
@@ -148,7 +148,7 @@ public final class AbilityInterfererBlockEntity extends BlockEntity {
         tile.chargeFromBattery();
     }
     private void sweep(Level level) {
-        // 原作scheduler.every(10).condition(enabled): LambdaLib2のTickSchedulerは条件が成り立つ間だけ数えるので、オフの間は拍が止まり、
+        // 原作scheduler.every(10).condition(enabled): LambdaLib2のTickSchedulerは条件が成り立つ間だけ数えるので、オフの間は周期のカウントが止まり、
         // オンに戻すとそこから続く。
         if (!enabled) return;
         if (++beat < INTERVAL) return;

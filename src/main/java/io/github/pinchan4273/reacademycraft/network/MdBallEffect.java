@@ -6,7 +6,7 @@ import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.resources.Identifier;
 
 /**
- * Electron Bombのオーブの不変のスナップショット。オーブは術者に付いて行くので、ワールドの位置ではなく決めたときのずれを
+ * Electron Bombのオーブの不変のスナップショット。オーブは術者に付いて行くので、ワールドの位置ではなく決めたときのオフセットを
  * 運ぶ。当たり・ダメージ・資源の決定権は持たない。
  */
 public record MdBallEffect(Identifier dimension, UUID player, int entityId, long session,

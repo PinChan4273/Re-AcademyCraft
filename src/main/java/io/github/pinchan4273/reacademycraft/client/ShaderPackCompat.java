@@ -11,7 +11,7 @@ import org.slf4j.Logger;
  *
  * <p>Iris 1.11.4（26.2）は、シェーダーパックの間、描画のパイプラインのプログラムが Iris の物でない描画を、画面へ届かない描画先へ向ける。
  * Iris がパックのプログラムへ対応させるのは、vanilla の決まったパイプライン、{@code RenderPipeline#toBuilder()} で作ったその写し、
- * Iris の API で登録した物だけで、このMODの独自のシェーダーのパイプラインはどれにも当たらない（2026-11-05 に Iris の JAR のクラスで読んだ）。
+ * Iris の API で登録した物だけで、このMODの独自のシェーダーのパイプラインはどれにも当たらない（Iris の JAR のクラスで読んで確かめた）。
  * そのため、パックの間だけ、演出を vanilla のシェーダーのパイプラインで描く（{@code client/render/ShaderPackDraw}）。パックが無い時の描き方は変えない。
  *
  * <p>Iris はこのMODの依存ではないので、その公開 API（{@code net.irisshaders.iris.api.v0.IrisApi#isShaderPackInUse}）はリフレクションで呼ぶ。

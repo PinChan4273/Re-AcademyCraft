@@ -16,7 +16,7 @@ import net.minecraft.util.Mth;
 import org.joml.Matrix4f;
 
 /**
- * 未元物質人間の頭上の輪（COMMAND-RE-150-DARK-BODY-VISUAL-R1-20261104の初稿）。白い同心円の輪2本を、頭の上に水平に重ねる（中心と高さは共通）。
+ * 未元物質人間の頭上の輪。白い同心円の輪2本を、頭の上に水平に重ねる（中心と高さは共通）。
  * 能力OFF（翼が無い）でも出す。静止中はわずかに、歩く・飛ぶ間は大きく上下に揺れる（内側の輪の方が大きく、位相もずらす）。
  * 明るさは翼の発光の設定に従い、0%でも周りの明るさで形が見える。
  */
@@ -28,7 +28,7 @@ public final class DarkHaloLayer extends RenderLayer<AvatarRenderState, PlayerMo
     public static final float HEIGHT = .16f;
     /** 揺れの幅（ブロック）: 静止時と、歩く・飛ぶ間の最大。 */
     public static final float OUTER_IDLE = .01f, INNER_IDLE = .015f, OUTER_MOVE = .04f, INNER_MOVE = .06f;
-    /** 内側の輪の揺れの位相のずれ（ラジアン）。 */
+    /** 内側の輪の揺れの位相のオフセット（ラジアン）。 */
     private static final float INNER_PHASE = 1.3f;
     /** 輪の不透明度。 */
     private static final float ALPHA = .9f;
@@ -44,7 +44,7 @@ public final class DarkHaloLayer extends RenderLayer<AvatarRenderState, PlayerMo
         float move = mark.move(partial), phase = mark.phase(partial);
         float outerBob = Mth.lerp(move, OUTER_IDLE, OUTER_MOVE) * Mth.sin(phase), innerBob = Mth.lerp(move, INNER_IDLE, INNER_MOVE) * Mth.sin(phase + INNER_PHASE);
         var head = getParentModel().head;
-        // 描画の空間は下が+y（1単位＝1ブロック、モデルの1画素＝1/16）。頭の付け根から8画素上がてっぺん。
+        // 描画の座標系は下が+y（1単位＝1ブロック、モデルの1画素＝1/16）。頭の付け根から8画素上がてっぺん。
         float x = head.x / 16, top = head.y / 16 - .5f - HEIGHT, z = head.z / 16;
         // 描く時の発光（シェーダーパックの使用中は100%を90%として描く。翼と同じ値）。
         float glowLevel = ClientSettings.drawnWingGlow() / 100f;
@@ -56,7 +56,7 @@ public final class DarkHaloLayer extends RenderLayer<AvatarRenderState, PlayerMo
         ring(pose, faces, x, top - outerBob, z, OUTER_DIAMETER, 1, ALPHA, face);
         ring(pose, faces, x, top - innerBob, z, INNER_DIAMETER, 1, ALPHA, face);
         buffers.submit(collector);
-        // 翼のような無陰影の加算の層は足さない（加算は素材の透明度を見ないので、輪の外の四角まで白く光った。初稿の撮影で確認）。
+        // 翼のような無陰影の加算の層は足さない（加算は素材の透明度を見ないので、輪の外の四角まで白く光った）。
     }
     /** 水平な輪を1本、上下の両面で描く。 */
     private static void ring(PoseStack pose, VertexConsumer buffer, float x, float y, float z, float diameter, float shade, float alpha, int light) {

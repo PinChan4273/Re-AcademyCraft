@@ -17,7 +17,7 @@ import net.neoforged.fml.common.Mod;
  * 原作Flashingの術者側。モードがONの間、移動キーで方向を決める（原作のキーグループと同じ）。
  * 原作と同じく、移動キーは術者の移動も兼ねる: キーを押すとその方向を選び、同じキーを離すとサーバーへ
  * 閃光を求める。画面が開くと狙いを取り消し（原作onKeyAbort）、閃光に足りるCPが無くなったときも取り消す
- * （TOGGLE-GUI-001: モードはONのまま。画面・データ端末・フォーカスの喪失の間も取り消し、その間に押されていた方向キーは、
+ * （モードはONのまま。画面・データ端末・フォーカスの喪失の間も取り消し、その間に押されていた方向キーは、
  * 一度離すまで狙いにしない。{@link Aim}）
  * （原作localTick）。閃光の後は、原作のGravityCancellorと同じく、術者が飛行中でも接地中でもない間、
  * 40tickのあいだclientの各tickの初めに落下速度へ0.072を足す。狙いの目印と閃光の音は移植していない。
@@ -86,7 +86,7 @@ public final class ClientFlashing {
      *
      * <p>操作できない間（画面・データ端末・フォーカスなし、{@link SteeringGate}）は狙いを取り消し（原作onKeyAbort）、閃光を求めない。
      * 戻った後に押されたままのキーは、その前から押していたものも、その間に押し始めたものも、一度離されるまで狙いにしない。
-     * 閉じたときの離しを閃光へ化けさせず、GUIの中の入力で狙いを始めない（TOGGLE-GUI-001）。Minecraftの型を使わない。
+     * 閉じたときの離しを閃光へ化けさせず、GUIの中の入力で狙いを始めない。Minecraftの型を使わない。
      */
     public static final class Aim {
         private final boolean[] down = new boolean[5], stale = new boolean[5];
@@ -102,13 +102,13 @@ public final class ClientFlashing {
         /** 操作できるtick: 各方向のキーが押されていると報告されているか。閃光を求める方向（無ければ-1）。 */
         public int read(boolean[] pressed) { return read(pressed, new boolean[5]); }
         /**
-         * F03: フォーカスの喪失の印（{@link SteeringGate.FocusMark}）のある方向は、離されていると報告されても数えない状態を解かず、
+         * フォーカスの喪失のマーカー（{@link SteeringGate.FocusMark}）のある方向は、離されていると報告されても数えない状態を解かず、
          * 押されていても狙わない（本当の離しを見るまで）。
          *
-         * <p>F03-F01（WORK-104）: 狙っている方向に印が付いた（操作できないtickを挟まずにフォーカスを失って戻った）ときは、
+         * <p>狙っている方向にマーカーが付いた（操作できないtickを挟まずにフォーカスを失って戻った）ときは、
          * 押されていても離されていても、狙いを取り消すだけで閃光を求めない（{@link #suspend}と同じ扱い）。
-         * 閃光にするのは、印の無い本当の離しだけ。原作（LWJGL2）はフォーカスの喪失でキーを全て離した状態にし、Flashingは
-         * それをonKeyUpとして閃光を撃っていた。ここは、操作できない間の入力で閃光を撃たない（TOGGLE-GUI-001、司令室7の指示）ために、
+         * 閃光にするのは、マーカーの無い本当の離しだけ。原作（LWJGL2）はフォーカスの喪失でキーを全て離した状態にし、Flashingは
+         * それをonKeyUpとして閃光を撃っていた。ここは、操作できない間の入力で閃光を撃たないために、
          * 原作から意図して変えている。
          */
         public int read(boolean[] pressed, boolean[] focusMarked) {

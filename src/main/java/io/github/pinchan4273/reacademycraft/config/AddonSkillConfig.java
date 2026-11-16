@@ -10,11 +10,11 @@ import net.minecraft.resources.Identifier;
 import net.neoforged.neoforge.common.ModConfigSpec;
 
 /**
- * 外部の技能の設定（1.4.0のS4、司令室11の裁定D12）。名前空間ごとに別のファイル（インスタンスの{@code config/academy-addon-<名前空間>.toml}）で、
+ * 外部の技能の設定（1.4.0）。名前空間ごとに別のファイル（インスタンスの{@code config/academy-addon-<名前空間>.toml}）で、
  * 本体の設定ファイルには混ぜない。本体の設定と同じく、ワールドごとではなくインスタンスの設定（docs/CONFIG_SCOPE_AUDIT_JA.md）。
  * 項目は本体の技能と同じ（{@code skill.<技能>}の下に、有効・ダメージの倍率・CPと過負荷の消費の速さ・熟練度の伸び・ブロックの破壊）。
  * <p>
- * NeoForgeは登録の窓より前にmodの設定を読み終えるので、このファイルは登録簿の凍結の時に、STARTUPの設定として登録して読む（無ければ既定の値で作る。
+ * NeoForgeは登録の受付期間より前にmodの設定を読み終えるので、このファイルはレジストリの凍結の時に、STARTUPの設定として登録して読む（無ければ既定の値で作る。
  * NeoForgeはSTARTUPの設定を登録の時に読む。読み込んだ設定の型{@code ILoadedConfig}はsealedで、Forge版のように自分で開いたファイルを渡せない）。
  * NeoForgeはファイルを監視するが、項目を{@code gameRestart}にしてあるので、一度読んだ値は変わらず、ファイルの変更はゲームまたは専用サーバーの再起動で効く（ワールドの入り直しでは効かない）。
  * 値の範囲を外れた値は、読むときに既定の値へ直して書き戻す（NeoForgeは、その前のファイルの写しも残す）。
@@ -31,7 +31,7 @@ public final class AddonSkillConfig {
     /** その名前空間の設定ファイルの名前（インスタンスの{@code config}の中）。 */
     public static String fileName(String namespace) { return "academy-addon-" + namespace + ".toml"; }
 
-    /** 登録簿の外部の技能から設定を作り、本体のmodの設定として足す（凍結の時に1回）。 */
+    /** レジストリの外部の技能から設定を作り、本体のmodの設定として足す（凍結の時に1回）。 */
     public static synchronized void register(AbilityRegistry registry) {
         if (!SPECS.isEmpty()) return;
         var byNamespace = new LinkedHashMap<String, List<Identifier>>();
@@ -70,8 +70,8 @@ public final class AddonSkillConfig {
     }
     /** 設定のある名前空間（登録の順）。 */
     public static synchronized List<String> namespaces() { return List.copyOf(SPECS.keySet()); }
-    /** その名前空間の設定の仕様（無ければnull。試験のため）。 */
+    /** その名前空間の設定の仕様（無ければnull。テストのため）。 */
     public static @Nullable ModConfigSpec spec(String namespace) { return SPECS.get(namespace); }
-    /** その名前空間の、登録した設定（ファイルのパスと読み込んだ中身を持つ。無ければnull。試験のため）。 */
+    /** その名前空間の、登録した設定（ファイルのパスと読み込んだ中身を持つ。無ければnull。テストのため）。 */
     public static @Nullable net.neoforged.fml.config.ModConfig file(String namespace) { return FILES.get(namespace); }
 }

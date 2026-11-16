@@ -7,7 +7,7 @@ import io.github.pinchan4273.reacademycraft.skill.PlayerAbilityData;
 import io.github.pinchan4273.reacademycraft.skill.SkillCatalog;
 import net.minecraft.server.level.ServerPlayer;
 
-/** 外部の技能の習得の公開APIの実装（1.4.0のS4、内部の実装）。 */
+/** 外部の技能の習得の公開APIの実装（1.4.0、内部の実装）。 */
 public final class AddonLearning {
     private AddonLearning() { }
 

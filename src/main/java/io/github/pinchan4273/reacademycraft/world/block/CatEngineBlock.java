@@ -23,7 +23,7 @@ public final class CatEngineBlock extends BaseEntityBlock {
     private final com.mojang.serialization.MapCodec<CatEngineBlock> codec = com.mojang.serialization.MapCodec.unit(this);
     @Override protected com.mojang.serialization.MapCodec<CatEngineBlock> codec() { return codec; }
     public CatEngineBlock() { super(io.github.pinchan4273.reacademycraft.world.AcademyIds.block().strength(0f).requiresCorrectToolForDrops() /* 原作: 硬さ無し、Material.ROCK */.sound(SoundType.STONE).noOcclusion()); }
-    /** 原作EnumBlockRenderType.INVISIBLE: 代わりにRenderCatEngineが絵を描く。 */
+    /** 原作EnumBlockRenderType.INVISIBLE: 代わりにRenderCatEngineがスプライトを描く。 */
     @Override public RenderShape getRenderShape(BlockState state) { return RenderShape.INVISIBLE; }
     @Override public <T extends BlockEntity> net.minecraft.world.level.block.entity.BlockEntityTicker<T> getTicker(
             Level level, BlockState state, net.minecraft.world.level.block.entity.BlockEntityType<T> type) {

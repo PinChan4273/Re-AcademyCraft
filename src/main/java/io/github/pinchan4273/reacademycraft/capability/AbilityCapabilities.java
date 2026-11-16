@@ -20,7 +20,7 @@ import net.neoforged.neoforge.registries.NeoForgeRegistries;
  * プレイヤーの能力データ。NeoForgeのData Attachment（Forge 1.20.1版はcapabilityとAbilityDataProvider）。
  *
  * <p>保存: プレイヤーのNBTの{@code neoforge:attachments}の下、{@code academy:player_ability}に{@link PlayerAbilityData#save()}の形で置く
- * （Forge版は{@code ForgeCaps}の下。Forge版のセーブからの移行はしない: ユーザーの判断で、セーブの互換はNeoForgeの版どうしだけ）。
+ * （Forge版は{@code ForgeCaps}の下。Forge版のセーブからの移行はしない。セーブの互換はNeoForgeの版どうしだけ）。
  * 読むときは、Forge版のdeserializeNBTと同じくクールダウンを捨てる。
  *
  * <p>死亡と帰還の写し（{@link #clonePlayer}）は、attachmentのcopyOnDeathに任せず明示的に行う: 所有者は新しいプレイヤー、

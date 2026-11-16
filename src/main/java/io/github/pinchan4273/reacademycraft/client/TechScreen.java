@@ -138,8 +138,8 @@ public abstract class TechScreen<M extends AbstractContainerMenu> extends Abstra
         return (float) (.675 + sin * .175);
     }
     /**
-     * 原作InventoryPage(name)はpage_inventoryを読み、そのui_inventoryがプレイヤーのスロットを描く。原作へ自前の窓を
-     * 渡す機械（InventoryPage(window)）は、その窓が描くものだけになる。
+     * 原作InventoryPage(name)はpage_inventoryを読み、そのui_inventoryがプレイヤーのスロットを描く。原作へ自前のウィンドウを
+     * 渡す機械（InventoryPage(window)）は、そのウィンドウが描くものだけになる。
      */
     protected boolean inventoryLayer() { return true; }
     /** 機械自身のui_層と、そのページに描くもの（ページ座標）。 */
@@ -339,7 +339,7 @@ public abstract class TechScreen<M extends AbstractContainerMenu> extends Abstra
     @Override protected boolean hasClickedOutside(double mx, double my, int left, int top) {
         return mx < left - 20 || mx >= left + INFO_X + INFO_W + 4 || my < top || my >= top + PAGE_H;
     }
-    /** 原作は何も出さないインベントリページのボタンに、移植版が機械について出す説明: 原作が絵に任せている状態を言葉で示す。 */
+    /** 原作は何も出さないインベントリページのボタンに、移植版が機械について出す説明: 原作がテクスチャに任せている状態を言葉で示す。 */
     protected List<Component> pageTooltip() { return List.of(); }
     private int lastMouseX, lastMouseY;
     @Override public void extractRenderState(GuiGraphicsExtractor g, int mx, int my, float partial) {

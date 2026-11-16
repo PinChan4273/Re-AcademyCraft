@@ -7,7 +7,7 @@ import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.entity.living.LivingDeathEvent;
 
 /**
- * v1.5.0 §15: 死亡の最終判断と、Reの死亡時の後始末（2026-11-03のユーザーの決定「通常人間ではトーテムと他MODの死亡回避を人体生成より優先する」）。
+ * v1.5.0: 死亡の最終判断と、Reの死亡時の後始末（通常人間ではトーテムと他MODの死亡回避を人体生成より優先する）。
  * <p>
  * <b>順序の作り方。</b> NeoForgeのイベントも、同じ優先度の中では登録した順に呼ばれる。{@link #register}を全MODの読み込みの完了（{@code FMLLoadCompleteEvent}）の後に呼び、
  * {@link LivingDeathEvent}の最低優先度の最後へ1つだけ登録する。注釈（{@code @SubscribeEvent}）や構築・初期化の間に登録した他MODのリスナーは、最低優先度のものも
@@ -34,15 +34,20 @@ public final class DeathOrder {
         if (registered) return;
         registered = true;
         NeoForge.EVENT_BUS.addListener(EventPriority.LOWEST, true, LivingDeathEvent.class, LISTENER);
+        // 1.5.2: 貫通の打撃の、他の Mod の守りを外す最後の段も、同じ時に最低優先度の最後へ置く。
+        PierceHits.register();
     }
-    /** 試験用の入口: 登録し直して最後へ回す（試験の中で後から登録した「他MODの救済」より後にする）。 */
+    /** テスト用の入口: 登録し直して最後へ回す（テストの中で後から登録した「他MODの救済」より後にする）。 */
     public static synchronized void moveLastForTest() {
         NeoForge.EVENT_BUS.unregister(LISTENER);
         NeoForge.EVENT_BUS.addListener(EventPriority.LOWEST, true, LivingDeathEvent.class, LISTENER);
         registered = true;
+        PierceHits.moveLastForTest();
     }
 
     private static void decide(LivingDeathEvent event) {
+        // 1.5.2: 追跡中の貫通の打撃なら、他の Mod の死の取り消しを外して体力を0にする（Re 自身の判断は、この後の未元物質人間だけ）。
+        PierceHits.death(event);
         DarkBody.decide(event);
         if (event.isCanceled()) return;
         DirectEffects.death(event);

@@ -81,11 +81,18 @@ public final class AcademyPipelines {
             .withCull(false)
             .withVertexBinding(0, DefaultVertexFormat.POSITION).build();
 
-    /** 粒子: vanilla の particle で、完全に透明な画素だけを捨てる（原作の煙など）。 */
+    /**
+     * 粒子: vanilla の particle で、完全に透明な画素だけを捨てる（原作の煙など）。
+     * <p>
+     * 1.5.2: 深度は書かない（読むだけ）。alphaテストが無いので、深度を書くと、透明な画素まで四角形全体が深度を埋め、後から描く
+     * 半透明の粒子（別の煙など）に見えない四角い穴をあけていた。壁などの不透明な物には、今までどおり深度の比較で隠れる。
+     * 深度の比較は vanilla の既定（{@link DepthStencilState#DEFAULT}）と同じで、書くかどうかだけを変える。
+     */
     public static final RenderPipeline PARTICLE_KEEP = RenderPipeline.builder(RenderPipelines.PARTICLE_SNIPPET)
             .withLocation(id("pipeline/particle_keep"))
             .withFragmentShader(id("core/particle_keep"))
             .withColorTargetState(new ColorTargetState(BlendFunction.TRANSLUCENT))
+            .withDepthStencilState(new DepthStencilState(DepthStencilState.DEFAULT.depthTest(), false))
             .build();
 
     /**

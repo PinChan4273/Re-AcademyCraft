@@ -12,7 +12,7 @@ import net.neoforged.neoforge.registries.DeferredHolder;
 import net.neoforged.neoforge.registries.DeferredRegister;
 
 /**
- * 機械のレシピの種類。原作は金属成形機（MetalFormerRecipes）と虚像融合機（ImagFusorRecipes）の2つの登録簿を
+ * 機械のレシピの種類。原作は金属成形機（MetalFormerRecipes）と虚像融合機（ImagFusorRecipes）の2つのレジストリを
  * コードで持っていた。ここではそれぞれをデータパックのレシピ型として登録する。
  * 型のID（academy:metal_forming、academy:imag_fusion）はレシピJSONの"type"に書かれるので変えない。
  */

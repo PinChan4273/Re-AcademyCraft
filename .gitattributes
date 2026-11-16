@@ -1,3 +1,9 @@
+# 文字のファイルは、作業ツリーの設定（core.autocrlf）に関係なくLFにする。JARに入る資源とソースを、
+# どの環境のチェックアウトでも同じバイトにするため。Windowsのバッチファイルだけは、cmdのためにCRLFにする。
+# 下の行のほうが強いので、個別の決まりは後に書く。
+* text=auto eol=lf
+*.bat text eol=crlf
+
 # このモデルはLFのblobのSHA-256で照合される。core.autocrlf=trueのチェックアウトでは作業ツリーがCRLFになり、
 # processResourcesがバイトの一致しないファイルを配置してしまうので、作業ツリーでもLFに保つ。
 # gitには元からLFで保存されている。

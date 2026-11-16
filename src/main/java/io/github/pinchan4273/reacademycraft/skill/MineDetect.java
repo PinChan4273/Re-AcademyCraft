@@ -13,6 +13,8 @@ public final class MineDetect {
     public static final Identifier ID = Identifier.fromNamespaceAndPath("academy","mine_detect");
     public static final int DURATION = 100;
     private MineDetect() { }
+    /** 1回のオーバーロード（1.5.2でlerp(200, 180)からlerp(200, 120)へ）。 */
+    public static float overload(float exp) { return ArcGen.lerp(200, 120, exp); }
     public static String cast(ServerPlayer player,PlayerAbilityData data) {
         if (!player.isAlive() || data.isReadOnly()
                 || !ArcGen.CATEGORY.equals(data.getAbility()) || !data.hasLearned(ID)) return "academy.cast.unlearned";
@@ -21,7 +23,7 @@ public final class MineDetect {
         if (data.getCooldown(ID)>0) return "academy.cast.cooldown";
         float exp=data.getProficiency(ID);
         var grant=new OreSurveyStart(player.getUUID(),player.level().dimension().identifier(),ArcGen.lerp(15,30,exp),exp>.5f&&data.getLevel()>=4);
-        if (!data.consume(ID, ArcGen.lerp(1500,1000,exp),ArcGen.lerp(200,180,exp),player.getAbilities().instabuild)) return "academy.cast.cp";
+        if (!data.consume(ID, ArcGen.lerp(1500,1000,exp),overload(exp),player.getAbilities().instabuild)) return "academy.cast.cp";
         // v1.5.0: 術者だけの視界の制限を、技能由来の直接効果で（バニラの盲目は付けない。牛乳で消えず、/effect clearで外れる）。
         DirectEffects.add(player,DirectEffects.Kind.BLINDNESS,0,DURATION,ID,player);
         data.addProficiency(ID,.008f);

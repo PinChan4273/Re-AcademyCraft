@@ -53,7 +53,7 @@ public final class ClientTeleporterAim {
             MARK_TEXTURES[i] = Identifier.fromNamespaceAndPath("academy", "textures/effects/tp_mark/" + i + ".png");
     }
 
-    /** 原作EntityMarker: ある位置（足元）の括弧の箱、または相手自身の箱の括弧。 */
+    /** 原作EntityMarker: ある位置（足元）の括弧のバウンディングボックス、または相手自身のバウンディングボックスの括弧。 */
     public record Marker(Vec3 position, float width, float height, int[] color, boolean ignoreDepth, @Nullable Entity target) {
         Vec3 at(float partialTick) { return target != null ? target.getPosition(partialTick) : position; }
         float w() { return target != null ? target.getBbWidth() : width; }
@@ -231,7 +231,7 @@ public final class ClientTeleporterAim {
     }
 
     private static void figure(PoseStack pose, Vec3 camera, Mark mark, Vec3 previous, float partial) {
-        // 原作MarkRender: tp_markの(ticksExisted / 2.5) % 7番目の絵を、白、空きが無い所では赤で描く。
+        // 原作MarkRender: tp_markの(ticksExisted / 2.5) % 7番目のテクスチャを、白、空きが無い所では赤で描く。
         int frame = (int) ((mark.age() / 2.5) % MARK_FRAMES);
         var at = previous.lerp(mark.position(), partial).subtract(camera);
         pose.pushPose();

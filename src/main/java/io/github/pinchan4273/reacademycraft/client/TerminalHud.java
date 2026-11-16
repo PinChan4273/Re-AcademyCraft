@@ -55,8 +55,10 @@ public final class TerminalHud {
     /** 原作App.getIcon: guis/apps/<name>/icon.png。 */
     public static Identifier icon(TerminalApp app) {
         if (app.kind() == TerminalApp.Kind.TUTORIAL) return tutorialIcon;
-        // 能力設定は原作に無いアプリなので、新しい画像を作らず、原作の編集の印（guis/icons/edit.png）を使う。
+        // 能力設定は原作に無いアプリなので、新しい画像を作らず、原作の編集アイコン（guis/icons/edit.png）を使う。
         if (app.kind() == TerminalApp.Kind.ABILITY_SETTINGS) return Identifier.fromNamespaceAndPath("academy", "textures/guis/icons/edit.png");
+        // ベクトル解析（1.5.2）も原作に無いアプリなので、原作のベクトル操作の系統のアイコン（guis/icons/icon_vecmanip.png）を使う。
+        if (app.kind() == TerminalApp.Kind.VECTOR_ANALYSIS) return Identifier.fromNamespaceAndPath("academy", "textures/guis/icons/icon_vecmanip.png");
         return Identifier.fromNamespaceAndPath("academy", "textures/guis/apps/" + app.name() + "/icon.png");
     }
     /**
@@ -98,6 +100,14 @@ public final class TerminalHud {
     public static void close() { open = false; savedLook = false; }
     /** 原作TerminalUIは永続しないので、LambdaLib2のAuxGuiHandlerが切断時に破棄する: 次のワールドは閉じた状態で始まる。 */
     @SubscribeEvent public static void terminalLoggingOut(ClientPlayerNetworkEvent.LoggingOut event) { close(); }
+    /** 死亡画面が開いたら閉じる（1.5.2: 開いたまま死ぬと、リスポーン後も開いたままだった）。 */
+    @SubscribeEvent public static void terminalDeathScreen(net.neoforged.neoforge.client.event.ScreenEvent.Opening event) {
+        if (event.getNewScreen() instanceof net.minecraft.client.gui.screens.DeathScreen) close();
+    }
+    /** 死亡画面を出さないすぐのリスポーン（{@code doImmediateRespawn}）でも、死んでいたプレイヤーからの作り直しなら閉じる。ディメンションの移動では閉じない。 */
+    @SubscribeEvent public static void terminalRespawn(ClientPlayerNetworkEvent.Clone event) {
+        if (event.getOldPlayer().isDeadOrDying()) close();
+    }
 
     /** 原作の並び順のアプリ: インストール順で、プリインストールのものが先。 */
     public static List<TerminalApp> apps() { return apps; }
@@ -135,10 +145,11 @@ public final class TerminalHud {
             case SKILL_TREE -> net.neoforged.neoforge.client.network.ClientPacketDistributor.sendToServer(new io.github.pinchan4273.reacademycraft.network.TerminalOpenApp(app.name()));
             case SETTINGS -> client.gui.setScreen(new TerminalSettingsScreen(null));
             case ABILITY_SETTINGS -> client.gui.setScreen(new AbilitySettingsScreen(null));
+            case VECTOR_ANALYSIS -> client.gui.setScreen(new VectorAnalysisScreen(null));
             case MEDIA_PLAYER -> client.gui.setScreen(new MediaScreen());
             case ABOUT -> client.gui.setScreen(new AboutScreen());
             case TUTORIAL -> client.gui.setScreen(new TutorialScreen());
-            // 原作passOn: 送信機の窓が端末の窓に取って代わる。
+            // 原作passOn: 送信機のウィンドウが端末のウィンドウに取って代わる。
             case FREQ_TRANSMITTER -> { close(); FreqTransmitterHud.start(); }
         }
     }

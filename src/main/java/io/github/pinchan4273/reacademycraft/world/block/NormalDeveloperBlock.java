@@ -27,7 +27,7 @@ import org.jetbrains.annotations.Nullable;
 
 /**
  * 据え置きの開発機（原作BlockDeveloper、WeAthFolD）。原作ACBlockMultiと同じく、原点と7つの子ブロック
- * （addSubBlock(0,1,0)、(0,0,1)、(0,1,1)、(0,2,1)、(0,0,2)、(0,1,2)、(0,2,2)）の8セルを占める。各セルは自分の番号（PART）と
+ * （addSubBlock(0,1,0)、(0,0,1)、(0,1,1)、(0,2,1)、(0,0,2)、(0,1,2)、(0,2,2)）の8セルを占める。各セルは自分のインデックス（PART）と
  * 向き（FACING）を状態に持ち、原作BlockMultiと同じく、そこから原点の位置を逆算する。どの機械の部品かは位置と状態だけで決まり、
  * 保存する識別子は持たない。ブロックは描かず、開発機の描画処理が原点に機械を描く。
  */
@@ -128,7 +128,7 @@ public final class NormalDeveloperBlock extends BaseEntityBlock {
         for (var cell : positions) if (level.hasChunkAt(cell) && level.getBlockEntity(cell) instanceof NormalDeveloperBlockEntity be && be.sameStructure(main)) {
             be.beginRemoval(); matches.add(cell);
         }
-        // 再帰的なコールバックの前に、一致するグループ全体に印を付ける。戦利品は本体のセル1つだけ。
+        // 再帰的なコールバックの前に、一致するグループ全体にフラグを付ける。戦利品は本体のセル1つだけ。
         for (var cell : matches) if (!cell.equals(removedPos))
             level.destroyBlock(cell, dropMain && cell.equals(main.getBlockPos()));
     }

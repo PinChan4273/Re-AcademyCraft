@@ -157,7 +157,7 @@ public final class TutorialScreen extends Screen {
         return super.mouseDragged(academyEvent, dx, dy);
     }
     @Override public boolean mouseReleased(net.minecraft.client.input.MouseButtonEvent academyEvent) { double mx = academyEvent.x(), my = academyEvent.y(); int button = academyEvent.button(); dragging = false; return super.mouseReleased(academyEvent); }
-    /** 原作の一覧クリック: 最初の選択でロゴをフェードアウトし、窓を表示する。 */
+    /** 原作の一覧クリック: 最初の選択でロゴをフェードアウトし、ウィンドウを表示する。 */
     public void choose(Tutorials.Tutorial tutorial) {
         if (current == null) chosenAt = now();
         if (current == null || current != tutorial) {
@@ -185,7 +185,7 @@ public final class TutorialScreen extends Screen {
         g.pose().pushMatrix();
         g.pose().translate(x0, y0); g.pose().scale(scale, scale);
         float mouseX = fx(mx), mouseY = fy(my);
-        // 左: 窓と一覧。
+        // 左: ウィンドウと一覧。
         float leftAlpha = firstOpen ? blend(t, 1.75, .3) : 1;
         DeveloperScreen.quad(g, WINDOW, LEFT_X, PART_Y, LEFT_W, PART_H, 1, 1, 1, leftAlpha);
         if (listShown()) {

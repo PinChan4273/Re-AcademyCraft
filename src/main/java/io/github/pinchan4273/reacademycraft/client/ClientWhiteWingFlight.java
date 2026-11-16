@@ -13,9 +13,10 @@ import net.neoforged.neoforge.client.event.ClientPlayerNetworkEvent;
 import net.neoforged.bus.api.SubscribeEvent;
 
 /**
- * 白翼飛行の術者側（§5）。通常は直立のクリエイティブ飛行型（前後左右、ジャンプで上昇、スニークで下降、無入力で減速して滞空。斜めの速さは
+ * 白翼飛行の術者側。通常は直立のクリエイティブ飛行型（前後左右、ジャンプで上昇、スニークで下降、無入力で減速して滞空。斜めの速さは
  * 正規化する）。高速はエリトラ型で視線で操縦する: 翼が推し続け、約1秒で巡航へ加速し、下を向くと巡航の1.5倍まで増え、上を向くと遅くなるが失速しない。
- * 水平に戻しても速さはすぐに失わず、巡航へ徐々に戻る。速度の向きはR06の上限で視線を追う。通常への復帰は約0.5秒で減速する。
+ * 水平に戻しても速さはすぐに失わず、巡航へ徐々に戻る。速度の向きは旋回の上限の内で視線を追う。通常への復帰は約0.5秒で減速する。
+ * 1.5.2: 水中・溶岩の中からも離陸でき、液体の中は空中の速さ × 倍率で飛ぶ（{@link io.github.pinchan4273.reacademycraft.skill.FluidFlight}）。
  */
 @net.neoforged.fml.common.EventBusSubscriber(modid = "academy", value = Dist.CLIENT)
 public final class ClientWhiteWingFlight {
@@ -79,7 +80,7 @@ public final class ClientWhiteWingFlight {
         wasJump = jump; wasSneak = sneak;
     }
     /** 停止を頼む（1回だけ）。可否の条件は無く、サーバーは自分の飛行を終える。 */
-    /** 最後に停止を頼んだ理由（調査と試験のため）。 */
+    /** 最後に停止を頼んだ理由（調査とテストのため）。 */
     private static String lastRequest = "";
     public static String lastStopRequest() { return lastRequest; }
     private static void requestStop(String reason) {
@@ -103,10 +104,10 @@ public final class ClientWhiteWingFlight {
         boolean control = !SteeringGate.suspended(client.gui.screen() != null, TerminalHud.isOpen(), client.isWindowActive());
         watchTaps(control && options.keyJump.isDown(), control && options.keyShift.isDown());
         flightAge++;
-        // 空中でやめる（2026-11-03のユーザーの決定: 長押しの設定ではスニーク2回、連打の設定ではジャンプ2回）。着地もここで見て、
+        // 空中でやめる（長押しの設定ではスニーク2回、連打の設定ではジャンプ2回）。着地もここで見て、
         // サーバーの判定より先に終える（地面に触れた次のtickに、下の滞空の処理が体を浮かせ直すことがあるため）。
         // 接地の値ではなく、足の真下に当たる物があり上昇していないかで見る（サーバーと同じ。壁や地面すれすれで終わらないように）。
-        // 2026-11-04（ユーザーの提案）: バニラのクリエイティブ飛行と同じく、下向きに動いて地面にぶつかったとき（前のtickの移動の縦の衝突が下側）
+        // バニラのクリエイティブ飛行と同じく、下向きに動いて地面にぶつかったとき（前のtickの移動の縦の衝突が下側）
         // だけを着地にする。地面すれすれを横に飛ぶ間や、横の壁に触れている間は、下側の衝突が起きないので止まらない。
         boolean landed = flightAge > WhiteWingFlight.LAND_GRACE_TICKS && lift <= 0 && player.verticalCollisionBelow;
         if (doubleTapMode() ? jumpDouble : sneakDouble) requestStop(doubleTapMode() ? "double jump" : "double sneak");
@@ -127,36 +128,42 @@ public final class ClientWhiteWingFlight {
         player.getAbilities().flying = false;
         player.fallDistance = 0;
         var motion = player.getDeltaMovement();
+        // 1.5.2（FluidFlight）: 水中・溶岩の中は空中の速さ × 倍率で飛び、液体の抵抗は前のtickに動いた速さへ戻して打ち消す。
+        var medium = io.github.pinchan4273.reacademycraft.skill.FluidFlight.of(player);
         if (fast && !safetyHover) {
-            flyFast(player, p, motion);
+            flyFast(player, p, motion, medium);
             return;
         }
         speed = 0;
         Vec3 expected;
         if (safetyHover) expected = Vec3.ZERO;
         else {
-            double h = WhiteWingFlight.horizontalSpeed(p) / 20, v = WhiteWingFlight.verticalSpeed(p) / 20;
+            double factor = io.github.pinchan4273.reacademycraft.skill.FluidFlight.speedFactor(medium, false);
+            double h = WhiteWingFlight.horizontalSpeed(p) / 20 * factor, v = WhiteWingFlight.verticalSpeed(p) / 20 * factor;
             double length = Math.sqrt(forward * forward + strafe * strafe);
             double fx = length > 0 ? forward / length : 0, sx = length > 0 ? strafe / length : 0;
             float yaw = player.getYRot() * Mth.DEG_TO_RAD;
             double sin = Mth.sin(yaw), cos = Mth.cos(yaw);
             expected = new Vec3((sx * cos - fx * sin) * h, vertical * v, (fx * cos + sx * sin) * h);
         }
-        // 起動直後だけ少し浮く（2026-11-03のユーザーの指示: 浮くのはよいが、その後は上がり続けない）。
+        // 起動直後だけ少し浮く（その後は上がり続けない）。
         boolean lifting = lift > 0 && !safetyHover;
         if (lift > 0) lift--;
         if (lifting) expected = new Vec3(expected.x, Math.max(expected.y, LIFT_SPEED), expected.z);
         // セーフティ滞空は減速を待たない。無入力の減速と通常への復帰は約0.5秒。
-        double limit = safetyHover ? 10 : Math.max(.09, motion.length() / 10);
+        // 液体の中は、前のtickに動いた速さ（液体の抵抗を戻したもの）を横・縦とも使う。空中は今までどおり。
+        var from = medium == io.github.pinchan4273.reacademycraft.skill.FluidFlight.Medium.AIR
+                ? new Vec3(motion.x, placed(player, motion).y, motion.z) : io.github.pinchan4273.reacademycraft.skill.FluidFlight.restore(player, motion);
+        double limit = safetyHover ? 10 : Math.max(.09, (medium == io.github.pinchan4273.reacademycraft.skill.FluidFlight.Medium.AIR ? motion : from).length() / 10);
         if (!lifting && player.onGround() && vertical <= 0 && forward == 0 && strafe == 0) return;
         // 縦は、前のtickで実際に動いた速さ（重力と空気抵抗を戻したもの）から目標へ近づけ、その値をそのまま移動に使わせる。
         // 以前は物理の後の値に重力の分を足していたため、無入力でも毎tick約0.08ブロック上がり続けていた。
-        player.setDeltaMovement(approach(motion.x, expected.x, limit), approach(placed(player, motion).y, expected.y, limit), approach(motion.z, expected.z, limit));
+        player.setDeltaMovement(approach(from.x, expected.x, limit), approach(from.y, expected.y, limit), approach(from.z, expected.z, limit));
     }
 
     /**
      * 飛行していない間: 翼が出ていて（未元物質・能力使用モード・白翼飛行を習得済み）、空中でジャンプを{@link #HOLD_TICKS}押し続けたら
-     * （連打の設定ではジャンプを2回連打したら）、サーバーへ飛び立ちを頼む（2026-11-03のユーザーの決定: タップは普通のジャンプ）。可否と費用はサーバーが決める。
+     * （連打の設定ではジャンプを2回連打したら）、サーバーへ飛び立ちを頼む（タップは普通のジャンプ）。可否と費用はサーバーが決める。
      * 押し続けた時間は地上で押し始めた分も数えるので、地上から長押しすると跳んだ後にそのまま飛び立つ。
      */
     private static void watchTakeoff(Minecraft client, net.minecraft.client.player.LocalPlayer player) {
@@ -175,8 +182,8 @@ public final class ClientWhiteWingFlight {
         var data = io.github.pinchan4273.reacademycraft.capability.AbilityCapabilities.of(player).orElse(null);
         if (data == null || !data.isActive() || !io.github.pinchan4273.reacademycraft.skill.DarkMatter.CATEGORY.equals(data.getAbility())
                 || !data.hasLearned(WhiteWingFlight.ID)) return;
-        // 地上・水中・エリトラ・クリエイティブの飛行・騎乗・観戦では頼まない（普通の動きを優先する）。
-        if (player.onGround() || player.isInWater() || player.isInLava() || player.isFallFlying() || player.getAbilities().flying
+        // 地上・エリトラ・クリエイティブの飛行・騎乗・観戦では頼まない（普通の動きを優先する）。1.5.2: 水中・溶岩の中からは離陸できる。
+        if (player.onGround() || player.isFallFlying() || player.getAbilities().flying
                 || player.isPassenger() || player.isSpectator()) return;
         takeoffSent = true;
         if (client.getConnection() != null)
@@ -192,13 +199,16 @@ public final class ClientWhiteWingFlight {
         return new Vec3(motion.x / .91, motion.y / .98 + gravity, motion.z / .91);
     }
 
-    private static void flyFast(net.minecraft.client.player.LocalPlayer player, float p, Vec3 motion) {
-        double cruise = WhiteWingFlight.cruiseSpeed(p) / 20;
+    private static void flyFast(net.minecraft.client.player.LocalPlayer player, float p, Vec3 motion,
+                                io.github.pinchan4273.reacademycraft.skill.FluidFlight.Medium medium) {
+        // 1.5.2: 水中・溶岩の中は、高速の倍率を掛ける。
+        double cruise = WhiteWingFlight.cruiseSpeed(p) / 20 * io.github.pinchan4273.reacademycraft.skill.FluidFlight.speedFactor(medium, true);
         var look = player.getLookAngle();
         // 下向きで巡航の1.5倍まで、上向きで巡航の半分まで。
         double target = look.y < 0 ? cruise * (1 + .5 * -look.y) : cruise * (1 - .5 * look.y);
-        // 向きと速さは、前のtickで実際に動いた速さから読む（物理の後の値は重力で下へずれている）。
-        motion = placed(player, motion);
+        // 向きと速さは、前のtickで実際に動いた速さから読む（物理の後の値は重力で下へずれている。液体の中は液体の抵抗を戻す）。
+        motion = medium == io.github.pinchan4273.reacademycraft.skill.FluidFlight.Medium.AIR
+                ? placed(player, motion) : io.github.pinchan4273.reacademycraft.skill.FluidFlight.restore(player, motion);
         if (speed <= 0) speed = Math.max(motion.length(), .05);
         // 加速は約1秒、減速は緩やかに巡航へ戻る。
         speed = approach(speed, target, speed < target ? cruise / 20 : cruise / 50);

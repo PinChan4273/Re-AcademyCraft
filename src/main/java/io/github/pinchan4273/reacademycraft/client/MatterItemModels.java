@@ -16,7 +16,7 @@ import net.neoforged.neoforge.client.event.RegisterRangeSelectItemModelPropertyE
 import org.jspecify.annotations.Nullable;
 
 /**
- * WeAthFolDによる原作ItemMatterUnitの4枚の絵のアニメーション。PNGは変更していない。
+ * WeAthFolDによる原作ItemMatterUnitの4枚のテクスチャのアニメーション。PNGは変更していない。
  * 値は 0 以上 1 未満へ正規化している。ワールドやNBTは変更しない。
  * 26.2: 1.21.1 の ItemProperties は assets/academy/items の range_dispatch と、このプロパティになった。
  */

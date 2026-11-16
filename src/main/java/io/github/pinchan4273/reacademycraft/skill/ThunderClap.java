@@ -34,6 +34,8 @@ public final class ThunderClap {
     public static final net.minecraft.resources.Identifier SPEED_MODIFIER = net.minecraft.resources.Identifier.fromNamespaceAndPath("academy", "thunder_clap_charge");
     private static final Map<UUID, Session> ACTIVE = new HashMap<>();
     private static long nextPresentationSession;
+    /** 開始のオーバーロード（1.5.2でlerp(390, 252)からlerp(390, 120)へ）。 */
+    public static float startOverload(float exp) { return ArcGen.lerp(390, 120, exp); }
     private static final class Session {
         final ServerPlayer owner; final ServerLevel level; final int preset, slot; final float proficiency;
         final UUID ownerId; final int entityId; final long presentationSession;
@@ -65,7 +67,7 @@ public final class ThunderClap {
         if (isCharging(p)) return "";
         if (d.getCooldown(ID) > 0) return "academy.cast.cooldown";
         var initialAim = aim(p); if (initialAim == null) return "academy.cast.unloaded";
-        if (!d.consume(ID, 0, ArcGen.lerp(390, 252, d.getProficiency(ID)), p.getAbilities().instabuild)) return "academy.cast.cp";
+        if (!d.consume(ID, 0, startOverload(d.getProficiency(ID)), p.getAbilities().instabuild)) return "academy.cast.cp";
         var session = new Session(p, d, slot, initialAim); ACTIVE.put(p.getUUID(), session);
         publish(session, ThunderClapPresentationEffect.Action.START); return "";
     }

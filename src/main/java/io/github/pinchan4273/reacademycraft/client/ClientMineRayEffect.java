@@ -110,7 +110,7 @@ public final class ClientMineRayEffect {
             var entity = level.getEntity(ray.entityId);
             if (entity == null) continue;
             var ends = ends(entity, ray.variant, partial);
-            // 原作の採掘の光線はEntityRayBaseのviewOptimizeを保つ: 始点は手元へずらし、終点はそのまま。
+            // 原作の採掘の光線はEntityRayBaseのviewOptimizeを保つ: 始点は手元へオフセットし、終点はそのまま。
             var client = Minecraft.getInstance();
             var hand = LegacyChargingArcPose.handOffset(client.options.getCameraType().isFirstPerson(), entity == client.player);
             var unshifted = ends[1].subtract(ends[0]);

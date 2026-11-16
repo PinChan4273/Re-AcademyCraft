@@ -37,13 +37,13 @@ import org.jspecify.annotations.Nullable;
  */
 public final class DarkBeetleRenderer extends MobRenderer<DarkMatterBeetle, DarkBeetleRenderer.State, DarkBeetleRenderer.Model> {
     private static final Identifier TEXTURE = Identifier.fromNamespaceAndPath("academy", "textures/entity/dark_matter_beetle.png");
-    /** 白い外殻が陰の面でも灰色に沈まないよう、同じ絵を無陰影で薄く足す量。 */
+    /** 白い外殻が陰の面でも灰色に沈まないよう、同じテクスチャを無陰影で薄く足す量。 */
     private static final float GLOW = .3f;
     private static long drawn;
 
     /**
      * 26.2の描画の状態: Forge版の{@code setupAnim}が実体から読んだ値（飛行・攻撃の種類）を写す。
-     * v1.5.1（Forge 17561eb5 の試作）: 出現の途中か（体も影も描かない）と、体の倍率（現れた直後と回収の写し）も写す。
+     * v1.5.1: 出現の途中か（体も影も描かない）と、体の倍率（現れた直後と回収の写し）も写す。
      * Forge版は描く時に実体から読んだが、26.2では描く時に実体が無いので、状態を作る時に読む。
      */
     public static final class State extends LivingEntityRenderState {
@@ -104,7 +104,7 @@ public final class DarkBeetleRenderer extends MobRenderer<DarkMatterBeetle, Dark
     /** 試験用: 体の面を提出した回数。 */
     public static long drawn() { return drawn; }
 
-    /** 3対の脚は三脚歩行（左前・右中・左後ろが同じ組）で、節ごとに持ち上げる。飛行翅はB2まで畳んで隠す。 */
+    /** 3対の脚は三脚歩行（左前・右中・左後ろが同じ組）で、節ごとに持ち上げる。飛行翅は、いまは畳んで隠す。 */
     public static final class Model extends EntityModel<State> {
         private final ModelPart beetleRoot, head;
         private final ModelPart[] coxa = new ModelPart[6], tibia = new ModelPart[6];
@@ -157,7 +157,7 @@ public final class DarkBeetleRenderer extends MobRenderer<DarkMatterBeetle, Dark
             float limbSwing = state.walkAnimationPos, limbAmount = state.walkAnimationSpeed;
             head.yRot = headYaw * Mth.DEG_TO_RAD * .35f;
             head.xRot = headPitch * Mth.DEG_TO_RAD * .3f;
-            // 飛行: 上翅を開いて飛行翅を羽ばたかせ、脚を縮める（B2の初稿）。
+            // 飛行: 上翅を開いて飛行翅を羽ばたかせ、脚を縮める。
             boolean flying = state.flying;
             wingLeft.visible = wingRight.visible = flying;
             if (flying) {

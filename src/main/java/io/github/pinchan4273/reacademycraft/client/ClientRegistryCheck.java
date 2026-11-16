@@ -6,7 +6,7 @@ import io.github.pinchan4273.reacademycraft.network.AbilityRegistryCheck;
 import io.github.pinchan4273.reacademycraft.network.AbilityRegistryVerdict;
 import io.github.pinchan4273.reacademycraft.network.AcademyNetwork;
 
-/** サーバーの能力の登録簿の要約を、自分の登録簿と比べて答える（1.4.0のS4、司令室11の裁定D7）。 */
+/** サーバーの能力のレジストリの要約を、自分のレジストリと比べて答える（1.4.0）。 */
 public final class ClientRegistryCheck {
     private ClientRegistryCheck() { }
     private static int answered;

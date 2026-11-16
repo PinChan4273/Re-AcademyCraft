@@ -36,7 +36,7 @@ public final class ClientDarkEffects {
     /** 光線の出る位置の、翼の根元からの距離（モデルの単位）と、光線で翼を前へ寄せたあとの水平の向き（度）。 */
     private static final float BEAM_ROOT = 30, BEAM_YAW = 6;
     /**
-     * 空気砲の風の柱（2026-11-03のユーザーの要望で、飛ぶ竜巻から、翼から生えて伸びる柱に変えた）。
+     * 空気砲の風の柱（翼から生えて伸びる柱）。
      * 柱の出ている時間・伸びきるまで・消え始めるまで（tick）。柱は段ごとに1tickずつ遅れて出る（上の段から）。
      */
     private static final int GUST_TICKS = 12, GROW_TICKS = 5, FADE_FROM = 8;
@@ -49,7 +49,7 @@ public final class ClientDarkEffects {
 
     private static final class Gust {
         final int entityId, tier; final boolean right; final Vec3 spawnRoot, end; final double height; final LegacyTornado tornado; int age;
-        /** 外部の演出（公開APIのDARK_AIR_CANNON、演出API版3）の札。自然能力の柱はnull。 */
+        /** 外部の演出（公開APIのDARK_AIR_CANNON、演出API版3）のハンドル。自然能力の柱はnull。 */
         @javax.annotation.Nullable final Object token;
         Gust(int entityId, int tier, boolean right, Vec3 spawnRoot, Vec3 end, Random random, @javax.annotation.Nullable Object token) {
             this.entityId = entityId; this.tier = tier; this.right = right; this.spawnRoot = spawnRoot; this.end = end; this.token = token;
@@ -80,7 +80,7 @@ public final class ClientDarkEffects {
         float yaw = (float) -Math.toRadians(yawDegrees), pitch = (float) -Math.toRadians(pitchDegrees);
         for (int tier = 0; tier < 3; tier++) {
             for (boolean right : new boolean[]{false, true}) {
-                // 視線の空間（前が+z、左が+x、上が+y）での向き。
+                // 視線の座標系（前が+z、左が+x、上が+y）での向き。
                 var dir = new Vec3((right ? -1 : 1) * Math.sin(Math.toRadians(COLUMN_SIDE)), (1 - tier) * Math.sin(Math.toRadians(COLUMN_UP)), 1)
                         .normalize().xRot(pitch).yRot(yaw);
                 var end = eye.add(dir.scale(range));
@@ -96,7 +96,7 @@ public final class ClientDarkEffects {
     private static final double EYE_HEIGHT = 1.62;
     /**
      * 外部の演出（公開APIのDARK_AIR_CANNON、演出API版3。Forge 1.5.1 の 91f33867 の移植）の空気砲: {@code eye}を撃つ者の目とみなし、{@code target}への向きの周りへ、
-     * 自然能力と同じ6本の柱を出す。根元は、その目の位置に立つ体（向きは{@code target}の水平の向き）の六翼の根元。実体には付かない。
+     * 自然能力と同じ6本の柱を出す。根元は、その目の位置に立つ体（向きは{@code target}の水平の向き）の六翼の根元。エンティティには付かない。
      */
     static void gustExternal(net.minecraft.world.level.Level level, Vec3 eye, Vec3 target, Object token) {
         var d = target.subtract(eye);
@@ -106,14 +106,14 @@ public final class ClientDarkEffects {
         var feet = eye.subtract(0, EYE_HEIGHT, 0);
         columns(level, -1, eye, yaw, pitch, (float) length, null, (tier, right) -> wingPoint(feet, yaw, tier, right), token);
     }
-    /** その札の柱が残っているか。 */
+    /** そのハンドルの柱が残っているか。 */
     static boolean gusting(Object token) {
         for (var gust : GUST_LIST) if (gust.token == token) return true;
         return false;
     }
-    /** その札の柱をすぐ消す。 */
+    /** そのハンドルの柱をすぐ消す。 */
     static void endGusts(Object token) { GUST_LIST.removeIf(gust -> gust.token == token); }
-    /** その実体の風の柱が出ているか（翼の描画が根元を記録するかの判断）。 */
+    /** そのエンティティの風の柱が出ているか（翼の描画が根元を記録するかの判断）。 */
     static boolean gusting(int entityId) {
         for (var gust : GUST_LIST) if (gust.entityId == entityId && entityId >= 0) return true;
         return false;
@@ -139,7 +139,7 @@ public final class ClientDarkEffects {
         if (level == null) return;
         float partial = event.getPartialTick().getGameTimeDeltaPartialTick(false);
         var camera = event.getCamera().position();
-        // 深度テストを明示する（2026-11-03のユーザーの指摘: 光線がブロック越しに見えた）。26.2では描画が状態を持たないので、
+        // 深度テストを明示する（光線がブロック越しに見えたため）。26.2では描画が状態を持たないので、
         // 演出ごとに深度の比較ありのパイプラインを選ぶ（Immediateは提出のたびに1.21.1の入ってきた時の状態から始まる）。
         Immediate.enableDepthTest();
         beams(event, level, partial, camera);
@@ -154,7 +154,7 @@ public final class ClientDarkEffects {
     private static Vec3 wingPoint(Vec3 feet, float bodyYawDegrees, int tier, boolean right) {
         float k = TIER_SCALE[tier], length = BEAM_ROOT * k, z = TIER_ANGLE[tier] * Mth.DEG_TO_RAD, y = BEAM_YAW * Mth.DEG_TO_RAD;
         float side = right ? -1 : 1;
-        // 体の部品の空間（前が-z、下が+y）。
+        // 体の部品の座標系（前が-z、下が+y）。
         float mx = side * (1.5f + length * Mth.cos(y) * Mth.cos(z)), my = 3 + TIER_Y[tier] + length * Mth.cos(y) * Mth.sin(z), mz = 3 - length * Mth.sin(y);
         // 描画の変換と同じ: 上下左右を返して、胴の向きへ回す。
         double bodyYaw = Math.toRadians(180 - bodyYawDegrees);
@@ -201,7 +201,7 @@ public final class ClientDarkEffects {
             var target = aimed(living, level, state.rayRange(), partial);
             var client = Minecraft.getInstance();
             boolean own = living == client.getCameraEntity() && client.options.getCameraType().isFirstPerson();
-            // 体を描いた絵では、実際の翼の位置を根元にする（描画の空間から、カメラからの相対の世界の座標へ戻す）。
+            // 体を描いたフレームでは、実際の翼の位置を根元にする（描画の座標系から、カメラからの相対の世界の座標へ戻す）。
             var drawnRoots = own ? null : DarkWingsLayer.beamRoots(id);
             var toWorld = drawnRoots == null ? null : new org.joml.Matrix4f(matrix).invert();
             var look = Vec3.directionFromRotation(event.getCamera().xRot(), event.getCamera().yRot());
@@ -247,7 +247,7 @@ public final class ClientDarkEffects {
                 float grow = Math.min(1, t / GROW_TICKS);
                 grow = 1 - (1 - grow) * (1 - grow);
                 float alpha = COLUMN_ALPHA * (t < FADE_FROM ? 1 : Math.max(0, (GUST_TICKS - t) / (GUST_TICKS - FADE_FROM)));
-                // 根元: 体を描いた絵では実際の翼の位置、描いていなければ（1人称・画面の外）計算した翼の位置、実体が居なければ出た時の位置。
+                // 根元: 体を描いたフレームでは実際の翼の位置、描いていなければ（1人称・画面の外）計算した翼の位置、エンティティが居なければ出た時の位置。
                 boolean own = false;
                 Vec3 root = gust.spawnRoot;
                 if (gust.entityId >= 0 && level.getEntity(gust.entityId) instanceof LivingEntity living) {
@@ -263,7 +263,7 @@ public final class ClientDarkEffects {
                 double length = axis.length();
                 if (length < .3) continue;
                 axis = axis.scale(1 / length);
-                // 柱の空間は高さ（gust.height）で作ってあるので、今の根元から行き先までの長さへ縦に合わせる。
+                // 柱の座標系は高さ（gust.height）で作ってあるので、今の根元から行き先までの長さへ縦に合わせる。
                 float stretch = (float) (length / gust.height);
                 double visible = gust.height * grow, tipFade = TIP_FADE / stretch, skip = own ? FIRST_PERSON_SKIP / stretch : -1;
                 var at = root.subtract(camera);

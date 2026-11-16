@@ -10,7 +10,7 @@ import net.neoforged.neoforge.client.event.ClientTickEvent;
 import net.neoforged.bus.api.SubscribeEvent;
 
 /**
- * 原作TerminalInstallEffectとguis/terminal_installing.xml: "Installing..."の札が付いた細い進捗バー。4秒で満ち、
+ * 原作TerminalInstallEffectとguis/terminal_installing.xml: "Installing..."のラベルが付いた細い進捗バー。4秒で満ち、
  * 0.2秒でフェードイン・アウトする。満ちてから0.7秒後に消え、端末キーと同じように端末が開き、チャットでそのキーを伝える。
  * ウィジェットの位置・大きさ・色はXMLのもので、左上からの拡大縮小済みGUI単位。
  */

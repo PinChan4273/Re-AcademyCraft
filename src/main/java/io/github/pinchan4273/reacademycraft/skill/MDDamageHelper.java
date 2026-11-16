@@ -13,13 +13,13 @@ public final class MDDamageHelper {
     public static boolean attack(ServerPlayer caster, PlayerAbilityData data, Entity target,
                                  Identifier skill, float damage) {
         boolean hurt = SkillCombat.attack(caster, target, skill, damage);
-        // 原作MDDamageHelper.attackは何も返さないctx.attackの後で印を付ける: ダメージが通ったかどうかに関係なく印は残る。
+        // 原作MDDamageHelper.attackは何も返さないctx.attackの後でマーカーを付ける: ダメージが通ったかどうかに関係なくマーカーは残る。
         RadiationIntensify.mark(data, target);
         return hurt;
     }
     /**
-     * Light ShieldとJet Engineの接触攻撃（2026-10-16、統合指示書4章）: {@link SkillCombat#attackContact}で当て、attackと同じく
-     * 当たったかどうかに関係なくRadiation Intensifyの印を付ける。
+     * Light ShieldとJet Engineの接触攻撃: {@link SkillCombat#attackContact}で当て、attackと同じく
+     * 当たったかどうかに関係なくRadiation Intensifyのマーカーを付ける。
      */
     public static boolean attackContact(ServerPlayer caster, PlayerAbilityData data, Entity target,
                                         Identifier skill, float damage) {

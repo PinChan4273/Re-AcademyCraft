@@ -138,7 +138,7 @@ public final class ClientIntensifyBurst {
     public static boolean active(UUID player) { return EFFECTS.containsKey(player); }
     public static int activeEffects() { return EFFECTS.size(); }
     public static int reloadGeneration() { return reloadGeneration; }
-    /** 読み取り専用の観測点。効果を開始したり延ばしたりしない。 */
+    /** 読み取り専用のテスト用フック。効果を開始したり延ばしたりしない。 */
     public static long acceptedCount() { return acceptedCount; }
     public static long renderedQuads() { return renderedQuads; }
     public static int lastFrameQuads() { return lastFrameQuads; }

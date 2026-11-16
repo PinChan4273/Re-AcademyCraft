@@ -2,7 +2,7 @@ package io.github.pinchan4273.reacademycraft.visual;
 
 /**
  * WeAthFolDのEntityArc.setFromTo（AcademyCraft 7b1401c）からのCPUでの向きに、公開されたLambdaLib2のViewOptimize（abb4b9f）の
- * 手のずれを加えたもの。そのヘルパーの版がLambdaLib 0.2.0とバイト単位で同じとは証明されていない。
+ * 手のオフセットを加えたもの。そのヘルパーの版がLambdaLib 0.2.0とバイト単位で同じとは証明されていない。
  * ここではカメラ・エンティティ・パケット・エネルギーの対象・描画処理を選ばない。
  */
 public final class LegacyChargingArcPose {
@@ -15,7 +15,7 @@ public final class LegacyChargingArcPose {
 
     /**
      * 始点から終点への相対的な差で、ワールドの絶対座標や能力の射程の許可ではない。メッシュの有限の0〜32の表示範囲に合わせる。
-     * 平行移動、正のY軸周りに-(yaw+90)の回転、正のZ軸周りに-pitchの回転、次にローカルの手のずれを適用する。テンプレートは+Xへ伸びる。
+     * 平行移動、正のY軸周りに-(yaw+90)の回転、正のZ軸周りに-pitchの回転、次にローカルの手のオフセットを適用する。テンプレートは+Xへ伸びる。
      */
     public static Orientation orientation(double dx, double dy, double dz) {
         double length = Math.hypot(Math.hypot(dx, dz), dy);
@@ -45,14 +45,14 @@ public final class LegacyChargingArcPose {
                 (float) Math.toDegrees(-Math.atan2(dy, horizontal)));
     }
 
-    /** 観測者は、自身のカメラが一人称でも三人称のずれを使う。 */
+    /** 観測者は、自身のカメラが一人称でも三人称のオフセットを使う。 */
     public static HandOffset handOffset(boolean firstPersonView, boolean localSource) {
         return firstPersonView && localSource ? FIRST_PERSON : THIRD_PERSON;
     }
 
     /**
      * 原作RendererRayBaseSimpleとRendererRayBaseGlowは、光線の終点ではなく始点を、Vec3d.rotateYaw((270 - yaw)をラジアンで)で回した
-     * 手のずれだけ動かす。yawは光線自身のもの。ワールド空間のずれx、y、zを返す。
+     * 手のオフセットだけ動かす。yawは光線自身のもの。ワールド空間のオフセットx、y、zを返す。
      */
     public static double[] rayStartShift(HandOffset hand, float yawDegrees) {
         double angle = Math.toRadians(270 - yawDegrees), c = Math.cos(angle), s = Math.sin(angle);
