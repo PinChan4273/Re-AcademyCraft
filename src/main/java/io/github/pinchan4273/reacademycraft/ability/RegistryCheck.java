@@ -16,7 +16,7 @@ import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 
 /**
- * ログインの時の、能力の登録簿の照合（1.4.0のS4、司令室11の裁定D7）。サーバーは登録簿の要約（カテゴリと、技能の名前・発動の種類・
+ * ログインの時の、能力のレジストリの照合（1.4.0）。サーバーはレジストリの要約（カテゴリと、技能の名前・発動の種類・
  * カテゴリ）を送り、クライアントは自分の要約と比べた違いを返す。違いがあれば、違うIDを示して接続を断る。答えが来ないまま
  * {@link #ANSWER_TICKS}が過ぎたときも、確かめられなかったとして断る。サーバーだけのアドオンは許さない。
  */
@@ -30,7 +30,7 @@ public final class RegistryCheck {
     public static final int SHOWN = 5;
     private static final Map<UUID, Long> PENDING = new HashMap<>();
 
-    /** その登録簿の要約（並びは登録の順）。 */
+    /** そのレジストリの要約（並びは登録の順）。 */
     public static List<String> entries(AbilityRegistry registry) {
         var out = new ArrayList<String>();
         for (var category : registry.categories()) out.add("category " + category.id());
@@ -62,9 +62,9 @@ public final class RegistryCheck {
             player.connection.disconnect(Component.translatable("academy.registry.unverified"));
         }
     }
-    /** 照合を待っているか（試験のため）。 */
+    /** 照合を待っているか（テストのため）。 */
     public static boolean pending(ServerPlayer player) { return PENDING.containsKey(player.getUUID()); }
-    /** 試験のため、照合を待つ状態にする。 */
+    /** テストのため、照合を待つ状態にする。 */
     public static void expectForTest(ServerPlayer player, long deadline) { PENDING.put(player.getUUID(), deadline); }
 
     /** クライアントの答え。待っていない答えは捨てる。違いがあれば断る（断ったらtrue）。 */

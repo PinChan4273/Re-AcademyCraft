@@ -20,10 +20,10 @@ import net.neoforged.fml.common.Mod;
  *
  * 押し続けて印を付け、離すと印へテレポートする。印は術者の見ている所にあるが、届く距離はキーを押している間に伸びる
  * （1tickに2ブロック、lerp(25, 60, exp)とCPで払える分まで）ので、軽く押しただけではほとんど届かない。3ブロックより近い印では何もしない。
- * ブロックの面に着くと、原作独自のずれで術者をその横か上に置く。エンティティに着くと、術者の足をそのエンティティ自身の目の高さに置く。
+ * ブロックの面に着くと、原作独自のオフセットで術者をその横か上に置く。エンティティに着くと、術者の足をそのエンティティ自身の目の高さに置く。
  *
  * 後払いで原作の強制consumeを使い、1ブロックごとにlerp(12, 4, exp)のCPと、lerp(40, 20, exp)のオーバーロード。
- * クールダウンlerp(30, 0, exp)は熟練度最大で0になる。
+ * クールダウンはlerp(30, 10, exp)（1.5.2。1.5.1はlerp(30, 0)で、連打で毎秒40を超える過負荷になった）。
  */
 @net.neoforged.fml.common.EventBusSubscriber(modid = "academy")
 public final class MarkTeleport {
@@ -48,6 +48,8 @@ public final class MarkTeleport {
     }
     /** 原作getCPB: 1ブロックあたりのCP。 */
     public static float consumption(float exp) { return ArcGen.lerp(12, 4, exp); }
+    /** 移動の後のクールダウン（1.5.2でlerp(30, 0)からlerp(30, 10)へ）。 */
+    public static int cooldown(float exp) { return (int) ArcGen.lerp(30, 10, exp); }
     /** 原作getMaxDist: 押したtickごとに2ブロック。熟練度とCPで上限を設ける。 */
     public static double maxDistance(float exp, float cp, int ticks) {
         return Math.min((ticks + 1) * 2, Math.min(ArcGen.lerp(25, 60, exp), cp / consumption(exp)));
@@ -97,11 +99,12 @@ public final class MarkTeleport {
         var target = TPSkillHelper.permit(player, dest);
         if (target == null) return;
         distance = target.distanceTo(player.position());
+        // 押している間にロックしたら、強制の支払いも拒否されて移動しない（1.5.2）。
         if (!data.consumeWithForce(ID, (float) (distance * consumption(exp)), ArcGen.lerp(40, 20, exp), player.getAbilities().instabuild)) return;
         TPSkillHelper.teleport(player, target);
         player.level().playSound(null, player, io.github.pinchan4273.reacademycraft.world.AcademySounds.TP_TP.get(), net.minecraft.sounds.SoundSource.AMBIENT, .5f, 1f);
         data.addProficiency(ID, (float) (.00018 * distance));
-        data.setCooldown(ID, (int) ArcGen.lerp(30, 0, exp));
+        data.setCooldown(ID, cooldown(exp));
         TPSkillHelper.incrTPCount(player);
         AbilitySyncEvents.sync(player, true);
     }

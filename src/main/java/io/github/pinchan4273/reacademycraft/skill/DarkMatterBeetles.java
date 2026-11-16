@@ -43,7 +43,7 @@ import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.neoforge.network.PacketDistributor;
 
 /**
- * v1.5.0 未元物質Lv4 甲虫生成（採用仕様・版41の§9、当たり判定はユーザーの決定で幅2.0・高さ1.75）。単発の生成で、最大3体（収納中も枠に数える）。
+ * v1.5.0 未元物質Lv4 甲虫生成（当たり判定は幅2.0・高さ1.75）。単発の生成で、最大3体（収納中も枠に数える）。
  * <p>
  * 生成: 費用lerp(800,400)CP＋lerp(30,20)過負荷、クールダウンlerp(5,3)秒。回復待ちを作らず延ばさない（{@link PlayerAbilityData#consumeQuiet}）。
  * 判定全体が収まる位置を先に探し、無ければ何も払わず何も消さずに中止する。「再召喚優先」で3体いるときは、支払いが成立してからHP割合の最低の個体を置き換える。
@@ -52,30 +52,30 @@ import net.neoforged.neoforge.network.PacketDistributor;
  * （{@link #press}・{@link #release}）。長押しの回収で生成の費用が無駄にならないよう、生成は離した時に行う。生成された個体は
  * {@link DarkMatterBeetle#EMERGE_TICKS}tickの出現の演出の後に戦いへ加わる。
  * <p>
- * 修復（自動修復のときだけ）: 実際に戻した1HPにつき2CP。所有者が能力を使える間だけ。CPセーフティが通さなければ止まり、通るようになれば再開する。
+ * 修復（自動修復のときだけ）: 実際に戻した1HPにつき2CP（1.5.2から技能の倍率を掛け、払った分だけ最大CPが伸びる）。所有者が能力を使える間だけ。CPセーフティが通さなければ止まり、通るようになれば再開する。
  * 維持費・自律攻撃の追加費用は無く、所有者のCP回復を止めない。
  * <p>
- * 保存: 個体はチャンクに残らない（実体の型が{@code noSave}）。所有者の能力データに、活動中の写しと収納中の個体を記録する。ログアウトで全個体を収納し、
- * ログインで費用なしに復帰する（HPは戻さない）。次元が変わったら収納して移す。64ブロック超が2秒続いたら近くへ転移し、空間が無ければ収納して、空間ができたら復帰する。
+ * 保存: 個体はチャンクに残らない（エンティティの型が{@code noSave}）。所有者の能力データに、活動中の写しと収納中の個体を記録する。ログアウトで全個体を収納し、
+ * ログインで費用なしに復帰する（HPは戻さない）。ディメンションが変わったら収納して移す。64ブロック超が2秒続いたら近くへ転移し、空間が無ければ収納して、空間ができたら復帰する。
  * 所有者の真の死亡と系統の喪失で、活動中も収納中も消える（CPは返らない）。能力OFF・過負荷・干渉・プリセット変更では消えない。
  * <p>
- * 標的の優先順位の最後に、仕様§9に無い「近くの敵」を足した（ユーザーの試遊の指摘）。§9の3段階のどれにも当たらないとき、所有者から
+ * 標的の優先順位の最後に「近くの敵」を足した。優先順位の3段階のどれにも当たらないとき、所有者から
  * {@link #nearbyRange}以内で、所有者か甲虫から見えている、自動で狙ってよい相手（{@link #wanted}）の最も近いものを狙う。
- * 狙う分類（敵対・中立・味方・プレイヤー）は所有者が能力設定で選ぶ（2026-11-03のユーザーの決定。既定は敵対だけ）。
+ * 狙う分類（敵対・中立・味方・プレイヤー）は所有者が能力設定で選ぶ（既定は敵対だけ）。
  * <p>
- * 追従開始距離（ユーザーの決定、能力設定の{@link AbilitySettings#BEETLE_FOLLOW}）: 所有者からこの距離Dを超えた個体は「帰還中」になり、標的を外して
+ * 追従開始距離（能力設定の{@link AbilitySettings#BEETLE_FOLLOW}）: 所有者からこの距離Dを超えた個体は「帰還中」になり、標的を外して
  * 所有者へ戻る。D−{@link #FOLLOW_RESUME}以内まで戻ったら通常の行動へ戻す。個体は毎tick所有者のデータを読むので、変更は召喚済みの全個体へ次のtickから効く。
  * <p>
- * 領域（§10）の再生は、{@link HeavenEffects}が自動修復との差分だけを足す。
+ * 領域の再生は、{@link HeavenEffects}が自動修復との差分だけを足す。
  */
 @net.neoforged.fml.common.EventBusSubscriber(modid = "academy")
 public final class DarkMatterBeetles {
     public static final ResourceLocation ID = DarkMatter.BEETLE;
     public static final int MAX_BEETLES = 3;
-    /** 所有者からの距離の規則（§9の表）。RETURN_DISTANCEは追従開始距離の既定の値（{@link #FOLLOW_DEFAULT}と同じ）。 */
+    /** 所有者からの距離の規則。RETURN_DISTANCEは追従開始距離の既定の値（{@link #FOLLOW_DEFAULT}と同じ）。 */
     public static final double RETURN_DISTANCE = 32, TELEPORT_DISTANCE = 64;
     public static final int TELEPORT_AFTER = 40;
-    /** 追従開始距離の範囲・刻み・既定（ブロック。ユーザーの決定）。 */
+    /** 追従開始距離の範囲・刻み・既定（ブロック）。 */
     public static final int FOLLOW_MIN = 8, FOLLOW_MAX = 48, FOLLOW_STEP = 4, FOLLOW_DEFAULT = 32;
     /** 帰還中の個体は、追従開始距離からこれだけ内側まで戻ったら通常の行動へ戻る。 */
     public static final int FOLLOW_RESUME = 4;
@@ -87,20 +87,20 @@ public final class DarkMatterBeetles {
     public static final float GAIN = .0005f, GAIN_PER_SECOND = .001f;
     /** 修復の費用（実際の1HPにつきCP）。 */
     public static final float REPAIR_CP_PER_HP = 2;
-    /** 空気弾の速さ（ブロック/tick）。§9に値は無いので実装で決めた。 */
+    /** 空気弾の速さ（ブロック/tick）。 */
     public static final double SHOT_SPEED = 3;
-    /** 攻撃の記憶の長さ（15秒）と、覚える数の上限。§9に値は無いので実装で決めた。 */
+    /** 攻撃の記憶の長さ（15秒）と、覚える数の上限。 */
     public static final int MEMORY_TICKS = 300, MEMORY_LIMIT = 16;
     /** 近くの敵対モブを狙い始める範囲と、狙い続ける範囲の上限（所有者から。ブロック）。実際の範囲は{@link #nearbyRange}・{@link #nearbyKeep}。 */
     public static final double NEARBY_RANGE = 16, NEARBY_KEEP = 24;
-    /** 追従の席: 所有者の後ろの半径と、個体ごとの開き（度）。向きは{@link #SEAT_YAW_SLACK}度を超えて変わるまで固定する（振り向くたびに走り回らない）。 */
+    /** 追従のスロット: 所有者の後ろの半径と、個体ごとの開き（度）。向きは{@link #SEAT_YAW_SLACK}度を超えて変わるまで固定する（振り向くたびに走り回らない）。 */
     public static final double SEAT_RADIUS = 6, SEAT_SPREAD = 55, SEAT_YAW_SLACK = 75;
     /** これより近ければ離れる距離（水平）。甲虫の中心から所有者の中心、個体同士の中心。 */
     public static final double OWNER_CLEARANCE = 3.5, SIBLING_CLEARANCE = 3;
     /** 収納個体の復帰を試す間隔。 */
     private static final int RETRY_TICKS = 20;
 
-    /** §9の攻撃方針。 */
+    /** 攻撃方針。 */
     public enum Stance {
         NEAR("near"), MID("mid"), FAR("far");
         private final String id;
@@ -108,7 +108,7 @@ public final class DarkMatterBeetles {
         public String id() { return id; }
         public static @Nullable Stance parse(String value) { for (var s : values()) if (s.id.equals(value)) return s; return null; }
     }
-    /** §9の修復方式。 */
+    /** 修復方式。 */
     public enum Repair {
         AUTO("auto"), RESUMMON("resummon");
         private final String id;
@@ -142,7 +142,7 @@ public final class DarkMatterBeetles {
         public int indexOf(DarkMatterBeetle beetle) { return live.indexOf(beetle); }
         /** 同じ所有者の活動中の個体。 */
         public List<DarkMatterBeetle> members() { return live; }
-        /** 試験用: 近くの敵対モブを狙うかを切り替える。 */
+        /** テスト用: 近くの敵対モブを狙うかを切り替える。 */
         public void nearbyEnemiesForTest(boolean on) { nearbyEnemies = on; }
     }
     private static final Map<UUID, Party> PARTIES = new HashMap<>();
@@ -157,7 +157,8 @@ public final class DarkMatterBeetles {
     public static float spawnCp(float p) { return ArcGen.lerp(800, 400, p); }
     public static float spawnOverload(float p) { return ArcGen.lerp(30, 20, p); }
     public static int spawnCooldown(float p) { return Math.round(ArcGen.lerp(100, 60, p)); }
-    public static float repairPerSecond(float p) { return ArcGen.lerp(2, 6, p); }
+    /** 自動修復の速さ（HP/秒）。1.5.2で毎秒2→6から1→3へ遅くした。 */
+    public static float repairPerSecond(float p) { return ArcGen.lerp(1, 3, p); }
     public static float meleeDamage(float p) { return ArcGen.lerp(10, 20, p); }
     public static float dashDamage(float p) { return ArcGen.lerp(14, 28, p); }
     public static double groundSpeed(float p) { return ArcGen.lerp(5, 7, p); }
@@ -182,7 +183,7 @@ public final class DarkMatterBeetles {
     public static int followDistance(ServerPlayer owner) { var d = data(owner); return d == null ? FOLLOW_DEFAULT : d.getBeetleFollow(); }
     /**
      * 近くの敵対モブを新しく狙う範囲（所有者から）: min(16, D−4)。狙い続ける範囲は{@link #nearbyKeep}でmin(24, D)。
-     * Dが小さいとき、帰還の境（D）の外の敵を選んでは帰還で外す往復になるので、選ぶのは帰還をやめる距離（D−4）の内側、追い続けるのはDの内側に限る（ユーザーの決定）。
+     * Dが小さいとき、帰還の境（D）の外の敵を選んでは帰還で外す往復になるので、選ぶのは帰還をやめる距離（D−4）の内側、追い続けるのはDの内側に限る。
      */
     public static double nearbyRange(int follow) { return Math.min(NEARBY_RANGE, follow - FOLLOW_RESUME); }
     /** 近くの敵対モブを狙い続ける範囲（所有者から）: min(24, D)。理由は{@link #nearbyRange}。 */
@@ -245,7 +246,7 @@ public final class DarkMatterBeetles {
         beetle.applyMaxHealth(p);
         beetle.setHealth(beetle.getMaxHealth());
         if (state != null) beetle.readState(state);
-        // 生成も復帰（ログイン・次元の移動・空間ができた時）も、同じ出現の演出から始まる（現れ終わるまで戦いに参加しない）。
+        // 生成も復帰（ログイン・ディメンションの移動・空間ができた時）も、同じ出現の演出から始まる（現れ終わるまで戦いに参加しない）。
         beetle.startEmerging();
         level.addFreshEntity(beetle);
         party.live.add(beetle);
@@ -317,7 +318,7 @@ public final class DarkMatterBeetles {
         var data = data(player);
         if (data != null) record(party, data);
     }
-    /** ログインの復帰: 記録を収納個体として受け取る（実体は次のtickに、空間が見つかれば出る）。 */
+    /** ログインの復帰: 記録を収納個体として受け取る（エンティティは次のtickに、空間が見つかれば出る）。 */
     public static void restore(ServerPlayer player) {
         var data = data(player);
         if (data == null || data.isReadOnly() || data.getBeetleRecords().isEmpty()) return;
@@ -326,8 +327,8 @@ public final class DarkMatterBeetles {
         adopt(party, data);
     }
     /**
-     * 全個体の回収（能力設定、技能のキーの長押し、§15の系統喪失、真の死亡）。活動中も収納中も消える。CPは返さない。誰かいたらtrue。
-     * 活動中の個体は、消す直前に回収の演出を周りへ知らせる（実体はすぐ消すので、保存や数の扱いは今までと同じ）。
+     * 全個体の回収（能力設定、技能のキーの長押し、系統喪失、真の死亡）。活動中も収納中も消える。CPは返さない。誰かいたらtrue。
+     * 活動中の個体は、消す直前に回収の演出を周りへ知らせる（エンティティはすぐ消すので、保存や数の扱いは今までと同じ）。
      */
     public static boolean recallAll(ServerPlayer player) {
         var party = PARTIES.remove(player.getUUID());
@@ -345,7 +346,7 @@ public final class DarkMatterBeetles {
 
     /** 長押しで全個体を回収するまでの時間（tick、2秒）。これより前に離すと生成する。 */
     public static final int RECALL_HOLD = 40;
-    /** 押し続けの心拍（クライアントは5tickごと）がこれより長く来なければ、押下を捨てる（生成も回収もしない）。 */
+    /** 押し続けのハートビート（クライアントは5tickごと）がこれより長く来なければ、押下を捨てる（生成も回収もしない）。 */
     public static final int HOLD_LEASE = 15;
     /** 1人の押下。時間はサーバーのゲーム時刻で数える（クライアントの申告の長さは使わない）。 */
     private static final class Press {
@@ -364,7 +365,7 @@ public final class DarkMatterBeetles {
         PRESSES.put(player.getUUID(), new Press(player, slot, player.serverLevel().getGameTime()));
         return "";
     }
-    /** 押し続けの心拍。 */
+    /** 押し続けのハートビート。 */
     public static void renew(ServerPlayer player, int slot) {
         var press = PRESSES.get(player.getUUID());
         if (press != null && press.slot == slot) press.beat = player.serverLevel().getGameTime();
@@ -376,7 +377,7 @@ public final class DarkMatterBeetles {
      * <p>
      * 離しの packet は、同じ tick の終わりの{@link #tickPresses}より先に処理されることがある。そのため、押してから{@link #RECALL_HOLD}tick に
      * 届いた押下は、tick の終わりの回収がまだでも、ここで同じ回収をして生成しない（離しと tick の終わりの順に関わらず、40tick に届いた押下は回収にする）。
-     * 回収は1回の押下で1回だけ（{@link Press#recalled}）。心拍（{@link #HOLD_LEASE}）の確かめは、今までどおり tick の終わりだけで行う。
+     * 回収は1回の押下で1回だけ（{@link Press#recalled}）。ハートビート（{@link #HOLD_LEASE}）の確かめは、今までどおり tick の終わりだけで行う。
      */
     private static void release(ServerPlayer player, int slot, long now) {
         var press = PRESSES.get(player.getUUID());
@@ -389,7 +390,7 @@ public final class DarkMatterBeetles {
         cast(player, data, slot);
         AbilitySyncEvents.sync(player, true);
     }
-    /** 長押しの回収（1回の押下で1回だけ）。甲虫がいなければ何も起きない。能力を使えない状態なら、回収済みの印だけを付ける。 */
+    /** 長押しの回収（1回の押下で1回だけ）。甲虫がいなければ何も起きない。能力を使えない状態なら、回収済みのフラグだけを付ける。 */
     private static void recall(Press press, ServerPlayer player) {
         press.recalled = true;
         var data = data(player);
@@ -403,9 +404,9 @@ public final class DarkMatterBeetles {
     }
     /** 能力OFF・プリセットの変更・系統の変更: 押下を捨てる（生成しない）。 */
     public static void stopPress(ServerPlayer player) { PRESSES.remove(player.getUUID()); }
-    /** 押下が続いているか（試験用）。 */
+    /** 押下が続いているか（テスト用）。 */
     public static boolean pressing(ServerPlayer player) { return PRESSES.containsKey(player.getUUID()); }
-    /** 毎tick: 心拍の途切れた押下を捨て、閾値に届いた押下で全個体を回収する（1回の押下で1回だけ。甲虫がいなければ何も起きない）。 */
+    /** 毎tick: ハートビートの途切れた押下を捨て、閾値に届いた押下で全個体を回収する（1回の押下で1回だけ。甲虫がいなければ何も起きない）。 */
     private static void tickPresses() {
         for (Iterator<Press> it = PRESSES.values().iterator(); it.hasNext(); ) {
             var press = it.next();
@@ -420,14 +421,14 @@ public final class DarkMatterBeetles {
         recall(press, player);
         return false;
     }
-    /** 試験用の入口: 時刻を与えて離す（tick の終わりの処理との順を、ゲームの時刻を進めずに作る）。製品の離しと同じ処理。 */
+    /** テスト用の入口: 時刻を与えて離す（tick の終わりの処理との順を、ゲームの時刻を進めずに作る）。製品の離しと同じ処理。 */
     public static void releaseForTest(ServerPlayer player, int slot, long now) { release(player, slot, now); }
-    /** 試験用の入口: 時刻を与えて心拍を送る。 */
+    /** テスト用の入口: 時刻を与えてハートビートを送る。 */
     public static void renewForTest(ServerPlayer player, int slot, long now) {
         var press = PRESSES.get(player.getUUID());
         if (press != null && press.slot == slot) press.beat = now;
     }
-    /** 試験用の入口: この所有者の押下だけに、時刻を与えて tick の終わりの処理（{@link #tickPresses}と同じ）を行う。 */
+    /** テスト用の入口: この所有者の押下だけに、時刻を与えて tick の終わりの処理（{@link #tickPresses}と同じ）を行う。 */
     public static void tickPressForTest(ServerPlayer player, long now) {
         var press = PRESSES.get(player.getUUID());
         if (press != null && tickPress(press, now)) PRESSES.remove(player.getUUID());
@@ -444,7 +445,7 @@ public final class DarkMatterBeetles {
         var level = player.serverLevel();
         float p = data.getProficiency(ID);
         for (var beetle : List.copyOf(party.live)) {
-            // 別の次元に残った個体は収納し、下の復帰で所有者の次元へ出す。
+            // 別のディメンションに残った個体は収納し、下の復帰で所有者のディメンションへ出す。
             if (beetle.level() != level) { store(party, beetle); party.retry = 0; continue; }
             distance(party, beetle);
         }
@@ -468,7 +469,7 @@ public final class DarkMatterBeetles {
         }
     }
     private static void forget(Map<LivingEntity, Long> memory, long now) { memory.entrySet().removeIf(e -> now - e.getValue() > MEMORY_TICKS || !e.getKey().isAlive()); }
-    /** 64ブロック超が2秒続いたら安全な近くへ転移する。空間が無ければ収納する（§9の表）。 */
+    /** 64ブロック超が2秒続いたら安全な近くへ転移する。空間が無ければ収納する。 */
     private static void distance(Party party, DarkMatterBeetle beetle) {
         if (beetle.distanceTo(party.player) <= TELEPORT_DISTANCE) { beetle.farTicks = 0; return; }
         if (++beetle.farTicks < TELEPORT_AFTER) return;
@@ -479,7 +480,7 @@ public final class DarkMatterBeetles {
         beetle.teleportTo(at.x, at.y, at.z);
     }
     /**
-     * 追従の席（足元の位置）。1体目は所有者の真後ろ、2体目と3体目はその左右。飛行中は所有者より少し上。判定が収まらなければ少し近い席を試し、無ければnull。
+     * 追従のスロット（足元の位置）。1体目は所有者の真後ろ、2体目と3体目はその左右。飛行中は所有者より少し上。判定が収まらなければ少し近いスロットを試し、無ければnull。
      */
     public static @Nullable Vec3 seat(Party party, DarkMatterBeetle beetle, boolean airborne) {
         var owner = party.player;
@@ -500,7 +501,7 @@ public final class DarkMatterBeetles {
         }
         return null;
     }
-    /** 席を見つけられないときの、位置だけの席（判定は確かめない）。遠くから帰るための目印。 */
+    /** スロットを見つけられないときの、位置だけのスロット（判定は確かめない）。遠くから帰るための目印。 */
     public static Vec3 roughSeat(Party party, DarkMatterBeetle beetle) {
         var owner = party.player;
         double angle = Math.toRadians(owner.yBodyRot + 180 + new int[] {0, 1, -1}[Math.min(Math.max(0, party.indexOf(beetle)), 2)] * SEAT_SPREAD);
@@ -516,11 +517,12 @@ public final class DarkMatterBeetles {
             if (healed <= 0) continue;
             float cost = healed * REPAIR_CP_PER_HP;
             if (!creative) {
-                if (data.getCp() < cost) continue;
-                // セーフティの作動は最初の1回だけ知らせ、止まっている間は確かめるだけ（通るようになったら自動で再開する。§14）。
+                if (data.getCp() < PlayerAbilityData.skillCp(ID, cost)) continue;
+                // セーフティの作動は最初の1回だけ知らせ、止まっている間は確かめるだけ（通るようになったら自動で再開する）。
                 if (party.repairHeld ? !data.safetyWouldPermit(ID, cost) : !data.safetyPermits(ID, cost, false)) { party.repairHeld = true; return; }
                 party.repairHeld = false;
-                data.payWithoutWait(cost);
+                // 技能の倍率を掛けて払い、払った分だけ最大CPが伸びる（1.5.2）。
+                data.payWithoutWait(ID, cost);
             }
             beetle.setHealth(beetle.getHealth() + healed);
         }
@@ -528,13 +530,20 @@ public final class DarkMatterBeetles {
 
     // ---- 攻撃 ----
 
-    /** 1回の攻撃を当てる（角・突進・空気弾の命中）。有効な命中なら熟練度を上げる（全個体合計で毎秒の上限まで）。 */
+    /** 1回の攻撃を当てる（空気弾の命中。未元物質に直接触れる攻撃ではない）。 */
     public static boolean strike(Party party, @Nullable DarkMatterBeetle beetle, LivingEntity target, float damage) {
+        return strike(party, beetle, target, damage, false);
+    }
+    /**
+     * 1回の攻撃を当てる（角・突進・空気弾の命中）。有効な命中なら熟練度を上げる（全個体合計で毎秒の上限まで）。
+     * directContactは未元物質に直接触れる攻撃（角と突進）で、ベクトル操作の偏向・反射の軽減が50%までになる（1.5.2）。
+     */
+    public static boolean strike(Party party, @Nullable DarkMatterBeetle beetle, LivingEntity target, float damage, boolean directContact) {
         var owner = party.player;
         boolean hurt;
         striking = true;
         try {
-            hurt = SkillCombat.attackVia(owner, beetle != null && beetle.isAlive() ? beetle : owner, target, ID, damage);
+            hurt = SkillCombat.attackVia(owner, beetle != null && beetle.isAlive() ? beetle : owner, target, ID, damage, directContact);
         } finally {
             striking = false;
         }
@@ -564,7 +573,7 @@ public final class DarkMatterBeetles {
     private static void tickShots(Party party) {
         for (Iterator<Shot> it = party.shots.iterator(); it.hasNext(); ) {
             var shot = it.next();
-            // 所有者が次元を移ったら、前の次元の弾はそこで終わる。
+            // 所有者がディメンションを移ったら、前のディメンションの弾はそこで終わる。
             if (shot.level != party.player.level()) { it.remove(); continue; }
             var stopped = advance(party, shot);
             if (stopped == null) continue;
@@ -646,12 +655,12 @@ public final class DarkMatterBeetles {
         return at != null && now - at <= MEMORY_TICKS;
     }
     /**
-     * 標的を選ぶ。今の標的が有効で、より高い順位の相手がいなければ維持する（同順位なら維持。§9）。どれにも当たらなければ近くの敵対モブの最も近い相手。
+     * 標的を選ぶ。今の標的が有効で、より高い順位の相手がいなければ維持する（同順位なら維持）。どれにも当たらなければ近くの敵対モブの最も近い相手。
      * 近くの敵対モブを狙っている間も、毎回上位の記憶を先に見るので、上位の相手が現れればすぐ切り替える。帰還中の個体はこれを呼ばない（{@link DarkMatterBeetle}）。
      */
     public static @Nullable LivingEntity chooseTarget(Party party, DarkMatterBeetle beetle, @Nullable LivingEntity current) {
         var chosen = chooseTarget(party, beetle, current, null);
-        // 2026-11-03の試遊の指摘: 3体すべてが同じ敵へ行かず、1体はなるべく別の敵を狙う。並びの後ろの個体は、前の2体がそろって同じ敵を狙っていれば、
+        // 3体すべてが同じ敵へ行かず、1体はなるべく別の敵を狙う。並びの後ろの個体は、前の2体がそろって同じ敵を狙っていれば、
         // その敵を除いて選び直す（優先順位はそのまま）。別の候補が無ければ同じ敵を狙う。並びで決めるので、毎tickの選び直しで行ったり来たりしない。
         if (chosen != null && crowdedBefore(party, beetle, chosen)) {
             var other = chooseTarget(party, beetle, current == chosen ? null : current, chosen);
@@ -693,7 +702,7 @@ public final class DarkMatterBeetles {
         }
         return closest;
     }
-    /** 箱の中で最初に当たる敵（突進の命中）。最も近いもの。 */
+    /** バウンディングボックスの中で最初に当たる敵（突進の命中）。最も近いもの。 */
     public static @Nullable LivingEntity firstEnemy(Party party, DarkMatterBeetle beetle, AABB box) {
         LivingEntity best = null; double nearest = Double.MAX_VALUE;
         for (var candidate : beetle.level().getEntities(beetle, box, e -> e instanceof LivingEntity l && isEnemy(party, beetle, l))) {
@@ -733,13 +742,13 @@ public final class DarkMatterBeetles {
         tickPresses();
         for (var party : List.copyOf(PARTIES.values())) tick(party);
     }
-    /** 試験用の入口: この所有者の処理を今すぐ1回行う。 */
+    /** テスト用の入口: この所有者の処理を今すぐ1回行う。 */
     public static void tickForTest(ServerPlayer player) { var party = PARTIES.get(player.getUUID()); if (party != null) tick(party); }
-    /** 試験用の入口: 甲虫が使う状態の本体。 */
+    /** テスト用の入口: 甲虫が使う状態の本体。 */
     public static @Nullable Party partyForTest(ServerPlayer player) { return PARTIES.get(player.getUUID()); }
 
     /**
-     * §9の優先順位の記憶。所有者が攻撃した相手、所有者を攻撃した相手、甲虫自身を攻撃した相手。損傷の有無によらず「攻撃した」を覚えるので、攻撃の入口のイベントを、
+     * 優先順位の記憶。所有者が攻撃した相手、所有者を攻撃した相手、甲虫自身を攻撃した相手。損傷の有無によらず「攻撃した」を覚えるので、攻撃の入口のイベントを、
      * 他のリスナーや防御が取り消した場合も含めて受ける。
      */
     @SubscribeEvent(receiveCanceled = true) public static void attack(AcademyLivingAttackEvent e) {
@@ -762,11 +771,11 @@ public final class DarkMatterBeetles {
         if (memory.size() > MEMORY_LIMIT) { var first = memory.keySet().iterator(); first.next(); first.remove(); }
     }
     /**
-     * §9: 召喚者本人（と同じ所有者の個体）の飛び道具は、自分の甲虫に当たらず、そこに無いかのように通り抜ける
+     * 召喚者本人（と同じ所有者の個体）の飛び道具は、自分の甲虫に当たらず、そこに無いかのように通り抜ける
      * （Forge版の{@code ProjectileImpactEvent.ImpactResult.SKIP_ENTITY}）。
      * <p>
      * NeoForge 1.21.1 の当たりの事象には結果の種類が無い。取り消すだけでは、甲虫と同じtickの移動の中にある後ろの壁や実体の
-     * 当たりも処理されず、矢は壁の中まで進んで埋まる（2026-11-04 の GameTest で確かめた）。そこで飛び道具が当たる相手を
+     * 当たりも処理されず、矢は壁の中まで進んで埋まる（GameTest で確かめた）。そこで飛び道具が当たる相手を
      * 探す所（{@code Projectile.canHitEntity}、mixin の{@code ProjectileTargetMixin}）でこの甲虫を候補から外し、同じtickの中で
      * 後ろの物に当たるようにする。
      */
@@ -788,7 +797,7 @@ public final class DarkMatterBeetles {
     }
     @SubscribeEvent public static void login(PlayerEvent.PlayerLoggedInEvent e) { if (e.getEntity() instanceof ServerPlayer p) restore(p); }
     @SubscribeEvent public static void logout(PlayerEvent.PlayerLoggedOutEvent e) { if (e.getEntity() instanceof ServerPlayer p) { stopPress(p); stash(p); } }
-    /** エンドからの帰還などで所有者の実体が新しくなったら付け替える（死亡の場合は既に回収済み）。 */
+    /** エンドからの帰還などで所有者のエンティティが新しくなったら付け替える（死亡の場合は既に回収済み）。 */
     @SubscribeEvent public static void clone(PlayerEvent.Clone e) {
         var party = PARTIES.get(e.getEntity().getUUID());
         if (party != null && e.getEntity() instanceof ServerPlayer player) party.player = player;

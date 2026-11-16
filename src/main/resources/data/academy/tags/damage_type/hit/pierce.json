@@ -1,0 +1,11 @@
+{
+  "replace": false,
+  "values": [
+    "academy:skill_pierce",
+    "academy:electromaster_pierce",
+    "academy:meltdowner_pierce",
+    "academy:teleporter_pierce",
+    "academy:vecmanip_pierce",
+    "academy:dark_matter_pierce"
+  ]
+}

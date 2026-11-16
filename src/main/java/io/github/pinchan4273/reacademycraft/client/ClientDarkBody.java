@@ -22,10 +22,10 @@ import net.neoforged.bus.api.EventPriority;
 import net.neoforged.bus.api.SubscribeEvent;
 
 /**
- * v1.5.0 §14: 未元物質人間のHUD。生命力はCPだけなので、ハート・食料・酸素のゲージを描かない。CPのゲージは{@link CpBarHud}が能力OFFでも出す。
+ * v1.5.0: 未元物質人間のHUD。生命力はCPだけなので、ハート・食料・酸素のゲージを描かない。CPのゲージは{@link CpBarHud}が能力OFFでも出す。
  * 形態はサーバーの同期（{@code network/AbilitySnapshot}）で届き、通常人間へ戻れば次の同期で元の表示になる。
  * <p>
- * 外観（COMMAND-RE-150-DARK-BODY-VISUAL-R1-20261104の初稿）: 本人と見ている人のクライアントで、未元物質人間の頭上の輪（{@link DarkHaloLayer}）と、
+ * 外観: 本人と見ている人のクライアントで、未元物質人間の頭上の輪（{@link DarkHaloLayer}）と、
  * 変化の瞬間の白いシルエットの状態を持つ。形態の有無と変化の合図は{@link DarkWingAction#BODY}・{@link DarkWingAction#BODY_FLASH}で届く。
  */
 @net.neoforged.fml.common.EventBusSubscriber(modid = "academy", value = Dist.CLIENT)
@@ -39,7 +39,7 @@ public final class ClientDarkBody {
         return data != null && data.isDarkBody();
     }
     /**
-     * 最も高い優先度で取り消す（2026-11-03のユーザーの指摘: 他のMODがハートを自前で描くと、ハートだけ残った）。描画の合図を受けてゲージを
+     * 最も高い優先度で取り消す（他のMODがハートを自前で描くと、ハートだけ残ったため）。描画の合図を受けてゲージを
      * 置き換えるMODは、取り消し済みの合図では描かないことが多いので、それより先に取り消す。特定のMODは見ない（汎用の対応）。
      */
     @SubscribeEvent(priority = EventPriority.HIGHEST)
@@ -92,7 +92,7 @@ public final class ClientDarkBody {
     @Nullable public static Mark mark(int entityId) { return MARKS.get(entityId); }
     /**
      * 頭上の輪が描く状態: 自然能力の未元物質人間ならその状態、そうでなければ外部の演出（公開APIの{@code DARK_HALO}、演出API版3）の状態。
-     * 自然能力の輪がある実体では、外部の輪を重ねない。
+     * 自然能力の輪があるエンティティでは、外部の輪を重ねない。
      */
     @Nullable public static Mark haloMark(int entityId) {
         var own = MARKS.get(entityId);
@@ -101,24 +101,24 @@ public final class ClientDarkBody {
 
     // ---- 外部の演出の頭上の輪（演出API版3） ----
 
-    /** 外部の演出の輪の状態（実体の番号ごと。揺れは自然能力と同じ{@link #advance}で進める）と、輪を出したままにしている演出の札。 */
+    /** 外部の演出の輪の状態（エンティティのIDごと。揺れは自然能力と同じ{@link #advance}で進める）と、輪を出したままにしている演出のハンドル。 */
     private static final Map<Integer, Mark> EXTERNAL = new HashMap<>();
     private static final Map<Integer, java.util.Set<Object>> HOLDS = new HashMap<>();
-    /** 札で外部の輪を出す。 */
+    /** ハンドルで外部の輪を出す。 */
     static void holdExternal(int entityId, Object token) {
         var level = Minecraft.getInstance().level;
         if (level != world) { MARKS.clear(); EXTERNAL.clear(); HOLDS.clear(); world = level; }
         EXTERNAL.computeIfAbsent(entityId, id -> new Mark()).body = true;
         HOLDS.computeIfAbsent(entityId, id -> new java.util.HashSet<>()).add(token);
     }
-    /** 札を離す。札が無くなれば、自然能力と同じくすぐ消す。 */
+    /** ハンドルを離す。ハンドルが無くなれば、自然能力と同じくすぐ消す。 */
     static void releaseExternal(int entityId, Object token) {
         var holds = HOLDS.get(entityId);
         if (holds == null || !holds.remove(token) || !holds.isEmpty()) return;
         HOLDS.remove(entityId);
         EXTERNAL.remove(entityId);
     }
-    /** 試験用の入口: 外部の輪の数。 */
+    /** テスト用の入口: 外部の輪の数。 */
     public static int externalHalos() { return EXTERNAL.size(); }
 
     /** 揺れを1tick進める（自然能力と外部の輪で共通）。 */
@@ -145,7 +145,7 @@ public final class ClientDarkBody {
             advance(mark, entity);
             return !mark.body && mark.flashTicks < 0;
         });
-        // 外部の輪: 実体を失った演出は自分で札を離すが、ここでも実体の無い状態は消す。
+        // 外部の輪: エンティティを失った演出は自分でハンドルを離すが、ここでもエンティティの無い状態は消す。
         EXTERNAL.entrySet().removeIf(entry -> {
             Entity entity = level.getEntity(entry.getKey());
             if (entity == null || entity.isRemoved()) { HOLDS.remove(entry.getKey()); return true; }
@@ -158,7 +158,7 @@ public final class ClientDarkBody {
     /**
      * 変化の瞬間の白いシルエット: 体・装備・手の持ち物・翼を、同じ描画経路でもう一度描き直し、そのとき頂点の重ね色（オーバーレイ）を白へ、
      * 明るさを最大へ寄せる。描き直しは元の描画を取り消して1回だけ行う（二重には描かない）。被弾の赤い点滅（重ね色の赤の段）はそのまま残す。
-     * 普段から体を淡く白く光らせる案は試したが、2026-11-04のユーザーの判断で採らない（白くするのは変化の瞬間だけ）。
+     * 普段から体を淡く白く光らせる案は試したが、採らない（白くするのは変化の瞬間だけ）。
      */
     private static boolean whitening;
     @SubscribeEvent(priority = EventPriority.HIGHEST)

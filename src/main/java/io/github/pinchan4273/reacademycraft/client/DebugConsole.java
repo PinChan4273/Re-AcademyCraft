@@ -32,7 +32,7 @@ public final class DebugConsole {
     public static final KeyMapping KEY = new KeyMapping("key.academy.debug_console", KeyConflictContext.IN_GAME,
             InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_F4, "key.categories.academy");
     /**
-     * 2ページ目（技能）が画面に収まらないときのページ送り（QAの所見FQ-03）。F4の3つの状態の切り替えは変えない。
+     * 2ページ目（技能）が画面に収まらないときのページ送り。F4の3つの状態の切り替えは変えない。
      * 技能のページが2つ以上のときだけ効き、最後のページの次は最初に戻る。端末の設定画面には加えない（画面を変えない）。
      */
     public static final KeyMapping PAGE = new KeyMapping("key.academy.debug_console_page", KeyConflictContext.IN_GAME,
@@ -97,7 +97,7 @@ public final class DebugConsole {
     }
 
     /**
-     * 技能のページが避ける、F4より後に描かれるHUDの今の範囲（WORK-045のFQ-03）: 能力ONのCPバーとキーのヒント、教程の通知。
+     * 技能のページが避ける、F4より後に描かれるHUDの今の範囲: 能力ONのCPバーとキーのヒント、教程の通知。
      * それぞれのHUDの位置（HudLayout、CustomizeUIで動かした位置を含む）と描き方から求める。
      */
     public static List<DebugConsoleLayout.Area> avoided(PlayerAbilityData data, int guiWidth, int guiHeight) {
@@ -134,9 +134,9 @@ public final class DebugConsole {
             }
             case SHOW_EXP -> {
                 texts.add("Skill status");
-                // 能力カテゴリの技能、Radiation Intensifyの実効値、汎用コース（2026-10-16の追加指示）。
+                // 能力カテゴリの技能、Radiation Intensifyの実効値、汎用コース。
                 // Radiation Intensifyの基準は、参加中のサーバーが送ったLv5の初期CP（このclientの設定ファイルではない）。
-                // まだ届いていなければ、標準の値で計算せずnullを渡す（QAの所見FQ-01）。
+                // まだ届いていなければ、標準の値で計算せずnullを渡す。
                 texts.addAll(SkillStatusLines.of(data, io.github.pinchan4273.reacademycraft.config.SyncedAcademyRules.received()
                         ? Float.valueOf(io.github.pinchan4273.reacademycraft.config.SyncedAcademyRules.initCp(5)) : null));
             }

@@ -37,7 +37,7 @@ public final class AcademyContent {
                     io.github.pinchan4273.reacademycraft.world.entity.SilbarnEntity::new, net.minecraft.world.entity.MobCategory.MISC)
                     // 原作EntitySilbarnのsetSize(.4f, .4f)。
                     .sized(.4f, .4f).clientTrackingRange(10).updateInterval(2).build("academy:silbarn"));
-    /** v1.5.0 未元物質の甲虫（§9）。当たり判定はユーザーの判断で見た目に合わせた（仕様の幅2.0・高さ2.2から変更）。技能からだけ生成する。 */
+    /** v1.5.0 未元物質の甲虫。当たり判定は見た目に合わせた。技能からだけ生成する。 */
     public static final DeferredHolder<net.minecraft.world.entity.EntityType<?>, net.minecraft.world.entity.EntityType<io.github.pinchan4273.reacademycraft.world.entity.DarkMatterBeetle>> DARK_MATTER_BEETLE = ENTITIES.register("dark_matter_beetle",
             () -> net.minecraft.world.entity.EntityType.Builder.<io.github.pinchan4273.reacademycraft.world.entity.DarkMatterBeetle>of(
                     io.github.pinchan4273.reacademycraft.world.entity.DarkMatterBeetle::new, net.minecraft.world.entity.MobCategory.MISC)
@@ -165,7 +165,7 @@ public final class AcademyContent {
             () -> new DescribedItem(new Item.Properties().stacksTo(1)));
     public static final DeferredHolder<net.minecraft.world.item.Item, Item> FACTOR_VECMANIP = ITEMS.register("factor_vecmanip",
             () -> new DescribedItem(new Item.Properties().stacksTo(1)));
-    /** v1.5.0: 未元物質誘導因子（採用仕様・版41の§1）。既存4系統の因子と同じ扱い（専用のレシピは無い）。 */
+    /** v1.5.0: 未元物質誘導因子。既存4系統の因子と同じ扱い（専用のレシピは無い）。 */
     public static final DeferredHolder<net.minecraft.world.item.Item, Item> FACTOR_DARK_MATTER = ITEMS.register("factor_dark_matter",
             () -> new DescribedItem(new Item.Properties().stacksTo(1)));
     // 原作blocks.confのmachine_frame: Material.ROCK、硬さ4.0、つるはしの採掘レベル1（needs_stone_toolタグ）。

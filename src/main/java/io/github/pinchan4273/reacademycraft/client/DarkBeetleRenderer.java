@@ -13,10 +13,10 @@ import net.neoforged.api.distmarker.Dist;
 import net.neoforged.neoforge.client.event.EntityRenderersEvent;
 import net.neoforged.bus.api.SubscribeEvent;
 
-/** 未元物質の甲虫の描画。骨はDarkBeetleMesh、面はDarkBeetleFacets、動きはここ。 */
+/** 未元物質の甲虫の描画。ボーンはDarkBeetleMesh、面はDarkBeetleFacets、動きはここ。 */
 public final class DarkBeetleRenderer extends MobRenderer<DarkMatterBeetle, DarkBeetleRenderer.Model> {
     private static final ResourceLocation TEXTURE = ResourceLocation.fromNamespaceAndPath("academy", "textures/entity/dark_matter_beetle.png");
-    /** 白い外殻が陰の面でも灰色に沈まないよう、同じ絵を無陰影で薄く足す量。 */
+    /** 白い外殻が陰の面でも灰色に沈まないよう、同じテクスチャを無陰影で薄く足す量。 */
     private static final float GLOW = .3f;
 
     public DarkBeetleRenderer(EntityRendererProvider.Context context) {
@@ -43,7 +43,7 @@ public final class DarkBeetleRenderer extends MobRenderer<DarkMatterBeetle, Dark
         if (scale != 1) pose.scale(scale, scale, scale);
     }
 
-    /** 3対の脚は三脚歩行（左前・右中・左後ろが同じ組）で、節ごとに持ち上げる。飛行翅はB2まで畳んで隠す。 */
+    /** 3対の脚は三脚歩行（左前・右中・左後ろが同じ組）で、節ごとに持ち上げる。飛行翅は、いまは畳んで隠す。 */
     public static final class Model extends HierarchicalModel<DarkMatterBeetle> {
         private final ModelPart root, head;
         private final ModelPart[] coxa = new ModelPart[6], tibia = new ModelPart[6];
@@ -67,7 +67,7 @@ public final class DarkBeetleRenderer extends MobRenderer<DarkMatterBeetle, Dark
             }
         }
         @Override public ModelPart root() { return root; }
-        /** 箱は無く、全身を多角形の面で描く（骨の変換に沿う）。 */
+        /** ボックスは無く、全身を多角形の面で描く（ボーンの変換に沿う）。 */
         @Override public void renderToBuffer(com.mojang.blaze3d.vertex.PoseStack pose, com.mojang.blaze3d.vertex.VertexConsumer buffer, int light, int overlay, int color) {
             // 1.21は色を1つのARGBの整数で渡す（Forge版は4つの小数）。
             float r = net.minecraft.util.FastColor.ARGB32.red(color) / 255f, g = net.minecraft.util.FastColor.ARGB32.green(color) / 255f,
@@ -94,7 +94,7 @@ public final class DarkBeetleRenderer extends MobRenderer<DarkMatterBeetle, Dark
             root().getAllParts().forEach(ModelPart::resetPose);
             head.yRot = headYaw * Mth.DEG_TO_RAD * .35f;
             head.xRot = headPitch * Mth.DEG_TO_RAD * .3f;
-            // 飛行: 上翅を開いて飛行翅を羽ばたかせ、脚を縮める（B2の初稿）。
+            // 飛行: 上翅を開いて飛行翅を羽ばたかせ、脚を縮める。
             boolean flying = beetle.flying();
             wingLeft.visible = wingRight.visible = flying;
             if (flying) {

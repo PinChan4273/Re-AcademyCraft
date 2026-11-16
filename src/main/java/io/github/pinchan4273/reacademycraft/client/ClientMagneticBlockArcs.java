@@ -88,7 +88,7 @@ public final class ClientMagneticBlockArcs {
     }
 
     @SubscribeEvent public static void logout(ClientPlayerNetworkEvent.LoggingOut event) { ARCS.clear(); world = null; }
-    /** テスト用の、読み取り専用の観測点。 */
+    /** テスト用の、読み取り専用のフック。 */
     public static int active() { return (int) ARCS.keySet().stream().filter(block -> !block.isRemoved()).count(); }
     public static long renderedQuads() { return renderedQuads; }
 }

@@ -12,7 +12,7 @@ import net.neoforged.fml.common.Mod;
 import net.neoforged.fml.event.lifecycle.FMLClientSetupEvent;
 
 /**
- * 原作ItemEnergyBase/IFItemManagerの絵の切り替え閾値。正確なFEは既存のNBTに残る。
+ * 原作ItemEnergyBase/IFItemManagerのテクスチャの切り替え閾値。正確なFEは既存のNBTに残る。
  * WeAthFolD。このクライアント側アダプタは耐久値を書かず、他modのcapabilityも問い合わせない。
  */
 @net.neoforged.fml.common.EventBusSubscriber(modid = "academy", value = Dist.CLIENT)

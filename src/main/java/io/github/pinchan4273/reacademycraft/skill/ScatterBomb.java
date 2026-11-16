@@ -28,8 +28,9 @@ import net.neoforged.fml.common.Mod;
 /**
  * 原作ScatterBomb（WeAthFolD、KSkun、Paindar）: meltdownerのレベル2技能。
  *
- * 1回押すのではなく押し続ける: キーが押されている間に術者の横にオーブが集まり、離すとすべてが発射される。原作はオーバーロードを
- * 開始時に1回払い、押している間ずっとそこを下限にするので、離しても押し続けより安くはならない。CPは代わりに毎tick払う。
+ * 1回押すのではなく押し続ける: キーが押されている間に術者の横にオーブが集まり、離すとすべてが発射される。オーバーロードは
+ * 開始時に1回lerp(80, 40)払い（1.5.2。1.5.1はlerp(80, 60)）、CPは毎tick lerp(3, 5.4)払う（1.5.1はlerp(3, 6)）。
+ * 原作は押している間ずっと開始の値を下限にしたが、1.5.2から、押している間もオーバーロードは回復する。
  *
  * 長く押しすぎると痛い。200tickで原作は術者にダメージを与え、技能自体を終える。
  *
@@ -45,16 +46,20 @@ public final class ScatterBomb {
     private static final float SELF_HARM_DAMAGE = 6;
     private static final double PRESENTATION_RANGE = 25;
     private static final Map<UUID, Session> ACTIVE = new HashMap<>();
+    /** 開始のオーバーロード（1.5.2でlerp(80, 60)からlerp(80, 40)へ）。 */
+    public static float startOverload(float exp) { return ArcGen.lerp(80, 40, exp); }
+    /** 押している間の毎tickのCP（1.5.2でlerp(3, 6)からlerp(3, 5.4)へ）。 */
+    public static float tickConsumption(float exp) { return ArcGen.lerp(3, 5.4f, exp); }
 
     private record Orb(long session, double subX, double subY, double subZ) { }
 
     private static final class Session {
         final Level level; final int preset, slot; final float exp;
         final List<Orb> orbs = new ArrayList<>();
-        final float overloadFloor; int ticks; long heartbeat;
+        int ticks; long heartbeat;
         Session(ServerPlayer player, PlayerAbilityData data, int slot) {
             level = player.level(); preset = data.getCurrentPreset(); this.slot = slot;
-            exp = data.getProficiency(ID); overloadFloor = data.getOverload(); heartbeat = level.getGameTime();
+            exp = data.getProficiency(ID); heartbeat = level.getGameTime();
         }
     }
 
@@ -75,8 +80,8 @@ public final class ScatterBomb {
         if (data.isOverloadLocked()) return "academy.cast.overload";
         if (player.containerMenu != player.inventoryMenu) return "academy.cast.unlearned";
         if (ACTIVE.containsKey(player.getUUID())) return "";
-        // 原作はオーバーロード全体を最初に払い、それより下へ減らさない。
-        if (!data.consume(ID, 0, ArcGen.lerp(80, 60, data.getProficiency(ID)), player.getAbilities().instabuild))
+        // 原作はオーバーロード全体を最初に払い、それより下へ減らさなかった（1.5.2 R2から、押している間も回復する）。
+        if (!data.consume(ID, 0, startOverload(data.getProficiency(ID)), player.getAbilities().instabuild))
             return "academy.cast.cp";
         ACTIVE.put(player.getUUID(), new Session(player, data, slot));
         return "";
@@ -125,7 +130,7 @@ public final class ScatterBomb {
     }
 
     /**
-     * 原作の選別はt.isInstanceOf[EntityLiving]: 意思を持つ生き物で、1.12がEntityLivingの外に置くプレイヤーや防具立ては含まない。
+     * 原作のフィルターはt.isInstanceOf[EntityLiving]: 意思を持つ生き物で、1.12がEntityLivingの外に置くプレイヤーや防具立ては含まない。
      * 1.20.1のMobがそのクラスに当たる。
      */
     public static boolean homesOn(Entity entity) { return entity instanceof net.minecraft.world.entity.Mob && entity.isAlive(); }
@@ -153,13 +158,13 @@ public final class ScatterBomb {
                     orb.session(), start, end));
             player.level().playSound(null, start.x, start.y, start.z, io.github.pinchan4273.reacademycraft.world.AcademySounds.MD_RAY_SMALL.get(), net.minecraft.sounds.SoundSource.AMBIENT, .8f, 1f);
         }
-        // 止める前にリスナーやカテゴリの変更が技能を外していたら、熟練度は与えない（M-110-02。addProficiencyは未習得を拒否する）。
+        // 止める前にリスナーやカテゴリの変更が技能を外していたら、熟練度は与えない（addProficiencyは未習得を拒否する）。
         if (!session.orbs.isEmpty() && data.hasLearned(ID)) data.addProficiency(ID, .001f * session.orbs.size());
     }
 
     private static void fire(ServerPlayer player, net.minecraft.server.level.ServerLevel level,
                              Vec3 start, Vec3 end, float exp) {
-// LambdaLib2 Raytraceの既定のfilNormalは当たり判定の箱でだけ止まるので、液体では止まらない。
+// LambdaLib2 Raytraceの既定のfilNormalは当たり判定のバウンディングボックスでだけ止まるので、液体では止まらない。
         var block = level.clip(new ClipContext(start, end, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, player));
         double nearest = block.getType() == HitResult.Type.MISS ? start.distanceToSqr(end) : start.distanceToSqr(block.getLocation());
         Entity target = null;
@@ -185,12 +190,10 @@ public final class ScatterBomb {
                 || data.getCurrentPreset() != session.preset
                 || !ID.equals(data.getSlot(session.preset, session.slot))
                 || now - session.heartbeat > 10) { stop(player); return; }
-        // 原作はオーバーロードを開始時のコストが残した値を下限にするので、押し続けても回復しない。
-        if (data.getOverload() < session.overloadFloor) data.setOverload(session.overloadFloor);
         session.ticks++;
         if (session.ticks <= MAX_TICKS) {
             if (session.ticks >= FIRST_SPAWN && session.ticks % SPAWN_INTERVAL == 0) spawn(player, session);
-            if (!data.consume(ID, ArcGen.lerp(3, 6, session.exp), 0, player.getAbilities().instabuild)) { stop(player); return; }
+            if (!data.consume(ID, tickConsumption(session.exp), 0, player.getAbilities().instabuild)) { stop(player); return; }
         }
         if (session.ticks >= SELF_HARM_TICKS) {
             // 原作attackEntityFrom(DamageSource.causePlayerDamage(player), 6): 術者自身の攻撃なので、PvPやチームの規則が適用され、

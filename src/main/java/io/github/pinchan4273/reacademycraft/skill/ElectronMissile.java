@@ -25,33 +25,39 @@ import net.neoforged.fml.common.Mod;
  * 原作ElectronMissile（WeAthFolD/KSkun）: meltdownerのレベル5。
  *
  * 術者の横に最大5つのオーブが集まり、8tickごとにランダムに選んだ1つが、広がっていく範囲内で最も近い生き物へ発射する。
- * オーブの生成は8tickごと（2026-10-23の開発司令室9でF9-01として正式採用。原作と1.2.0は10tick）。発射の間隔8tickと同じなので、
+ * オーブの生成は8tickごと（原作と1.2.0は10tick）。発射の間隔8tickと同じなので、
  * 発射のtickでは「1つ生成してから1つ撃つ」になる。
  * 撃つ相手は、プレイヤーが選ぶ攻撃対象のフィルター（敵対・中立・友好・プレイヤー）と照準のモード（AUTO／SEMI）で決まる
- * （F9-02、{@link ElectronMissileTargeting}）。既定は敵対だけをAUTOで撃つ。
+ * （{@link ElectronMissileTargeting}）。既定は敵対だけをAUTOで撃つ。
  * ElectronBombやScatterBombと同じオーブ・光線の表示を、一度にではなく少しずつ消費する。
  *
  * 原作はキーを押し続け、lerp(80, 200, exp)tick後に終わる。移植版は原作とは異なる仕様として、1回押すとオン、次に押すとオフになり、
  * 時間制限は無い: 毎tickのCPを払える間続き、能力のオフ、プリセットやカテゴリの変更、技能がスロットから外れる、妨害、死亡、
  * ログアウト、ディメンションの移動でも終わる。オーブにはもう決まった寿命が無い: それぞれORB_LIFE tickで送り、モードが続く間は
- * RENEW_INTERVALごとに更新し（近づいてきた観測者は更新でオーブを見る）、終了で退かせる。オンの間は切り替え型技能の維持コストを
- * 払う。これはlerp(12, 5)をconsumeで払うのではなく、能力データが回復を精算する所で払い、熟練度100%で回復と釣り合う。
- * 各攻撃は従来どおり自身のコストを払う。オーバーロードは、起動でlerp(100, 60)、自動射撃1回でlerp(4, 2)（2026-10-16のユーザーの確定。統合指示書のlerp(5, 2)の0%の5を偶数の4へ。
- * 原作は起動の固定200と、1回lerp(10, 4)）。
+ * RENEW_INTERVALごとに更新し（近づいてきた観測者は更新でオーブを見る）、終了で退かせる。オンの間は部類の外の切り替え型の共通の
+ * 維持コスト（1.5.2: 回復の lerp(100%, 25%) ＋ toggle_upkeep.electron_missile（12）× (1 − 熟練度)）を、能力データが
+ * 回復を精算する所で払う。オンの間もオーバーロードは回復する（1.5.2。起動の値に保たない）。
+ * 各攻撃は従来どおり自身のコストを払う。オーバーロードは、起動でlerp(100, 60)、自動射撃1回で{@link #attackOverload}（原作は起動の固定200と、1回lerp(10, 4)）。
+ * 1.5.2: 自動射撃は「稼働」の払い（{@link PlayerAbilityData#payAction}）。1回の過負荷は lerp(9, 4.5)（撃ち続けると熟練度100%・
+ * 最大過負荷1,000で約90秒でロック）。撃つ払いでCPの回復待ちはやり直さない。撃っている間（稼働中）は過負荷が回復しない。
  *
  * 原作自身のクールダウンの式はMathUtils.clampi(700, 400, exp.toInt)。clampiは(min, max, value)を取るので、ほぼ常に0になる値
  * （expは0〜1の熟練度をintへ切り捨てたもの）を、最小が最大より大きい[700, 400]の範囲へ収めることになる: Math.max(700,
  * Math.min(400, 0))は常に700。したがってクールダウンは熟練度によらず一定の700で、他のmeltdownerのクールダウンと同じく
  * lerpfで練習に応じて下がる意図だったのはほぼ確実。書かれたとおりに移植し、導出が見えるよう定数ではなく同じ方法で計算する。
+ *
+ * 1.5.2: 能力設定でパッシブにすると、能力使用モードの間に{@link PassiveSkills}が自動で始める（スロットのインデックスは{@link PassiveSkills#SLOT}）。
+ * 起動の過負荷・維持費・1発ごとの費用・終了のクールダウンはキーで始めるときと同じ。パッシブのセッションはプリセットとスロットを見ず、パッシブのままかを見る。
  */
 @net.neoforged.fml.common.EventBusSubscriber(modid = "academy")
 public final class ElectronMissile {
     public static final ResourceLocation ID = ResourceLocation.fromNamespaceAndPath("academy", "electron_missile");
-    /** 原作MAX_HOLD、生成の間隔（F9-01で10から8）、攻撃の間隔。 */
+    /** 原作MAX_HOLD、生成の間隔（10から8）、攻撃の間隔。 */
     public static final int MAX_ORBS = 5, SPAWN_INTERVAL = 8, ATTACK_INTERVAL = 8;
-    /** 原作overload_keep: ここの毎tickや攻撃ごとのコストと違い、lerpではなく固定。 */
-    /** 起動のオーバーロード（2026-10-16、統合指示書3章。原作の固定200から、熟練度でlerp(100, 60)）。 */
+    /** 起動のオーバーロード（原作の固定200から、熟練度でlerp(100, 60)）。 */
     public static float startOverload(float exp) { return ArcGen.lerp(100, 60, exp); }
+    /** 1.5.2: 自動射撃1回の過負荷（稼働の払い）。1.5.1 までは lerp(4, 2)。 */
+    public static float attackOverload(float exp) { return ArcGen.lerp(9, 4.5f, exp); }
     private static final double PRESENTATION_RANGE = 20;
     /** 送るときのオーブの寿命、動作中のモードが更新する間隔、退かせるときの寿命。 */
     public static final int ORB_LIFE = 40, RENEW_INTERVAL = 20, RETIRE_LIFE = 2;
@@ -60,7 +66,7 @@ public final class ElectronMissile {
     private record Orb(long session, double subX, double subY, double subZ) { }
 
     private static final class Session {
-        final Level level; final int preset, slot; final float exp, overloadFloor;
+        final Level level; final int preset; int slot; final float exp;
         final List<Orb> orbs = new ArrayList<>();
         int ticks;
         /**
@@ -72,10 +78,10 @@ public final class ElectronMissile {
         PlayerAbilityData.Upkeep upkeep;
         Session(ServerPlayer player, PlayerAbilityData data, int slot) {
             level = player.level(); preset = data.getCurrentPreset(); this.slot = slot;
-            exp = data.getProficiency(ID); overloadFloor = data.getOverload();
+            exp = data.getProficiency(ID);
         }
-        /** 自動射撃1回のオーバーロード（2026-10-16のユーザーの確定でlerp(4, 2)。原作lerp(10, 4)から）。CPのattackConsumptionは変えない。補間の途中は丸めない。 */
-        float attackOverload() { return ArcGen.lerp(4, 2, exp); }
+        /** 自動射撃1回のオーバーロード（{@link ElectronMissile#attackOverload}）。CPのattackConsumptionは変えない。補間の途中は丸めない。 */
+        float attackOverload() { return ElectronMissile.attackOverload(exp); }
         float attackConsumption() { return ArcGen.lerp(60, 26, exp); }
         float damage() { return ArcGen.lerp(10, 18, exp); }
         double range() { return ArcGen.lerp(5, 13, exp); }
@@ -86,18 +92,20 @@ public final class ElectronMissile {
     private ElectronMissile() { }
     private static PlayerAbilityData data(ServerPlayer p) { return AbilityCapabilities.of(p).orElse(null); }
     private static boolean allowed(ServerPlayer player, PlayerAbilityData data) {
-        // TOGGLE-GUI-001: コンテナの画面を開いただけでは止めない。画面を開いている間の新しい開始は、start()が拒否する。
+        // コンテナの画面を開いただけでは止めない。画面を開いている間の新しい開始は、start()が拒否する。
         return player.isAlive() && data != null && !data.isReadOnly() && data.isActive()
                 && AbilityCategory.MELTDOWNER.id().equals(data.getAbility()) && data.hasLearned(ID);
     }
 
     public static String start(ServerPlayer player, PlayerAbilityData data, int slot) {
-        if (slot < 0 || slot >= 4 || !ID.equals(data.getSlot(data.getCurrentPreset(), slot))
+        // 1.5.2: slotが{@link PassiveSkills#SLOT}なら、パッシブの自動の起動（パッシブに切り替えていること）。
+        if (!PassiveSkills.slotMatches(data, ID, slot)
                 || !player.isAlive() || data.isReadOnly()
                 || !AbilityCategory.MELTDOWNER.id().equals(data.getAbility()) || !data.hasLearned(ID))
             return "academy.cast.unlearned";
         if (!data.isActive()) return "academy.cast.inactive";
-        if (data.isOverloadLocked()) return "academy.cast.overload";
+        // 1.5.2: ロック中は断る。ただしロック中の再稼働を許した技能（パッシブ。優先順位の順）は通す。
+        if (data.lockBlocks(ID)) return "academy.cast.overload";
         if (data.getCooldown(ID) > 0) return "academy.cast.cooldown";
         if (player.containerMenu != player.inventoryMenu) return "academy.cast.unlearned";
         if (ACTIVE.containsKey(player.getUUID())) return "";
@@ -108,13 +116,21 @@ public final class ElectronMissile {
         var session = new Session(player, data, slot);
         ACTIVE.put(player.getUUID(), session);
         session.upkeep = data.startUpkeep(ID, () -> player.getAbilities().instabuild);
+        if (session.upkeep != null) session.upkeep.recoveryShare();
         io.github.pinchan4273.reacademycraft.network.SkillModeState.send(player, ID, true);
         return "";
     }
 
     /** このスロットから今モードを始められるか: コストを払った後に、キーが受ける確認。 */
     private static boolean startable(ServerPlayer player, PlayerAbilityData data, int slot) {
-        return allowed(player, data) && !data.isOverloadLocked() && !data.isInterfering() && ID.equals(data.getSlot(data.getCurrentPreset(), slot));
+        return allowed(player, data) && !data.lockBlocks(ID) && !data.isInterfering() && PassiveSkills.slotMatches(data, ID, slot);
+    }
+    /** 1.5.2: パッシブ（自動で起動）で動いているか（スロットのキーで始めたものはfalse）。 */
+    public static boolean passive(ServerPlayer player) { var s = ACTIVE.get(player.getUUID()); return s != null && s.slot == PassiveSkills.SLOT; }
+    /** 1.5.2: パッシブにした時に、スロットのキーで始めたモードが動いていたら、止めずにパッシブのモードにする（起動の費用を二度払わない）。 */
+    public static void adoptPassive(ServerPlayer player) {
+        var session = ACTIVE.get(player.getUUID());
+        if (session != null) session.slot = PassiveSkills.SLOT;
     }
     /**
      * このセッション自体がまだ術者の動作中のものか: 支払いの際に発したイベント（オーバーロード）が止めたか、新しいものが
@@ -146,7 +162,7 @@ public final class ElectronMissile {
         var data = data(player);
         if (data != null) data.endUpkeep(session.upkeep);
         if (data == null || data.isReadOnly() || session.level != player.level()) return;
-        // 習得していない技能（止める前にリスナーやカテゴリの変更が外した）にはクールダウンを書かない（M-110-02）。
+        // 習得していない技能（止める前にリスナーやカテゴリの変更が外した）にはクールダウンを書かない。
         if (data.hasLearned(ID)) data.setCooldown(ID, session.cooldown());
     }
     private static MdBallEffect orbEffect(ServerPlayer player, Session session, Orb orb, int life) {
@@ -170,18 +186,19 @@ public final class ElectronMissile {
         broadcast(player, orbEffect(player, session, orb, ORB_LIFE));
     }
 
-    /** 原作は攻撃自身のコストを、対象を選ぶ前の関門として払う。そのため有効な対象が無いtickでも支払い可能かを確かめ、何もしない。 */
+    /** 原作は攻撃自身のコストを、対象を選ぶ前の前提条件として払う。そのため有効な対象が無いtickでも支払い可能かを確かめ、何もしない。 */
     private static void attack(ServerPlayer player, PlayerAbilityData data, Session session) {
         if (session.orbs.isEmpty()) return;
         var level = player.serverLevel();
-        // F9-01・F9-02: 撃ってよい相手（攻撃対象のフィルターがONの分類で、SkillCombat.mayAttackが断らない相手）だけを候補にし、
+        // 撃ってよい相手（攻撃対象のフィルターがONの分類で、SkillCombat.mayAttackが断らない相手）だけを候補にし、
         // 照準のモードで1つ選ぶ。撃ってよい相手がいなければ、費用を払わず、オーブも使わない（設定は発射のtickごとに読む）。
         List<Entity> targets = level.getEntities(player, player.getBoundingBox().inflate(session.range()),
                 e -> e instanceof LivingEntity && e.isAlive() && !e.isSpectator());
         Entity nearest = ElectronMissileTargeting.choose(player, data, targets);
         if (nearest == null) return;
-        if (!data.consume(ID, session.attackConsumption(), session.attackOverload(), player.getAbilities().instabuild)) return;
-        // 自動射撃のtickは待機ではない（docs/CP_RECOVERY_TOGGLE_SPEC_JA.md）。
+        // 1.5.2: 稼働の払い。CPの回復待ちはやり直さず、次の射撃（8tick後）まで稼働中にする。拒否の条件は今までの consume と同じ。
+        if (!data.payAction(ID, session.attackConsumption(), session.attackOverload(), player.getAbilities().instabuild, true, true, true, ATTACK_INTERVAL + 1)) return;
+        // 自動射撃のtickは待機ではない。
         data.upkeepActed(session.upkeep);
         // コストで術者がオーバーロードすることがあり、オーバーロード自身のイベントは、consumeが戻る前にすべてのセッション
         // （このセッションも含み、オーブも退く）を止める。止まったセッションはそれ以上撃たない: オーバーロードさせたコストは払われ、
@@ -201,25 +218,24 @@ public final class ElectronMissile {
 
     /** このtickもモードを続けてよいか（tickの始めと、熟練度のイベントの後に確かめる）。 */
     private static boolean continues(ServerPlayer player, PlayerAbilityData data, Session session) {
+        // 1.5.2: パッシブで動いているものは、プリセットとスロットを見ず、パッシブのままかを見る。
         return data != null && allowed(player, data) && !(session.level != player.level()
-                || data.getCurrentPreset() != session.preset
-                || !ID.equals(data.getSlot(session.preset, session.slot))
+                || !PassiveSkills.sessionMatches(data, ID, session.preset, session.slot)
                 // 押されているキーがもう無いのは、妨害が始まったことを示す: 攻撃を続けずに終える。
                 || data.isInterfering()
                 // オーバーロードでも終える: 維持コストの導入前は、毎tickのconsumeがこれを拒否して終わらせていた。
-                || data.isOverloadLocked());
+                || data.lockBlocks(ID));
     }
     private static void tick(ServerPlayer player) {
         var session = ACTIVE.get(player.getUUID());
         if (session == null) return;
         var data = data(player);
         if (!continues(player, data, session)) { stop(player); return; }
-        if (data.getOverload() < session.overloadFloor) data.setOverload(session.overloadFloor);
         // 維持コストはこのtickの始めに精算済み。払えなかった要求は外れている。
         if (!data.upkeepHeld(session.upkeep)) { stop(player); return; }
         data.upkeepEarn(session.upkeep);
         // 熟練度のイベントのリスナーが、モードを終えた・置き換えた・続けられなくした（能力、スロット、プリセット）かもしれない:
-        // このtickを古いセッションで続けない（M-110-01）。
+        // このtickを古いセッションで続けない。
         if (ACTIVE.get(player.getUUID()) != session) return;
         if (!continues(player, data, session) || !data.upkeepHeld(session.upkeep)) { stop(player); return; }
         // 原作はtickを増やす前に判定と動作を行うので、オーブは10tick待たずに最初のtickで生成される。
@@ -267,12 +283,20 @@ public final class ElectronMissile {
     }
     @SubscribeEvent public static void logout(PlayerEvent.PlayerLoggedOutEvent e) { if (e.getEntity() instanceof ServerPlayer p) stop(p); }
     @SubscribeEvent public static void dimension(PlayerEvent.PlayerChangedDimensionEvent e) { if (e.getEntity() instanceof ServerPlayer p) stop(p); }
+    /**
+     * 死亡またはエンドからの帰還（作り直し）: 残ったオーブを{@link #stop}と同じく今フェードアウトさせ（1.5.2）、モードの終了を本人へ送る。
+     * オーブの合図は古いプレイヤー（本当のエンティティIDを持つ。新しいプレイヤーのIDはこの時点ではまだ仮）から、古いプレイヤーの周りへ送る。
+     */
     @SubscribeEvent public static void clone(PlayerEvent.Clone e) {
-        if (e.getEntity() instanceof ServerPlayer p && ACTIVE.remove(p.getUUID()) != null)
-            io.github.pinchan4273.reacademycraft.network.SkillModeState.send(p, ID, false);
+        if (!(e.getEntity() instanceof ServerPlayer p)) return;
+        var session = ACTIVE.remove(p.getUUID());
+        if (session == null) return;
+        if (e.getOriginal() instanceof ServerPlayer old) for (var orb : session.orbs) broadcast(old, orbEffect(old, session, orb, RETIRE_LIFE));
+        session.orbs.clear();
+        io.github.pinchan4273.reacademycraft.network.SkillModeState.send(p, ID, false);
     }
     @SubscribeEvent public static void stopped(ServerStoppedEvent e) { ACTIVE.clear(); }
-    /** F9-01: サーバーが実際に読み込んだ生成間隔を記録する（古い設定ファイルの値が残っていないかを、dedicatedのログでも確かめられる）。 */
+    /** サーバーが実際に読み込んだ生成間隔を記録する（古い設定ファイルの値が残っていないかを、dedicatedのログでも確かめられる）。 */
     @SubscribeEvent public static void started(net.neoforged.neoforge.event.server.ServerStartedEvent e) {
         com.mojang.logging.LogUtils.getLogger().info("ACADEMY_ELECTRON_MISSILE_INTERVALS: spawn={} attack={} maxOrbs={}",
                 io.github.pinchan4273.reacademycraft.config.AcademyConfig.electronMissileSpawnInterval(), ATTACK_INTERVAL, MAX_ORBS);

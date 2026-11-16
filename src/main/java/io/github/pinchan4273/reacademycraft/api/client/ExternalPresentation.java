@@ -103,17 +103,17 @@ public final class ExternalPresentation {
     /** 持ち主の、光線以外の今の演出の数。 */
     public static int activeEffects(String ownerModId) { return ClientExternalEffects.active(ownerModId); }
 
-    /** 光線以外の演出の計数（負荷の計測と試験のため）。形は光線と同じ{@link Diagnostics}。 */
+    /** 光線以外の演出のカウンター（負荷の計測とテストのため）。形は光線と同じ{@link Diagnostics}。 */
     public static Diagnostics effectDiagnostics(String ownerModId) { return ClientExternalEffects.diagnostics(ownerModId); }
 
     /** 持ち主の今の本数。 */
     public static int active(String ownerModId) { return ClientExternalBeams.active(ownerModId); }
 
-    /** 計数（負荷の計測と試験のため）。 */
+    /** カウンター（負荷の計測とテストのため）。 */
     public static Diagnostics diagnostics(String ownerModId) { return ClientExternalBeams.diagnostics(ownerModId); }
 
     /**
-     * 計数。持ち主ごとの値と、すべての外部の光線を合わせた値。
+     * カウンター。持ち主ごとの値と、すべての外部の光線を合わせた値。
      *
      * @param active           持ち主の今の本数
      * @param accepted         持ち主の受け付けた数（累計）

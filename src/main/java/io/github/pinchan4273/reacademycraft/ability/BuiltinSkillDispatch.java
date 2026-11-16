@@ -39,8 +39,8 @@ import io.github.pinchan4273.reacademycraft.skill.WhiteWingStab;
 import java.util.List;
 
 /**
- * 本体の技能の振り分けの表（1.4.0のS3。v1.5.0で白翼刺突を末尾に追加）。1.3.0の{@code AbilityAction.handle}と{@code SkillSessions.stopAll}が呼んでいたものを、
- * 同じ名前・同じ順で並べる。この表は、1.3.0（03f1f238）のソースから取り出した呼び出しの表から作った（scratchのgen_builtin_dispatch.py）。
+ * 本体の技能のディスパッチテーブル（1.4.0。v1.5.0で白翼刺突を末尾に追加）。1.3.0の{@code AbilityAction.handle}と{@code SkillSessions.stopAll}が呼んでいたものを、
+ * 同じ名前・同じ順で並べる。この表は、1.3.0のソースから取り出した呼び出しの表から作った。
  * 中断（CANCEL）で離し（release）を呼ぶ技能（Thunder Clap、Railgun、Current Charging、Magnetic Movement）や、切り替え型の中断が
  * stopになることも、1.3.0のまま。
  */
@@ -219,12 +219,12 @@ final class BuiltinSkillDispatch {
                 : io.github.pinchan4273.reacademycraft.skill.DarkMatterRay.toggle(p, d, s)), darkRay));
         SkillDispatch.builtInCast(io.github.pinchan4273.reacademycraft.skill.DarkMatter.AIR_CANNON, new Cast(named("DarkMatterAirCannon.start", io.github.pinchan4273.reacademycraft.skill.DarkMatterAirCannon::start), darkCannon));
         SkillDispatch.builtInCast(io.github.pinchan4273.reacademycraft.skill.DarkMatter.GUARD, new Cast(named("WhiteWingGuard.toggle", (p, d, s) -> io.github.pinchan4273.reacademycraft.skill.DarkDefense.toggle(p, d, s, io.github.pinchan4273.reacademycraft.skill.DarkMatter.GUARD)), darkGuard));
-        // 未元装甲は受動になった（2026-11-03のユーザーの決定）ので、キーからは始まらない。能力使用モードの間だけ、DarkDefenseが損傷のたびに掛ける。
-        // §9: 個体は能力OFF・プリセット変更・セーフティでも残る。持ち主が止めるのはキーの押下だけ（v1.5.1: 押下を覚え、離した時に生成、長押しで回収）。
+        // 未元装甲は 1.5.2 で廃止した（防御は翼に集約）。登録が無いので、ここへは来ない。
+        // 個体は能力OFF・プリセット変更・セーフティでも残る。持ち主が止めるのはキーの押下だけ（押下を覚え、離した時に生成、長押しで回収）。
         SkillDispatch.builtInCast(io.github.pinchan4273.reacademycraft.skill.DarkMatter.BEETLE, new Cast(named("DarkMatterBeetle.press", io.github.pinchan4273.reacademycraft.skill.DarkMatterBeetles::press), darkBeetle));
-        // 白翼飛行は受動になった（2026-11-03のユーザーの決定）ので、キーからは始まらない（設定に応じたジャンプ操作でWhiteWingFlight.takeoff）。
+        // 白翼飛行はパッシブになったので、キーからは始まらない（設定に応じたジャンプ操作でWhiteWingFlight.takeoff）。
         // 終わるのは着地・能力OFF・過負荷・干渉などで、WhiteWingFlightが毎tick判定する。
-        // §10: 天界発現はプリセットの変更で続く（§13）ので停止の並びには置かず、自分のキーと毎tickの条件で止まる。
+        // 天界発現はプリセットの変更で続くので停止の並びには置かず、自分のキーと毎tickの条件で止まる。
         var heaven = new Owner("HeavenManifest", null, null, null,
                 named("HeavenManifest.stop", p -> io.github.pinchan4273.reacademycraft.skill.HeavenManifest.stop(p)),
                 named("HeavenManifest.ageOn", (p, s) -> io.github.pinchan4273.reacademycraft.skill.HeavenManifest.ageOn(p, s)));

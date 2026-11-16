@@ -21,7 +21,7 @@ import net.neoforged.neoforge.client.event.EntityRenderersEvent;
 import net.neoforged.bus.api.SubscribeEvent;
 
 /**
- * 未元物質の六翼（W1）。プレイヤーの体の部品に付くレイヤーなので、通常／スリムの両スキン、しゃがみ、エリトラ姿勢に同じように付いて行く。
+ * 未元物質の六翼。プレイヤーの体の部品に付くレイヤーなので、通常／スリムの両スキン、しゃがみ、エリトラ姿勢に同じように付いて行く。
  * 明るさは光源に左右されない（白く発光して見える）。ランタイムはMinecraftのモデル部品だけを使い、バニラの粒子は使わない。
  */
 public final class DarkWingsLayer extends RenderLayer<AbstractClientPlayer, PlayerModel<AbstractClientPlayer>> {
@@ -37,7 +37,7 @@ public final class DarkWingsLayer extends RenderLayer<AbstractClientPlayer, Play
     /** 羽1枚。phaseは揺れの位相、amountは節ごとの揺れの大きさ。 */
     private record Feather(ModelPart part, float phase, float amount, boolean right, int tier, int segment, ModelPart[] chain,
                            float length, float width, org.joml.Vector3f ballAt, org.joml.Quaternionf ballTurn) { }
-    /** 羽の番号を球の席へ散らす（翼ごとに固まらないように）。69枚と互いに素。 */
+    /** 羽のインデックスを球のスロットへ散らす（翼ごとに固まらないように）。69枚と互いに素。 */
     private static final int SEAT_STRIDE = 37, SIDE_FEATHERS = 69;
     private int seatLeft, seatRight;
     private final List<Feather> feathers = new ArrayList<>();
@@ -71,7 +71,7 @@ public final class DarkWingsLayer extends RenderLayer<AbstractClientPlayer, Play
             var part = segment.getChild(prefix + i);
             var cube = part.getRandomCube(net.minecraft.util.RandomSource.create(0));
             int seat = ((right ? seatRight++ : seatLeft++) * SEAT_STRIDE) % SIDE_FEATHERS;
-            // 球の席: 左右の半球それぞれに、面積が均等になるよう並べる（x軸まわりのらせん）。
+            // 球のスロット: 左右の半球それぞれに、面積が均等になるよう並べる（x軸まわりのらせん）。
             float x = (seat + .5f) / SIDE_FEATHERS * (right ? -1 : 1), around = seat * 2.39996f, ring = Mth.sqrt(1 - x * x);
             var normal = new org.joml.Vector3f(x, ring * Mth.cos(around), ring * Mth.sin(around));
             // 羽は球面に接し、背中から正面へ流れる。少しだけ向きを散らす。
@@ -86,9 +86,9 @@ public final class DarkWingsLayer extends RenderLayer<AbstractClientPlayer, Play
     }
 
     /**
-     * 発光の強さ（各自の表示設定。2026-11-03のユーザーの決定: シェーダーでは自分で光る描き方に強いブルームが掛かる）と、その絵の周りの明るさ。
+     * 発光の強さ（各自の表示設定。シェーダーでは自分で光る描き方に強いブルームが掛かる）と、描く翼の周りの明るさ。
      * 100%は今までどおり（周りに関係なく白く光る）。下げるほど白く光らせる層を弱め、面の明るさを周りの明るさへ寄せる。0%は周りの明るさで照らす。
-     * 値は描く時の発光（{@link ClientSettings#drawnWingGlow()}）で、シェーダーパックの使用中は100%を90%として描く（2026-11-05のユーザーの決定）。
+     * 値は描く時の発光（{@link ClientSettings#drawnWingGlow()}）で、シェーダーパックの使用中は100%を90%として描く。
      * 面・発光の層・刺突・羽の球は、どれもこのglowLevelを読む。
      */
     private float glowLevel = 1;
@@ -124,7 +124,7 @@ public final class DarkWingsLayer extends RenderLayer<AbstractClientPlayer, Play
         if (open <= .001f) return;
         firstPersonNow = firstPerson;
         pose(state, open, partial, age);
-        // 空気砲の風の柱も同じ根元から生やす（2026-11-03）。
+        // 空気砲の風の柱も同じ根元から生やす。
         if (!firstPerson && drawingId >= 0 && (state.rayOn() || ClientDarkEffects.gusting(drawingId))) recordBeamRoots(pose);
         float reach = state.stabReach();
         var aimed = state.stabTarget();
@@ -145,21 +145,21 @@ public final class DarkWingsLayer extends RenderLayer<AbstractClientPlayer, Play
         float alpha = Math.min(1, open * 1.4f), glow = GLOW * alpha * glowLevel;
         // 1.21のModelPart.renderは色を1つのARGBの整数で取る（Forge版は4つの小数）。
         wings.render(pose, buffers.getBuffer(faceType(glowLevel)), faceLight(), OverlayTexture.NO_OVERLAY, net.minecraft.util.FastColor.ARGB32.colorFromFloat(alpha, 1, 1, 1));
-        // 面の向きで灰色に沈まないよう、同じ絵を無陰影で足して白く発光させる（発光の強さに比例。0%では足さない）。
+        // 面の向きで灰色に沈まないよう、同じテクスチャを無陰影で足して白く発光させる（発光の強さに比例。0%では足さない）。
         if (glow > 0) wings.render(pose, buffers.getBuffer(RenderType.eyes(TEXTURE)), LightTexture.FULL_BRIGHT, OverlayTexture.NO_OVERLAY, net.minecraft.util.FastColor.ARGB32.colorFromFloat(1, glow, glow, glow));
         if (stabbing != null) drawStab(stabbing, pose, buffers, alpha, glow);
         ball(state, pose, buffers, partial, age, firstPerson);
         for (var wing : parts) { wing.root.visible = true; wing.mid.visible = true; }
         drawn++;
     }
-    /** 描いている体の実体のid（体の描画の外では-1）。 */
+    /** 描いている体のエンティティのid（体の描画の外では-1）。 */
     private int drawingId = -1;
-    /** 光線の根元（中節の先＝先の節の付け根）の、この絵の描画の空間の位置。実体のidごとに6枚（段×左右の順）と、記録した絵の番号。 */
+    /** 光線の根元（中節の先＝先の節の付け根）の、このフレームの描画座標系の位置。エンティティのidごとに6枚（段×左右の順）と、記録したフレームの番号。 */
     private static final java.util.Map<Integer, org.joml.Vector3f[]> BEAM_ROOTS = new java.util.HashMap<>();
     private static final java.util.Map<Integer, Long> BEAM_ROOT_FRAME = new java.util.HashMap<>();
     /**
-     * 光線の根元を、実際に描く翼の姿勢（旋回の遅れ・呼吸・しゃがみ・高速飛行の傾きを含む）から記録する。{@link ClientDarkEffects}は同じ絵の中でこれを使い、
-     * 根元が翼から離れて途切れて見えないようにする（2026-11-03の試遊の指摘）。
+     * 光線の根元を、実際に描く翼の姿勢（旋回の遅れ・呼吸・しゃがみ・高速飛行の傾きを含む）から記録する。{@link ClientDarkEffects}は同じフレームの中でこれを使い、
+     * 根元が翼から離れて途切れて見えないようにする。
      */
     private void recordBeamRoots(PoseStack pose) {
         var roots = BEAM_ROOTS.computeIfAbsent(drawingId, id -> new org.joml.Vector3f[6]);
@@ -176,12 +176,12 @@ public final class DarkWingsLayer extends RenderLayer<AbstractClientPlayer, Play
         }
         BEAM_ROOT_FRAME.put(drawingId, ClientDarkEffects.frame());
     }
-    /** この絵で記録した光線の根元（描画の空間）。この絵で体が描かれていなければnull。 */
+    /** このフレームで記録した光線の根元（描画座標系）。このフレームで体が描かれていなければnull。 */
     @javax.annotation.Nullable static org.joml.Vector3f[] beamRoots(int id) {
         var frame = BEAM_ROOT_FRAME.get(id);
         return frame != null && frame == ClientDarkEffects.frame() ? BEAM_ROOTS.get(id) : null;
     }
-    /** 1人称の間の、刺す翼の根元のずらし（真後ろから出ると視界の中央を線で通るので、横の下から出す）。 */
+    /** 1人称の間の、刺す翼の根元のオフセット（真後ろから出ると視界の中央を線で通るので、横の下から出す）。 */
     private static final float FIRST_PERSON_SIDE = 9, FIRST_PERSON_DOWN = 8;
     /** 球の中にカメラがあるので、1人称では羽を薄くして前が見えるようにする。内側の層は描かない。 */
     private static final float FIRST_PERSON_BALL_ALPHA = .3f;
@@ -224,15 +224,15 @@ public final class DarkWingsLayer extends RenderLayer<AbstractClientPlayer, Play
      * 根元の節は元の幅のまま（体のすぐ後ろにあるので、広げると扇が体へ入る）。
      */
     private static final float STAB_WIDTH = 1.6f, FIRST_PERSON_STAB_WIDTH = 1.3f, ROOT_WIDTH = 1;
-    /** 足す羽（先の節の、角度の小さい5枚の番号）。広がる2枚は先端の本来の翼にだけ残す。 */
+    /** 足す羽（先の節の、角度の小さい5枚のインデックス）。広がる2枚は先端の本来の翼にだけ残す。 */
     private static final int[] EXTEND_FEATHERS = {0, 1, 2, 3, 4};
     /** 体に当たらないかを測る中節の羽の数（根元の節の羽は全部測る）。 */
     private static final int PROBE_MID = 3;
     /** 曲がる側と曲がりの角が1秒に変わってよい角度（度）。刺している間に頭の向きが大きく変わっても、瞬間に跳ばずに回って移る。 */
     private static final float SIDE_TURN_RATE = 900, THETA_RATE = 900;
-    /** 前の絵の曲がる側（取付の空間）と曲がりの角、翼の番号、時刻（ミリ秒）。 */
+    /** 前のフレームの曲がる側（取付座標系）と曲がりの角、翼の番号、時刻（ミリ秒）。 */
     private record Previous(org.joml.Vector3f side, float theta, int wing, long time) { }
-    /** 前の絵の曲がり。3人称と1人称で分ける。刺突が終わると消す。 */
+    /** 前のフレームの曲がり。3人称と1人称で分ける。刺突が終わると消す。 */
     private static final java.util.Map<ClientDarkWings.State, Previous> PREVIOUS = new java.util.WeakHashMap<>(), PREVIOUS_FIRST_PERSON = new java.util.WeakHashMap<>();
     /** 今の刺突のしなる線。aimStabが決めてdrawStabが使う。 */
     private final WingBend bend = new WingBend();
@@ -240,12 +240,12 @@ public final class DarkWingsLayer extends RenderLayer<AbstractClientPlayer, Play
     private final java.util.Map<Wing, List<WingBend.Probe>> probes = new java.util.IdentityHashMap<>();
     /** 今の刺突で見せる長さ・引き伸ばし・幅・曲がりへ移る割合（0は今の翼の姿勢、1はしなった姿勢）と、先の節の付け根・伸ばさない翼の長さ。 */
     private float stabShown, stabStretch, stabWidth, stabTurn, stabTipStart, stabNatural;
-    /** 背中の向き（取付の空間）。 */
+    /** 背中の向き（取付座標系）。 */
     private final org.joml.Vector3f stabBack = new org.joml.Vector3f();
 
     /**
-     * 刺突（2026-11-05のユーザーの要望「元の直線的な翼のままの刺突を緩やかにしならせる。動く前の翼の形状と配置を維持しながら、足りない分枚数を増やして伸ばす」と、
-     * 同じ日に決めた「しなりを相手までの距離で変える」）: 元の刺突（翼をまっすぐ届いた点へ向けて伸ばす）の翼を、根元から届いた点までのしなる線
+     * 刺突（元の直線的な翼のままの刺突を緩やかにしならせる。動く前の翼の形状と配置を維持しながら、足りない分枚数を増やして伸ばす。
+     * しなりは相手までの距離で変える）: 元の刺突（翼をまっすぐ届いた点へ向けて伸ばす）の翼を、根元から届いた点までのしなる線
      * （{@link WingBend}）に沿わせる。線の形は距離で連続に変わる（{@link WingBend#design}）: 近いほど真横へ出て真円に近い弧で体の横を包むように回り、
      * 遠いほど外かつ前へ出て根元の近くでゆるく曲がり、長くまっすぐ伸びる。いつも翼と同じ側から回り、頭の上は越えない。
      * 根元・中節・先の節の羽は、まっすぐな翼での付け根の位置まで線に沿って進めた所へ、元の扇の角のまま置く（{@link #drawStab}）。届かない長さは、
@@ -262,11 +262,11 @@ public final class DarkWingsLayer extends RenderLayer<AbstractClientPlayer, Play
         if (wing == null) return null;
         float yaw = headYaw * Mth.DEG_TO_RAD, pitch = headPitch * Mth.DEG_TO_RAD, reach = stabReach * 16;
         if (firstPersonNow) { wing.root.x += FIRST_PERSON_SIDE; wing.root.y += FIRST_PERSON_DOWN; }
-        // 体の部品から見た届いた点（モデルは前が-z、下が+y。目は体の上端より4上）と、取付の空間の届いた点。
+        // 体の部品から見た届いた点（モデルは前が-z、下が+y。目は体の上端より4上）と、取付座標系の届いた点。
         float cp = Mth.cos(pitch);
         var target = toMount(wing, new org.joml.Vector3f(-cp * Mth.sin(yaw) * reach, -4 + Mth.sin(pitch) * reach, -cp * Mth.cos(yaw) * reach));
         var root = new org.joml.Vector3f(wing.root.x, wing.root.y, wing.root.z);
-        // 背中の向き（体の+z）を取付の空間で。右は親がY軸で180度回っている。
+        // 背中の向き（体の+z）を取付座標系で。右は親がY軸で180度回っている。
         stabBack.set(0, 0, wing.right ? -1 : 1);
         stabTipStart = wing.mid.x + wing.tip.x;
         stabNatural = stabTipStart + TIP_LENGTH * TIER_SCALE[wing.tier];
@@ -279,7 +279,7 @@ public final class DarkWingsLayer extends RenderLayer<AbstractClientPlayer, Play
         var u = new org.joml.Vector3f(target).sub(root);
         float distance = u.length();
         u.div(distance);
-        // 前の絵の曲がりから、時間に応じた角度までしか変えない。
+        // 前のフレームの曲がりから、時間に応じた角度までしか変えない。
         long now = net.minecraft.Util.getMillis();
         var side = new org.joml.Vector3f(choice.side);
         float theta = choice.theta;
@@ -323,7 +323,7 @@ public final class DarkWingsLayer extends RenderLayer<AbstractClientPlayer, Play
         }
         return list;
     }
-    /** 体の部品の空間の位置を、取付の空間へ。vを書き換えて返す。 */
+    /** 体の部品の座標系の位置を、取付座標系へ。vを書き換えて返す。 */
     private static org.joml.Vector3f toMount(Wing wing, org.joml.Vector3f v) {
         return wing.right ? v.set(-1.5f - v.x, v.y - 3, 3 - v.z) : v.set(v.x - 1.5f, v.y - 3, v.z - 3);
     }
@@ -337,7 +337,7 @@ public final class DarkWingsLayer extends RenderLayer<AbstractClientPlayer, Play
         pose.pushPose();
         wings.translateAndRotate(pose);
         mount.translateAndRotate(pose);
-        // 今の翼の姿勢での、各節の付け根の位置と回転（取付の空間）。伸び始めと戻り終わりに混ぜる。
+        // 今の翼の姿勢での、各節の付け根の位置と回転（取付座標系）。伸び始めと戻り終わりに混ぜる。
         var segments = new org.joml.Matrix4f[3];
         segments[0] = new org.joml.Matrix4f().translation(wing.root.x, wing.root.y, wing.root.z).rotateZYX(wing.root.zRot, wing.root.yRot, wing.root.xRot);
         segments[1] = new org.joml.Matrix4f(segments[0]).translate(wing.mid.x, wing.mid.y, wing.mid.z).rotateZYX(wing.mid.zRot, wing.mid.yRot, wing.mid.xRot);
@@ -367,7 +367,7 @@ public final class DarkWingsLayer extends RenderLayer<AbstractClientPlayer, Play
     }
     /**
      * 羽1枚を、付け根baseまでしなる線に沿って進めた所へ置き、羽の長さの先の線の点（弦）へ向けて描く。羽の節の中の位置は外し、羽自身の角（扇）は残す。
-     * 引き伸ばしと幅の倍率は線の向きの空間で掛ける（元の刺突と同じく、扇の広がりも幅と一緒に広がる）。
+     * 引き伸ばしと幅の倍率は線の向きの座標系で掛ける（元の刺突と同じく、扇の広がりも幅と一緒に広がる）。
      * segmentがあれば、伸び始めと戻り終わりに今の翼の姿勢（その節の付け根の位置と回転）と混ぜる。
      */
     private void stabFeather(ModelPart part, float base, float length, boolean root, @javax.annotation.Nullable org.joml.Matrix4f segment, PoseStack pose,
@@ -398,13 +398,13 @@ public final class DarkWingsLayer extends RenderLayer<AbstractClientPlayer, Play
      * 平らな羽は球の外形を折れ線にする（長さ15では半径22で約40度の弦）。外側の羽を短くして折れ目を細かくし、内側の層は大きくして隙間を埋める。
      */
     private static final float BALL_RADIUS = 22, BALL_Y = 8, BALL_FEATHER_LENGTH = 11, BALL_FEATHER_WIDTH = 9, BALL_INNER_LENGTH = 14, BALL_INNER_WIDTH = 12;
-    /** 内側の層: 席を回す角度（度）と、外側より内へ下げる量。 */
+    /** 内側の層: スロットを回す角度（度）と、外側より内へ下げる量。 */
     private static final float[][] BALL_LAYERS = {{61, .8f}, {127, 1.6f}, {193, 2.4f}};
 
     /**
      * 防御: 翼を構成する羽そのものを球面へ動かして体を包む。左の翼の羽が左半球、右の翼の羽が右半球を受け持つので、片側の防御は半球になる。
-     * 羽は球面に接する向きで、両端がちょうど球面に乗るよう中心を内へ下げて置くので、先が外へ突き出さない（2026-11-04のユーザーの要望「羽でなるべく球体に、刃先が飛び出さない」）。
-     * 羽は今の翼の姿勢から、球の中心のまわりの弧に沿って席へ回り込むので、翼が前へ巻き込んで球になる。
+     * 羽は球面に接する向きで、両端がちょうど球面に乗るよう中心を内へ下げて置くので、先が外へ突き出さない。
+     * 羽は今の翼の姿勢から、球の中心のまわりの弧に沿ってスロットへ回り込むので、翼が前へ巻き込んで球になる。
      * 球の面は向きによって灰色に沈むので、光の影響を受けない半透明の描画を使う。
      */
     private void ball(ClientDarkWings.State state, PoseStack pose, MultiBufferSource buffers, float partial, float age, boolean firstPerson) {
@@ -415,7 +415,7 @@ public final class DarkWingsLayer extends RenderLayer<AbstractClientPlayer, Play
         var buffer = buffers.getBuffer(glowLevel >= 1 ? RenderType.beaconBeam(TEXTURE, true) : RenderType.entityTranslucent(TEXTURE));
         int face = faceLight();
         var rest = new org.joml.Vector3f(); var from = new org.joml.Quaternionf();
-        // 内側の層: 同じ羽の絵を、席をx軸まわりに回した位置へ足して隙間を埋める。翼から巻き込む羽より後から現れる。
+        // 内側の層: 同じ羽のテクスチャを、スロットをx軸まわりに回した位置へ足して隙間を埋める。翼から巻き込む羽より後から現れる。
         float inner = firstPerson ? 0 : Mth.clamp(guard * 2.5f - 1.2f, 0, 1);
         float own = firstPerson ? FIRST_PERSON_BALL_ALPHA : 1;
         if (inner > 0) {
@@ -461,7 +461,7 @@ public final class DarkWingsLayer extends RenderLayer<AbstractClientPlayer, Play
                 // 球の中心のまわりの弧に沿って回り込む（翼が前へ巻き込む）。中心からの距離は弧より先に球の半径へ寄せる。
                 outward.div(distance);
                 new org.joml.Quaternionf().slerp(new org.joml.Quaternionf().rotationTo(outward, feather.ballAt), k).transform(outward, at);
-                // 今の方向での、球面に接する向き（席での向きを、今の方向まで回した物）。
+                // 今の方向での、球面に接する向き（スロットでの向きを、今の方向まで回した物）。
                 new org.joml.Quaternionf().rotationTo(feather.ballAt, at).mul(feather.ballTurn, turn);
                 at.mul(Mth.lerp(smooth(Mth.clamp(raw * 1.5f, 0, 1)), distance, radius)).add(center);
             } else {
@@ -541,12 +541,13 @@ public final class DarkWingsLayer extends RenderLayer<AbstractClientPlayer, Play
         // 空気砲: 振りかぶって前へ振る。
         wing.root.yRot += back * 42 * state.windup(partial);
         wing.root.yRot -= back * 75 * state.swing(partial);
-        // 防御: 受ける側の3枚（または6枚）を前へ回して包む。落下は下へ広げる。
+        // 防御: 受ける側の3枚（または6枚）を前へ回して包む。
         float guard = state.guard(partial);
         if (guard > 0) {
             int dir = state.guardDir();
             boolean mine = dir == 0 || dir == 3 || (dir == 1) == wing.right;
-            // 落下は下へ広げる。それ以外の防御はballが羽を球へ動かす。
+            // GUARD_DOWN（翼を下へ広げる）は今は使っていない（落下も球）。サーバーは送らないが、描画は残す。
+            // それ以外の防御はballが羽を球へ動かす。
             if (mine && dir == 3) wing.root.zRot += (46 - wing.tier * 18) * Mth.DEG_TO_RAD * guard;
         }
     }

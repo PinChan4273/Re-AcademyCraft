@@ -42,13 +42,16 @@ public final class ClientIntensifyLoop {
     private static void currentWorld() { var level = Minecraft.getInstance().level; if (level != world) { reset(); world = level; } }
     private static boolean held() {
         var c = Minecraft.getInstance();
-        // TOGGLE-GUI-001: 予備動作は画面の下でも続くので、画面を開いただけではループを止めない。
+        // 予備動作は画面の下でも続くので、画面を開いただけではループを止めない。
         if (c.player == null || c.isPaused() || !c.isWindowActive()) return false;
         var d = AbilityCapabilities.of(c.player).orElse(null);
-        if (d == null || !d.isActive() || d.isReadOnly() || d.isOverloadLocked()) return false;
+        // 1.5.2: ロック中の再稼働（優先順位の順）で動いている身体強化はループする。動いているかはサーバーが伝える段階で見る。
+        if (d == null || !d.isActive() || d.isReadOnly()) return false;
+        if (d.isOverloadLocked() && !ClientBodyIntensify.warmingUp() && !ClientBodyIntensify.running()) return false;
         // Body Intensifyは切り替え型: キーを押しているかに関係なく、サーバーが予備動作中と伝えている間ループする。
+        // 1.5.2: パッシブで自動で始めたもの（枠の番号はPassiveSkills.SLOT）もループする。
         int slot = ClientBodyIntensify.slot();
-        return ClientBodyIntensify.warmingUp() && slot >= 0 && BodyIntensify.ID.equals(d.getSlot(d.getCurrentPreset(), slot));
+        return ClientBodyIntensify.warmingUp() && ClientPassiveFlight.holds(d, BodyIntensify.ID, d.getCurrentPreset(), slot);
     }
     public static void receive(IntensifyLoopEffect packet) {
         currentWorld(); var c = Minecraft.getInstance();

@@ -14,7 +14,7 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.phys.Vec3;
 
 /**
- * Electron Missileの自動射撃の相手の選び方（F9-02、2026-10-23の開発司令室9の訂正）: 攻撃対象のフィルターと、AUTO／SEMIの照準。
+ * Electron Missileの自動射撃の相手の選び方: 攻撃対象のフィルターと、AUTO／SEMIの照準。
  * 発射の間隔・オーブ・費用・射程（lerp(5,13)の立方体）は{@link ElectronMissile}が持ち、ここは「この発射のtickに、どの相手を撃つか」だけを決める。
  * 撃ってよい相手がいなければnullで、撃たず、費用も払わず、オーブも使わない。
  * <p>

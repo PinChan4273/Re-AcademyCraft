@@ -1,0 +1,10 @@
+{
+  "replace": false,
+  "values": [
+    "academy:electromaster",
+    "academy:electromaster_contact",
+    "academy:electromaster_stab",
+    "academy:electromaster_pierce",
+    "academy:electromaster_ignore_armor"
+  ]
+}

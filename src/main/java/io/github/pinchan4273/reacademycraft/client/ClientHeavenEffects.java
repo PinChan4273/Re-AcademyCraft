@@ -32,28 +32,29 @@ import net.neoforged.bus.api.SubscribeEvent;
 import org.joml.Matrix4f;
 
 /**
- * 天界発現の描画と音の初稿（v1.5.0 §12）。バニラの粒子を使わない独自の描画で、すべて加算の半透明で地形の深度を見る（壁越しには見えない）。実機で見ていないので、濃さや大きさは初期値。
+ * 天界発現の描画と音（v1.5.0）。バニラの粒子を使わない独自の描画で、すべて加算の半透明で地形の深度を見る（壁越しには見えない）。濃さや大きさは初期値。
  * <ul>
- * <li>領域: 範囲の箱を、少しずつ内側へ縮めた数枚の面で薄く光らせる。面の端へ向かって透明になるので、境界は滑らかに薄まり、チャンクの格子は描かない。開始で広がり、解除で薄れる。</li>
+ * <li>領域: 範囲のバウンディングボックスを、少しずつ内側へ縮めた数枚の面で薄く光らせる。面の端へ向かって透明になるので、境界は滑らかに薄まり、チャンクの格子は描かない。開始で広がり、解除で薄れる。</li>
  * <li>予兆: 対象の大きさに合わせた3本の水平のリングが、対象に付いて上がりながら縮み、発生の時に明るくなって消える（0.5秒）。</li>
  * <li>変異: 上下に走査する1本のリング（身体の変化はサーバーが発生の瞬間に行い、走査に合わせた身体の部分的な変化は描いていない）。</li>
  * <li>発光: 対象の当たり判定の輪郭を光らせる。実際の明るさと光線の威力には関わらない。落雷: 上から落ちる細い白い帯。</li>
  * </ul>
- * 表示の設定（強度・リング・境界・環境音）は{@link ClientSettings}で、効果と費用を変えない。起動の引数{@code -Dacademy.heaven.measure=true}で描画時間のp95をログへ出す（D06の比較の入口）。
+ * 表示の設定（強度・リング・境界・環境音）は{@link ClientSettings}で、効果と費用を変えない。起動の引数{@code -Dacademy.heaven.measure=true}で描画時間のp95をログへ出す。
  */
 @net.neoforged.fml.common.EventBusSubscriber(modid = "academy", value = Dist.CLIENT)
 public final class ClientHeavenEffects {
     private static final float FADE_PER_TICK = .05f, HEIGHT = 16;
     private static final int LAYERS = 5, GRID = 6, RING_SEGMENTS = 32, EXPIRE = 60, AMBIENT_TICKS = 80;
-    /** 層の間隔・濃さと、面の端で透明へ薄れる割合。濃さは2026-11-03の試遊の指摘「境界をもう少し見えやすく」で.012から上げた（縦の筋は使わない）。 */
+    /** 層の間隔・濃さと、面の端で透明へ薄れる割合。濃さは、境界を見えやすくするため.012から上げた（縦の筋は使わない）。 */
     private static final float LAYER_INSET = 1.6f, LAYER_ALPHA = .03f, EDGE_FADE = .12f;
     private static final boolean MEASURE = Boolean.getBoolean("academy.heaven.measure");
     private static final long[] SAMPLES = new long[1200];
     private static int sampleAt;
 
     private static final class Region {
-        int chunkX, chunkZ, shape, silent;
-        float centerY, x, z, halfX, halfZ, previousAlpha, alpha;
+        /** 1.5.2: 使用者のエンティティのIDと、サーバーが送った中心（エンティティが見えないときだけ使う）。 */
+        int owner, shape, silent;
+        float targetX, targetZ, centerY, x, z, halfX, halfZ, previousAlpha, alpha;
         boolean on, placed;
     }
     private static final class Mark {
@@ -69,16 +70,27 @@ public final class ClientHeavenEffects {
 
     public static void receive(HeavenRegionState state) {
         var region = REGIONS.computeIfAbsent(state.ownerId(), id -> new Region());
-        region.chunkX = state.chunkX(); region.chunkZ = state.chunkZ(); region.shape = state.shape(); region.centerY = state.centerY();
+        region.owner = state.ownerId();
+        region.targetX = state.centerX(); region.targetZ = state.centerZ(); region.shape = state.shape(); region.centerY = state.centerY();
         region.on = state.on(); region.silent = 0;
         if (!region.placed) { region.placed = true; place(region, 1); }
     }
-    private static float radiusChunks(Region region) { return region.shape == 1 ? .5f : region.shape == 25 ? 2.5f : 1.5f; }
-    /** 表示の中心と幅を、サーバーの範囲へfractionだけ近づける（チャンクを跨いでも滑らかに動く）。 */
+    /**
+     * 表示の中心と幅を決める。1.5.2から範囲の中心は使用者の位置なので、使用者のエンティティがこのクライアントにいれば、その位置へそのまま置く
+     * （描画では補間した位置を使う）。いなければ、サーバーが送った中心へ fraction だけ近づける。幅は送られた広さへ fraction だけ近づける。
+     */
     private static void place(Region region, float fraction) {
-        float x = (region.chunkX + .5f) * 16, z = (region.chunkZ + .5f) * 16, half = radiusChunks(region) * 16;
-        region.x += (x - region.x) * fraction; region.z += (z - region.z) * fraction;
+        var owner = owner(region);
+        float x = owner != null ? (float) owner.getX() : region.targetX, z = owner != null ? (float) owner.getZ() : region.targetZ;
+        float half = (float) io.github.pinchan4273.reacademycraft.skill.HeavenManifest.Area.half(region.shape);
+        float move = owner != null ? 1 : fraction;
+        region.x += (x - region.x) * move; region.z += (z - region.z) * move;
         region.halfX += (half - region.halfX) * fraction; region.halfZ = region.halfX;
+    }
+    /** 使用者のエンティティ（このクライアントに読み込まれていなければ null）。 */
+    private static @javax.annotation.Nullable Entity owner(Region region) {
+        var level = Minecraft.getInstance().level;
+        return level == null ? null : level.getEntity(region.owner);
     }
     public static void receive(HeavenMark packet) {
         if (packet.kind() == HeavenMark.GLOW_END) { MARKS.removeIf(m -> m.entityId == packet.entityId() && m.kind == HeavenMark.GLOW); return; }
@@ -116,7 +128,7 @@ public final class ClientHeavenEffects {
         for (var it = REGIONS.values().iterator(); it.hasNext(); ) {
             var region = it.next();
             region.previousAlpha = region.alpha;
-            if (++region.silent > EXPIRE) region.on = false; // 送り直しが来ない（離れた、次元を移った）。
+            if (++region.silent > EXPIRE) region.on = false; // 送り直しが来ない（離れた、ディメンションを移った）。
             region.alpha = Mth.clamp(region.alpha + (region.on ? FADE_PER_TICK : -FADE_PER_TICK), 0, 1);
             place(region, .25f);
             if (!region.on && region.alpha <= 0) { it.remove(); continue; }
@@ -179,7 +191,11 @@ public final class ClientHeavenEffects {
         if (alpha <= 0) return;
         // 開始で中心から広がる。解除は広がったまま薄れる。
         float grow = region.on ? alpha : 1;
-        float x = (float) (region.x - camera.x), y = (float) (region.centerY - camera.y), z = (float) (region.z - camera.z);
+        // 1.5.2: 使用者のエンティティが見えていれば、補間した位置を中心にして、歩きに合わせて滑らかに動かす。
+        var owner = region.on ? owner(region) : null;
+        double cx = owner != null ? Mth.lerp(partial, owner.xo, owner.getX()) : region.x, cz = owner != null ? Mth.lerp(partial, owner.zo, owner.getZ()) : region.z;
+        double cy = owner != null ? Mth.lerp(partial, owner.yo, owner.getY()) : region.centerY;
+        float x = (float) (cx - camera.x), y = (float) (cy - camera.y), z = (float) (cz - camera.z);
         for (int layer = 0; layer < (border ? LAYERS : 2); layer++) {
             float inset = layer * LAYER_INSET;
             float hx = Math.max(.5f, region.halfX * grow - inset), hz = Math.max(.5f, region.halfZ * grow - inset), hy = Math.max(.5f, HEIGHT * grow - inset);
@@ -224,7 +240,7 @@ public final class ClientHeavenEffects {
         }
     }
     private static float size(Entity entity) { return ringRadius(entity.getBbWidth()); }
-    /** 体の幅からの輪の半径（自然能力の予兆と同じ決まり。外部の演出が実体を持たないときは幅1で使う）。 */
+    /** 体の幅からの輪の半径（自然能力の予兆と同じ決まり。外部の演出がエンティティを持たないときは幅1で使う）。 */
     static float ringRadius(float width) { return Math.max(.6f, width * .9f); }
     /**
      * 外部の演出（公開APIの{@code HEAVEN_RING}、演出API版3）: 自然能力の予兆と同じ3本のリングを、同じ描き方（加算・深度を書かない、段階は{@code AFTER_PARTICLES}）で描く。

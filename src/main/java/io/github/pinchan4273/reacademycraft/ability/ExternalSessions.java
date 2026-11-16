@@ -26,7 +26,7 @@ import net.neoforged.fml.common.EventBusSubscriber;
 import org.slf4j.Logger;
 
 /**
- * 外部の主体（装備・機械・AI）の発動とセッション（1.4.0のS5、内部の実装。公開の説明は{@code api.mc.AbilityActivation}）。
+ * 外部の主体（装備・機械・AI）の発動とセッション（1.4.0、内部の実装。公開の説明は{@code api.mc.AbilityActivation}）。
  * セッションは主体の識別子と技能ごとに1つで、サーバーのtickの終わりに進める。サーバーのスレッドでだけ扱う。
  */
 @EventBusSubscriber(modid = "academy")
@@ -34,7 +34,7 @@ public final class ExternalSessions {
     private ExternalSessions() { }
 
     private static final Logger LOGGER = LogUtils.getLogger();
-    /** 押し続け型の心拍が、これより長く途切れたら止める（tick。自然能力者の外部の技能と同じ）。 */
+    /** 押し続け型のハートビートが、これより長く途切れたら止める（tick。自然能力者の外部の技能と同じ）。 */
     public static final int HEARTBEAT_TIMEOUT = AddonSessions.HEARTBEAT_TIMEOUT;
     private static final Map<UUID, Map<AbilityId, Session>> SESSIONS = new HashMap<>();
     /** 主体と技能ごとの、クールダウンが終わるゲームの時刻。 */
@@ -58,7 +58,7 @@ public final class ExternalSessions {
         // 2. 資格（3の権限より先に、登録・種類を確かめる）。
         var definition = AbilityRegistry.INSTANCE.skill(skill);
         if (definition == null || definition.kind() == ActivationKind.PASSIVE) return ActivationOutcome.REFUSED_INVALID;
-        // 3. 権限: 本体の41技能は、外部の主体からは発動できない（司令室11の裁定D3）。
+        // 3. 権限: 本体の50技能（4カテゴリの41と、未元物質の9）は、外部の主体からは発動できない。
         if (skill.isAcademy()) return ActivationOutcome.REFUSED_PERMISSION;
         SkillBehavior behavior = SkillBehaviorRegistry.INSTANCE.behavior(skill);
         if (behavior == null) return ActivationOutcome.REFUSED_INVALID;
@@ -110,7 +110,7 @@ public final class ExternalSessions {
         end(session, StopReason.REQUESTED);
         return true;
     }
-    /** 動作中のセッションの数（試験と診断のため）。 */
+    /** 動作中のセッションの数（テストと診断のため）。 */
     public static int count(AbilityActor actor) {
         var map = SESSIONS.get(actor.id());
         return map == null ? 0 : map.size();
@@ -135,7 +135,7 @@ public final class ExternalSessions {
     @SubscribeEvent public static void externalSessionsOnServerTick(ServerTickEvent.Post event) {
         tick();
     }
-    /** 試験のため、サーバーのtickの終わりと同じ処理を呼ぶ。 */
+    /** テストのため、サーバーのtickの終わりと同じ処理を呼ぶ。 */
     public static void tickForTest() { tick(); }
     private static void tick() {
         for (var map : List.copyOf(SESSIONS.values())) {
@@ -162,7 +162,7 @@ public final class ExternalSessions {
         COOLDOWNS.clear();
     }
 
-    /** 外部の主体の1回の発動とそのセッションの文脈。 */
+    /** 外部の主体の1回の発動とそのセッションのコンテキスト。 */
     private static final class Session implements ActivationContext {
         final AbilityActor actor;
         final AbilityId skill;

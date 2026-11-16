@@ -22,8 +22,10 @@ public record TerminalApp(String name, boolean preInstalled, Kind kind) {
         TUTORIAL,
         /** 原作AppFreqTransmitter: nodeと機械を繋ぐFreqTransmitterUI。 */
         FREQ_TRANSMITTER,
-        /** 能力設定（1.4.0のS1、原作に無い）: 技能ごとの設定（Electron Missile・Light Shieldのモードなど）を切り替える画面。 */
-        ABILITY_SETTINGS
+        /** 能力設定（1.4.0、原作に無い）: 技能ごとの設定（Electron Missile・Light Shieldのモードなど）を切り替える画面。 */
+        ABILITY_SETTINGS,
+        /** ベクトル解析（1.5.2、原作に無い）: ベクトル操作の解析度の一覧を見るだけの画面。 */
+        VECTOR_ANALYSIS
     }
     public TerminalApp {
         if (name == null || name.isEmpty() || name.length() > 32) throw new IllegalArgumentException("Invalid app name");

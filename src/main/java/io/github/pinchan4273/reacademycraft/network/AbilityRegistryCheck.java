@@ -5,7 +5,7 @@ import java.util.List;
 import net.minecraft.network.FriendlyByteBuf;
 
 /**
- * サーバーの能力の登録簿の要約（サーバー→クライアント、1.4.0のS4、司令室11の裁定D7）。クライアントは自分の要約と比べ、違いを
+ * サーバーの能力のレジストリの要約（サーバー→クライアント、1.4.0）。クライアントは自分の要約と比べ、違いを
  * {@link AbilityRegistryVerdict}で返す。
  */
 public record AbilityRegistryCheck(List<String> entries) implements AcademyPayload {

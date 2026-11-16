@@ -1,6 +1,6 @@
 {
   "replace": false,
   "values": [
-    "academy:skill_pierce"
+    "#academy:hit/pierce"
   ]
 }

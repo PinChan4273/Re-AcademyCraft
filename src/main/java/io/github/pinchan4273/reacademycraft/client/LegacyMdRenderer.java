@@ -79,7 +79,7 @@ public final class LegacyMdRenderer {
     private LegacyMdRenderer() { }
 
     /**
-     * テスト用の入口: sinkを設定すると、光の帯・内側の円柱・外側の円柱を描くたびに、"G"・"I"・"O"とその光線の番号を、
+     * テスト用の入口: sinkを設定すると、光の帯・内側の円柱・外側の円柱を描くたびに、"G"・"I"・"O"とその光線のインデックスを、
      * 画面へ届いた順に追記する。通常のプレイではnull。
      */
     private static StringBuilder trace;
@@ -112,7 +112,7 @@ public final class LegacyMdRenderer {
             throw new IllegalArgumentException("Invalid orb billboard");
         if (alpha <= 0) return 0;
         RenderSystem.setShaderColor(1, 1, 1, alpha);
-        // LambdaLib2のRenderIconは、四角を大きさの-0.25から0.75まで画面の上方向に置く: 絵はentityから大きさの4分の1上に来る。
+        // LambdaLib2のRenderIconは、四角を大きさの-0.25から0.75まで画面の上方向に置く: テクスチャはentityから大きさの4分の1上に来る。
         var buffer = BUFFERS.getBuffer(type); var matrix = pose.last().pose(); float half = size / 2, bottom = -size / 4, top = size * .75f;
         buffer.addVertex(matrix, -half, bottom, 0).setUv(0, 1);
         buffer.addVertex(matrix, half, bottom, 0).setUv(1, 1);
@@ -143,7 +143,7 @@ public final class LegacyMdRenderer {
         try {
             RenderSystem.depthMask(false);
             // 原作RendererRayCompositeは、光の帯・cylinderIn・cylinderOutの順に加え、RendererListはその順に描く。
-            // そのため、淡い外側の鞘が明るい内側の芯の上に合成され、芯に色が付く。
+            // そのため、淡い外側の鞘が明るい内側の芯の上にブレンドされ、芯に色が付く。
             drawn += cylinder(pose, beam, profile.innerWidth, profile.inner[0], profile.inner[1], profile.inner[2], profile.inner[3], .98);
             drawn += cylinder(pose, beam, profile.outerWidth, profile.outer[0], profile.outer[1], profile.outer[2], profile.outer[3], 1);
         } finally { state.restore(); }
@@ -151,11 +151,11 @@ public final class LegacyMdRenderer {
     }
 
     /**
-     * 原作の光は円柱ではなく、カメラへ向いた3つの部分の帯: 設定の幅の端、敷き詰めた中央、端。色は白で、緑は原作の絵そのものにある。
+     * 原作の光は円柱ではなく、カメラへ向いた3つの部分の帯: 設定の幅の端、敷き詰めた中央、端。色は白で、緑は原作のテクスチャそのものにある。
      * そのため、ここで変えるのはalphaだけ: 描画の色のalpha×getAlpha()×getGlowAlpha()。getGlowAlpha()自体は
      * (0.9 + 光の揺れ)×getAlpha()。
      *
-     * カメラへ向くべき帯は光線自身の回転からは作れないので、光線の方向と横の軸は、呼び出し側がposeと同じ空間で渡す。
+     * カメラへ向くべき帯は光線自身の回転からは作れないので、光線の方向と横の軸は、呼び出し側がposeと同じ座標系で渡す。
      */
     public static int drawBeamGlow(PoseStack pose, LegacyMdRayAnimation.Snapshot beam, LegacyMdRayAnimation.Profile profile,
                                    org.joml.Vector3f direction, org.joml.Vector3f side) {
@@ -163,7 +163,7 @@ public final class LegacyMdRenderer {
         if (beam.length() <= 0 || beam.alpha() <= 0 || beam.width() <= 0) return 0;
         float cap = (float) profile.glowWidth;
         // 原作RendererRayGlow: width = this.width * ray.getWidth()。drawBoardがそれを半分にしてから、単位の上向きのベクトルの両側に
-        // 帯を置く。そのため、帯の幅はglowWidth * widthで、その2倍ではない（長さglowWidthの端は、128×128の絵と同じく正方形）。
+        // 帯を置く。そのため、帯の幅はglowWidth * widthで、その2倍ではない（長さglowWidthの端は、128×128のテクスチャと同じく正方形）。
         float half = (float) (profile.glowWidth * beam.width() / 2);
         // 原作は、3つの部分を置く前に、帯の両端を光線に沿って光線自身の補正だけずらす。
         // そのため光は、円柱より後ろから始まり、円柱の終わりより先まで続くことがある。

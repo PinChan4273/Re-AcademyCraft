@@ -24,22 +24,31 @@ public final class AcademyNetwork {
     /**
      * 通信の版。通知の並びが変わったら上げる。61: プリセットの編集を1操作ずつにし、金属成形・融合のレシピの並びを独自にした。
      * 62: Storm Wingの推進の入力（StormWingInput）と状態の番号を足し、Light Shieldを押し続けからトグルにした（古いクライアントは
-     * 心拍とキーアップでLight Shieldを動かすので、新しいサーバーへ繋がせない）。
+     * ハートビートとキーアップでLight Shieldを動かすので、新しいサーバーへ繋がせない）。
      * 63: Light Shieldの盾面の状態（LightShieldState。payloadのIDは`academy:light_shield_state`）を足し、Light Shieldの表示を
-     * SkillVisualから移した（Forge 1.3.0の工程2。62のクライアントは盾の向きを知らないので繋がせない）。
-     * 64: 能力設定の画面（Forge 1.4.0のS1）の通知を足した（SkillSettingEdit、SkillSettingsSnapshot）。63のクライアントは
-     * 設定の値を受け取れないので繋がせない。Forge 1.4.0のS4で、開発機の外部の技能の学習（DevelopAddonSkill、DevelopAddonAvailability）と、
-     * ログインの時の登録簿の照合（AbilityRegistryCheck、AbilityRegistryVerdict）も足した（Forge版の1.4.0と同じく、版は64のまま）。
+     * SkillVisualから移した（Forge 1.3.0。62のクライアントは盾の向きを知らないので繋がせない）。
+     * 64: 能力設定の画面（Forge 1.4.0）の通知を足した（SkillSettingEdit、SkillSettingsSnapshot）。63のクライアントは
+     * 設定の値を受け取れないので繋がせない。Forge 1.4.0で、開発機の外部の技能の学習（DevelopAddonSkill、DevelopAddonAvailability）と、
+     * ログインの時のレジストリの照合（AbilityRegistryCheck、AbilityRegistryVerdict）も足した（Forge版の1.4.0と同じく、版は64のまま）。
      * 65: v1.5.0（Forge版の65と同じ意味）。未元物質の技能の学習で開発機の可用性のビットが48を超え、メニューのデータを4スロットにした。
      * 技能由来の直接効果の同期（DirectEffectSync）を足し、能力の表示（AbilitySnapshot）にCPセーフティと未元物質人間の値を足した。
      * 64のクライアントは新しい技能・効果を受け取れないので繋がせない。
-     * 66: v1.5.1（Forge版の66と同じ意味）。甲虫の実体に同期データ（EMERGE、出現の残りtick）と実体のイベント101（EVENT_RECALL、回収の演出）を足し、
-     * 甲虫生成の発動をINSTANTからHELD（短押しで生成、2秒の長押しで全個体の回収）にした。1.5.0と1.5.1が混ざると、実体の同期データの並びと
-     * キーの送り方が食い違うので繋がせない（主担当の決定）。
+     * 66: v1.5.1（Forge版の66と同じ意味）。甲虫のエンティティに同期データ（EMERGE、出現の残りtick）とエンティティのイベント101（EVENT_RECALL、回収の演出）を足し、
+     * 甲虫生成の発動をINSTANTからHELD（短押しで生成、2秒の長押しで全個体の回収）にした。1.5.0と1.5.1が混ざると、エンティティの同期データの並びと
+     * キーの送り方が食い違うので繋がせない。
+     * 67〜73: 1.5.2（Forge版の67〜73と同じ意味。NeoForge版は1.5.1の66から73へ一度に上げた）。
+     * 67: ベクトル操作の解析度の同期（VectorAnalysisSync）を足した。
+     * 68: パッシブにした飛行の離陸と停止の依頼（PassiveFlightInput）を足し、能力設定の値にパッシブ／アクティブの切り替え（academy:passive.*）を足した。
+     * 69: 開発機の初回の取得・磁気コイルでの変更の計画（DevelopFactorPlan）を足した（因子なしのランダムの取得・変更）。
+     * 70: 開発機の取得・変更の開始を、画面が見た計画を載せた要求（DevelopCategoryStart）に変え、計画の通知に「食い違いで断った」のフラグを足した。
+     * 71: 身体強化の状態の通知（BodyIntensifyState）のスロットに、パッシブの自動の起動の-1を足し、能力設定の値を32に増やした（画面へ送る値の数の上限は64）。
+     * 72: 未元装甲を廃止し、未元物質の技能の一覧と開発機の学習の番号（50は欠番）が変わった。
+     * 73: 能力設定の値に、形態の予約とプリセットごとのCPセーフティの並びを足した。天界発現の範囲の通知（HeavenRegionState）は、中心の座標を送る形にした。
+     * 66のクライアントは、新しい通知・値・スロットの-1を知らないので繋がせない。
      * 版が違う相手とは、ログインの時点で接続を断る（NeoForgeのregistrarの版。古い通知を誤って読むところまで進ませない）。
      * NeoForge版の通信はForge版と繋がらないので、版の番号はForge版の番号に合わせている（同じ番号でもForge版とは接続しない）。
      */
-    public static final String VERSION = "66";
+    public static final String VERSION = "73";
     private static final Map<Class<?>, CustomPacketPayload.Type<?>> TYPES = new ConcurrentHashMap<>();
 
     /** 相手の版を受け入れるか。クライアント・サーバーとも同じ版だけ。 */
@@ -134,10 +143,10 @@ public final class AcademyNetwork {
         toClient(registrar, LightShieldState.class, LightShieldState::encode, LightShieldState::decode, (packet, context) -> io.github.pinchan4273.reacademycraft.client.ClientLightShieldEffect.receive(packet));
         toServer(registrar, SkillSettingEdit.class, SkillSettingEdit::encode, SkillSettingEdit::decode, (packet, context) -> packet.handle((ServerPlayer) context.player()));
         toClient(registrar, SkillSettingsSnapshot.class, SkillSettingsSnapshot::encode, SkillSettingsSnapshot::decode, (packet, context) -> io.github.pinchan4273.reacademycraft.client.ClientSkillSettings.receive(packet));
-        // 1.4.0のS4（司令室11の裁定D11）: 開発機の、外部の技能の学習（旧い48ビットの外）。
+        // 1.4.0: 開発機の、外部の技能の学習（旧い48ビットの外）。
         toServer(registrar, DevelopAddonSkill.class, DevelopAddonSkill::encode, DevelopAddonSkill::decode, (packet, context) -> packet.handle((ServerPlayer) context.player()));
         toClient(registrar, DevelopAddonAvailability.class, DevelopAddonAvailability::encode, DevelopAddonAvailability::decode, (packet, context) -> io.github.pinchan4273.reacademycraft.client.ClientDevelopAddons.receive(packet));
-        // 1.4.0のS4（司令室11の裁定D7）: ログインの時の、能力の登録簿の照合。
+        // 1.4.0: ログインの時の、能力のレジストリの照合。
         toClient(registrar, AbilityRegistryCheck.class, AbilityRegistryCheck::encode, AbilityRegistryCheck::decode, (packet, context) -> io.github.pinchan4273.reacademycraft.client.ClientRegistryCheck.receive(packet));
         toServer(registrar, AbilityRegistryVerdict.class, AbilityRegistryVerdict::encode, AbilityRegistryVerdict::decode, (packet, context) -> io.github.pinchan4273.reacademycraft.ability.RegistryCheck.answer((ServerPlayer) context.player(), packet));
         // v1.5.0（版65）: 技能由来の直接効果の今の一覧（サーバー→対象のプレイヤーだけ）。向きはplayToClientで、サーバーへ送られても受けない。
@@ -151,6 +160,14 @@ public final class AcademyNetwork {
         toClient(registrar, HeavenSettingsSnapshot.class, HeavenSettingsSnapshot::encode, HeavenSettingsSnapshot::decode, (packet, context) -> io.github.pinchan4273.reacademycraft.client.ClientHeavenSettings.receive(packet));
         toClient(registrar, HeavenRegionState.class, HeavenRegionState::encode, HeavenRegionState::decode, (packet, context) -> io.github.pinchan4273.reacademycraft.client.ClientHeavenEffects.receive(packet));
         toClient(registrar, HeavenMark.class, HeavenMark::encode, HeavenMark::decode, (packet, context) -> io.github.pinchan4273.reacademycraft.client.ClientHeavenEffects.receive(packet));
+        // 1.5.2: パッシブにした飛行の離陸と停止の依頼（術者のクライアントから）。
+        toServer(registrar, PassiveFlightInput.class, PassiveFlightInput::encode, PassiveFlightInput::decode, (packet, context) -> packet.handle((ServerPlayer) context.player()));
+        // 1.5.2: 開発機の初回の取得・磁気コイルでの変更の計画（ランダムか因子の指定か）。
+        toClient(registrar, DevelopFactorPlan.class, DevelopFactorPlan::encode, DevelopFactorPlan::decode, (packet, context) -> io.github.pinchan4273.reacademycraft.client.ClientDevelopFactor.receive(packet));
+        // 1.5.2: 開発機の取得・変更の開始の要求。画面が見た計画を載せ、サーバーが計算し直した計画と比べる。
+        toServer(registrar, DevelopCategoryStart.class, DevelopCategoryStart::encode, DevelopCategoryStart::decode, (packet, context) -> packet.handle((ServerPlayer) context.player()));
+        // 1.5.2: ベクトル操作の解析度（本人だけ）。
+        toClient(registrar, VectorAnalysisSync.class, VectorAnalysisSync::encode, VectorAnalysisSync::decode, (packet, context) -> io.github.pinchan4273.reacademycraft.client.ClientVectorAnalysis.receive(packet));
         toClient(registrar, DarkBeetleShot.class, DarkBeetleShot::encode, DarkBeetleShot::decode, (packet, context) -> io.github.pinchan4273.reacademycraft.client.ClientDarkBeetles.receive(packet));
         toClient(registrar, WhiteWingFlightState.class, WhiteWingFlightState::encode, WhiteWingFlightState::decode, (packet, context) -> io.github.pinchan4273.reacademycraft.client.ClientWhiteWingFlight.receive(packet));
         toServer(registrar, WhiteWingFlightInput.class, WhiteWingFlightInput::encode, WhiteWingFlightInput::decode, (packet, context) -> packet.handle((ServerPlayer) context.player()));
@@ -167,12 +184,17 @@ public final class AcademyNetwork {
     public static void send(ServerPlayer player, DevelopAddonAvailability availability) {
         if (player.connection != null) PacketDistributor.sendToPlayer(player, availability);
     }
+    public static void send(ServerPlayer player, DevelopFactorPlan plan) {
+        if (player.connection != null) PacketDistributor.sendToPlayer(player, plan);
+    }
     /** 開発機の画面から、外部の技能の学習を求める（クライアント）。 */
     public static void sendToServer(DevelopAddonSkill request) { PacketDistributor.sendToServer(request); }
+    /** 開発機のコンソールから、取得・変更の開始を求める（クライアント。画面が見た計画を載せる）。 */
+    public static void sendToServer(DevelopCategoryStart request) { PacketDistributor.sendToServer(request); }
     public static void send(ServerPlayer player, AbilityRegistryCheck check) {
         if (player.connection != null) PacketDistributor.sendToPlayer(player, check);
     }
-    /** 登録簿の照合の答え（クライアント）。 */
+    /** レジストリの照合の答え（クライアント）。 */
     public static void sendToServer(AbilityRegistryVerdict verdict) { PacketDistributor.sendToServer(verdict); }
     public static void send(ServerPlayer player, ChargingLoopEffect effect) {
         if (player.connection != null) net.neoforged.neoforge.network.PacketDistributor.sendToPlayer(player, effect);

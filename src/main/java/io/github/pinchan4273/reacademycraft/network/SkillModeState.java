@@ -11,6 +11,7 @@ public record SkillModeState(ResourceLocation skill, boolean active) implements 
     public void encode(FriendlyByteBuf buffer) { buffer.writeResourceLocation(skill); buffer.writeBoolean(active); }
     public static SkillModeState decode(FriendlyByteBuf buffer) { return new SkillModeState(buffer.readResourceLocation(), buffer.readBoolean()); }
     public static void send(net.minecraft.server.level.ServerPlayer player, ResourceLocation skill, boolean active) {
-        if (player.connection != null) net.neoforged.neoforge.network.PacketDistributor.sendToPlayer(player, new SkillModeState(skill, active));
+        // 本人だけへの通知でエンティティIDを含まないので、作り直しの最中にも送れる（{@link SelfNotice}）。
+        SelfNotice.send(player, new SkillModeState(skill, active));
     }
 }

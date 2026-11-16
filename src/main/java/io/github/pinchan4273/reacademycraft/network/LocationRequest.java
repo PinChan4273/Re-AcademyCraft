@@ -9,7 +9,7 @@ import net.minecraft.server.level.ServerPlayer;
 
 /**
  * Location Teleportの一覧の要求。原作のperformメッセージはクライアントから地点全体を運び、送られたとおりに従っていた。
- * ここでは登録済みの地点を番号で指し、確認はすべてサーバーに任せる（LocationTeleport.perform）。
+ * ここでは登録済みの地点をインデックスで指し、確認はすべてサーバーに任せる（LocationTeleport.perform）。
  */
 public record LocationRequest(int action, int index, String name) implements AcademyPayload {
     public static final int QUERY = 0, ADD = 1, REMOVE = 2, PERFORM = 3;

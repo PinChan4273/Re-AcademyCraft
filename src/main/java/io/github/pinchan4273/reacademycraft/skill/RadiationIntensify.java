@@ -9,20 +9,20 @@ import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.Mod;
 
 /**
- * 原作RadiationIntensify（WeAthFolD、KSkun）: meltdownerで唯一の受動技能。
+ * 原作RadiationIntensify（WeAthFolD、KSkun）: meltdownerで唯一のパッシブ技能。
  *
- * meltdownerの技能がダメージを与えたものは3秒間被曝した状態になり、印がある間にそれへ当てたすべての攻撃はlerp(1.4, 1.8, rate)倍の
+ * meltdownerの技能がダメージを与えたものは3秒間被曝した状態になり、マーカーがある間にそれへ当てたすべての攻撃はlerp(1.4, 1.8, rate)倍の
  * ダメージになる。
  *
  * 熟練度は獲得するものではなく導出する: 原作はgetSkillExpを上書きし、術者の最大CPがレベル5の術者の初期CPにどれだけ近づいたかを
  * 返す。習得してから最大CPを上げることで強くなる。
  *
- * 印は原作と同じくmapではなく印を付けたエンティティの永続データにあるので、エンティティに何が触れても残り、独自の後始末も要らない。
+ * マーカーは原作と同じくmapではなくマーカーを付けたエンティティの永続データにあるので、エンティティに何が触れても残り、独自の後始末も要らない。
  */
 @net.neoforged.fml.common.EventBusSubscriber(modid = "academy")
 public final class RadiationIntensify {
     public static final ResourceLocation ID = ResourceLocation.fromNamespaceAndPath("academy", "rad_intensify");
-    /** 原作MARKIDとRATEID、および印の最短60tick。 */
+    /** 原作MARKIDとRATEID、およびマーカーの最短60tick。 */
     private static final String MARK_TICKS = "academy_md_mark_ticks", MARK_RATE = "academy_md_mark_rate";
     public static final int MARK_DURATION = 60;
 
@@ -39,7 +39,7 @@ public final class RadiationIntensify {
     /** 実効熟練度からの倍率。 */
     public static float rate(float proficiency) { return ArcGen.lerp(1.4f, 1.8f, proficiency); }
 
-    /** 術者がそもそもこの受動技能を習得していれば、たった今当てた対象に印を付ける。 */
+    /** 術者がそもそもこのパッシブ技能を習得していれば、たった今当てた対象にマーカーを付ける。 */
     public static void mark(PlayerAbilityData data, Entity target) {
         if (data == null || !data.hasLearned(ID) || !AbilityCategory.MELTDOWNER.id().equals(data.getAbility())) return;
         target.getPersistentData().putInt(MARK_TICKS, MARK_DURATION);
@@ -56,8 +56,12 @@ public final class RadiationIntensify {
         if (ticks > 0) entity.getPersistentData().putInt(MARK_TICKS, ticks - 1);
     }
 
-    /** 他の処理が既に決めた値に印の倍率を掛けるよう、後で実行する。原作自身の処理も他の技能に対してこの位置にある。 */
-    @SubscribeEvent(priority = EventPriority.LOW) public static void hurt(AcademyLivingHurtEvent event) {
+    /** 他の処理が既に決めた値にマーカーの倍率を掛けるよう、後で実行する。原作自身の処理も他の技能に対してこの位置にある。 */
+    @SubscribeEvent(priority = EventPriority.LOW, receiveCanceled = true) public static void hurt(AcademyLivingHurtEvent event) {
+        PierceHits.hurtStage(event, RadiationIntensify::hurtBody);
+    }
+    /** マーカーの倍率の本体（1.5.2: 貫通の打撃では、他の Mod の取り消しの後も {@link PierceHits} を通して動く）。 */
+    private static void hurtBody(AcademyLivingHurtEvent event) {
         LivingEntity entity = event.getEntity();
         if (markTicks(entity) <= 0) return;
         float rate = markRate(entity);

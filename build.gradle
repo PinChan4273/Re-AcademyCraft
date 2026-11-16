@@ -23,7 +23,13 @@ java.toolchain.languageVersion = JavaLanguageVersion.of(21)
 java.withSourcesJar()
 
 neoForge {
-    version = project.neo_version
+    enable {
+        version = project.neo_version
+        // Minecraft本体は、逆コンパイルして作り直さず、公式のJARにパッチを当てて用意する。CIでもこの環境でも
+        // 同じバイトの本体に対してコンパイルし、同じJARにするため（ModDevGradleの既定は、環境変数CIがあるときだけこの形になる）。
+        // 環境変数CIは渡さない（NeoFormRuntimeは、CIのときMinecraftのランチャーの導入先を取り出し元として探さない）。
+        disableRecompilation = true
+    }
 
     parchment {
         mappingsVersion = project.parchment_mappings_version
@@ -85,7 +91,7 @@ neoForge {
                 systemProperty 'academy.mpContact', project.property('mpContactRole').toString()
                 // 1.3.0-rc2の複数クライアントの確認（tools/run_mp_rc2.py、Rc2MultiplayerCheck）。このプロパティを付けたときだけ効く。
                 if (project.hasProperty('mpRc2Role')) systemProperty 'academy.mpRc2', project.property('mpRc2Role').toString()
-                // Forge 1.4.0の司令室13の条件C（tools/run_mp_addon.py、AddonMultiplayerCheck）。このプロパティを付けたときだけ効く。
+                // Forge 1.4.0から: 複数クライアントの確認用（tools/run_mp_addon.py、AddonMultiplayerCheck）。このプロパティを付けたときだけ効く。
                 if (project.hasProperty('mpAddonRole')) systemProperty 'academy.mpAddon', project.property('mpAddonRole').toString()
                 if (project.hasProperty('mpAddonSession')) systemProperty 'academy.mpAddonSession', project.property('mpAddonSession').toString()
                 // 能力の登録だけを足す試験のアドオン（登録の不一致の切断の確かめ。Minecraftの登録簿には何も足さない）。
@@ -111,7 +117,7 @@ neoForge {
                 jvmArgument '-Xmx1536m'
                 sourceSet = sourceSets.test
             }
-            // 「保存して終了」が止まる現象（M-03）の再現実験（smoke/client/ShutdownStressCheck）。-PshutdownStress、
+            // 「保存して終了」が止まる現象の再現実験（smoke/client/ShutdownStressCheck）。-PshutdownStress、
             // -PshutdownStressGen=off（本MODのワールド生成を切る）、-PshutdownStressRounds=N、-PshutdownProbeAfterMs=N（停止の記録を始めるまで）。
             if (project.hasProperty('shutdownStress')) {
                 gameDirectory = project.file("run/shutdown-stress-${project.findProperty('shutdownStressGen') ?: 'on'}")
@@ -126,7 +132,7 @@ neoForge {
                 gameDirectory = project.file('run/client-smoke')
                 systemProperty 'academy.runtimeSmokeTest', 'true'
                 systemProperty 'academy.test.cpSafetyDefaultOff', 'true'
-                // Forge 1.4.0のS4: 統合サーバーのclient smokeでも試験だけのアドオンを登録する（クライアントとサーバーが同じ登録簿）。
+                // Forge 1.4.0から: 統合サーバーのclient smokeでも試験だけのアドオンを登録する（クライアントとサーバーが同じレジストリ）。
                 // dedicatedのクライアントには付けない（製品のJARのサーバーと同じ登録簿で、ログインの照合が通ることを確かめる）。
                 systemProperty 'academy.testAddon', 'true'
                 // GCの停止を、描画やサーバーの遅れと切り分けるため（作業場のgc.log。CIの証拠に入る）。
@@ -145,7 +151,7 @@ neoForge {
             // -PphaseLakeExtended: 位相液体の湖の追加の試験（smoke/PhaseLakeExtendedGameTests）も登録し、別の作業場で動かす。
             // 通常の実行（872件）の数と世界は変えない。
             // -PpayloadRiskTests: 通信の高リスクの経路の実行試験（smoke/PayloadRiskGameTests）。これも別の作業場。
-            // -Pm03UnloadTests: M-03の回避（W1）の試験（smoke/ChunkUnloadW1GameTests）。これも別の作業場。
+            // -Pm03UnloadTests: 「保存して終了」が止まる現象の回避の試験（smoke/ChunkUnloadW1GameTests）。これも別の作業場。
             def gameTestDirectory = project.hasProperty('phaseLakeExtended') ? 'run/gametest-phaselake'
                     : project.hasProperty('payloadRiskTests') ? 'run/gametest-payloadrisk'
                     : project.hasProperty('m03UnloadTests') ? 'run/gametest-m03unload' : 'run/gametest'
@@ -153,19 +159,22 @@ neoForge {
             systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
             // 1件ごとの結果のJUnit形式のXML（試験のsmoke/GameTestJUnitReport）。
             systemProperty 'academy.gameTestReport', project.file("${gameTestDirectory}/gametest-junit.xml").absolutePath
-            // Forge 1.4.0のS4: 試験だけのアドオン（src/testのTestAddon）を登録する。GameTestのサーバーだけで効き、製品のJARとclient smokeの既定には関係しない。
+            // Forge 1.4.0から: 試験だけのアドオン（src/testのTestAddon）を登録する。GameTestのサーバーだけで効き、製品のJARとclient smokeの既定には関係しない。
             systemProperty 'academy.testAddon', 'true'
             // v1.5.0（Forge版と同じ）: v1.4.1以前の試験はCPをちょうど使い切る形で書かれている。セーフティの試験（CpSafetyGameTests）は値を明示する。
             systemProperty 'academy.test.cpSafetyDefaultOff', 'true'
             if (project.hasProperty('phaseLakeExtended')) systemProperty 'academy.phaseLakeExtended', 'true'
             if (project.hasProperty('payloadRiskTests')) systemProperty 'academy.payloadRiskTests', 'true'
             if (project.hasProperty('m03UnloadTests')) systemProperty 'academy.m03UnloadTests', 'true'
+            // 1.5.2（Forge版と同じ）: 上限を書かないと物理メモリの1/4になり、メモリが少ないマシンでは試験の後半で明るさの計算が
+            // OutOfMemoryError になった。Gradle 本体と合わせて収まる値にする。
+            jvmArgument '-Xmx2560m'
             sourceSet = sourceSets.test
         }
         configureEach {
             systemProperty 'forge.logging.markers', 'REGISTRIES'
             logLevel = org.slf4j.event.Level.INFO
-            // -PunloadMonitor: チャンクの解放の待ちの監視（試験のsmoke/ChunkUnloadMonitor、M-03のW1の確かめ）。試験のsourceSetの起動だけで働く。
+            // -PunloadMonitor: チャンクの解放の待ちの監視（試験のsmoke/ChunkUnloadMonitor、「保存して終了」が止まる現象の回避の確かめ）。試験のsourceSetの起動だけで働く。
             // -PunloadMonitorEvery=N: 記録の間隔（tick、既定100）。
             if (project.hasProperty('unloadMonitor')) {
                 systemProperty 'academy.unloadMonitor', 'true'
@@ -211,7 +220,7 @@ var generateModMetadata = tasks.register("generateModMetadata", ProcessResources
 sourceSets.main.resources.srcDir generateModMetadata
 neoForge.ideSyncTask generateModMetadata
 
-// Forge 1.4.0の司令室13の条件C: 複数クライアントの確認で、配布用のサンプルのアドオンのJAR（-PmpWithSample=<JARのあるフォルダ>）を開発のクライアントへ
+// Forge 1.4.0から: 複数クライアントの確認で、配布用のサンプルのアドオンのJAR（-PmpWithSample=<JARのあるフォルダ>）を開発のクライアントへ
 // 読み込む（サーバーには同じJARをそのまま入れる）。1.21.1は再難読化が無いので、Forge版のfg.deobfは要らない。このプロパティを付けたときだけ効き、製品のJARには関係しない。
 if (project.hasProperty('mpWithSample')) {
     repositories { flatDir { dirs project.property('mpWithSample') } }
@@ -248,7 +257,7 @@ tasks.named('sourcesJar', Jar).configure {
     from('TEMPLATE_LICENSE.txt') { into 'META-INF/licenses' }
 }
 
-// Forge 1.4.0のS6: 公開APIだけのJAR・sources・Javadoc。司令室13の裁定D10で、GitHub ReleasesのSDKとして配る（本体と同じGPLv3。再ライセンスしない）。
+// Forge 1.4.0から: 公開APIだけのJAR・sources・Javadoc。GitHub ReleasesのSDKとして配る（本体と同じGPLv3。再ライセンスしない）。
 // どのJARにも、LICENSE・NOTICE.md・licenses/（原作のREADMEの追加の文言とGradleのライセンス）を入れる。
 // 公開の範囲は、パッケージapi・api.mc・api.neoforge・api.clientだけ。APIのJARはアドオンのコンパイルのためのもので、実行には本体のJARが要る。
 // 1.21.1は再難読化が無いので、名前の変換の工程は無い。これらのタスクは名前を指定したときだけ動き、通常のbuildの製品のJARは1つのまま。
@@ -264,7 +273,7 @@ tasks.register('apiJar', Jar) {
     manifest {
         attributes 'Implementation-Title': 'Re:AcademyCraft API (experimental)',
                    'Implementation-Version': project.version,
-                   'Academy-Api-Version': '2'
+                   'Academy-Api-Version': '3'
     }
 }
 tasks.register('apiSourcesJar', Jar) {
@@ -277,7 +286,7 @@ tasks.register('apiSourcesJar', Jar) {
 }
 // APIのJavadocは、OpenJDK（Eclipse AdoptiumのTemurin。GPLv2とClasspath例外）のjavadocで作る。javadocは、JDKのスタイル・スクリプト・画像と
 // jQuery・jQuery UIを出力へ写し、legal/にはJDKの本文を指すだけの1行を置く。Oracle JDKではその本文がNo-Fee Termsで、写した部品の条件が違う。
-// そこで、JDKを決め、指すだけの行の代わりにそのJDKの本文をJARへ入れる（司令室13の裁定D10・条件F）。CIもTemurin。
+// そこで、JDKを決め、指すだけの行の代わりにそのJDKの本文をJARへ入れる。CIもTemurin。
 // Forge版はTemurin 17。1.21.1のclasspathのclassはJava 21の形式なので、ここはTemurin 21（無ければ自動では入れない。gradle.propertiesのauto-download=false）。
 def apiJavadocTool = javaToolchains.javadocToolFor {
     languageVersion = JavaLanguageVersion.of(21)

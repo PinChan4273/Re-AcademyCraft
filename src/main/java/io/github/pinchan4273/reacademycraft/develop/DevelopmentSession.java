@@ -26,29 +26,60 @@ public final class DevelopmentSession {
      */
     public static final int RESET = 44;
     /**
-     * v1.5.0の未元物質の9技能の学習（採用仕様・版41の§1の順）。リセットの後ろに番号を足し、既存の番号・ビットは変えない。
+     * v1.5.0の未元物質の9技能の学習。リセットの後ろにIDを足し、既存のID・ビットは変えない。
      * 可用性のビットは45〜53で、旧い48ビット（メニューのデータ3スロット）を超えるので、メニューのデータは4スロット（64ビット）にした
      * （{@link DeveloperMenu#joinAvailability}）。
      */
     public static final int LEARN_DM_STAB = 45, LEARN_DM_FLIGHT = 46, LEARN_DM_RAY = 47, LEARN_DM_GUARD = 48, LEARN_DM_AIR_CANNON = 49,
-            LEARN_DM_ARMOR = 50, LEARN_DM_BEETLE = 51, LEARN_DM_HEAVEN = 52, LEARN_DM_BODY = 53;
+            LEARN_DM_BEETLE = 51, LEARN_DM_HEAVEN = 52, LEARN_DM_BODY = 53;
+    /**
+     * 1.5.2: 廃止した未元装甲の学習のID。ほかのIDとビットを変えないため、欠番として残す（要求されても始めない、ビットも報告しない）。
+     */
+    public static final int RETIRED_LEARN_DM_ARMOR = 50;
     /** メニューのボタンが要求できる最大のアクション。 */
     public static final int MAX_ACTION = LEARN_DM_BODY;
     /**
-     * 外部の技能の学習（1.4.0のS4、司令室11の裁定D11）。旧い行動番号（メニューのボタンの番号と、メニューのデータの48ビット）を
-     * 使わず、技能の名前で始める（{@link #startAddon}、通知{@code DevelopAddonSkill}）。ボタンからは要求できない番号。
+     * 外部の技能の学習（1.4.0）。旧いアクション ID（メニューのボタンのIDと、メニューのデータの48ビット）を
+     * 使わず、技能の名前で始める（{@link #startAddon}、通知{@code DevelopAddonSkill}）。ボタンからは要求できないID。
      */
     public static final int LEARN_ADDON = 100;
     /** 開発機で学べる外部の技能の数の上限（画面へ送る一覧の大きさ）。 */
     public static final int MAX_ADDON_SKILLS = 256;
     public static final int IDLE = 0, DEVELOPING = 1, DONE = 2, CANCELLED = 3, NO_ENERGY = 4, INVALID = 5;
+    /**
+     * 1.5.2: 磁気コイルでの変更の完了の時に、系統変更のイベント（{@code AbilityEvent.TransformCategory}）が取り消された。
+     * 系統・レベル・技能・コイル・因子のどれも変えていない。コンソールは成功ではなく、取り消されたことを出す（{@link #resultKey}）。
+     */
+    public static final int REJECTED = 6;
+    /**
+     * コンソールに出す結果の文のキー（{@code academy.developer.console.}の後ろ）。正常に終われば success、変更のイベントが取り消されたら
+     * {@code reset_cancelled}、それ以外（中断・エネルギー切れ・条件の喪失）は failure。
+     */
+    public static String resultKey(int state, String success, String failure) {
+        return state == DONE ? success : state == REJECTED ? "reset_cancelled" : failure;
+    }
+    /** 画面が見た計画を載せた、取得・変更の開始の要求の結果（1.5.2）。 */
+    public enum StartResult {
+        /** 始めた。 */
+        STARTED,
+        /** 開始の時に計算し直した計画が、画面が見た計画と違った（または画面が計画を持っていなかった）ので、始めなかった。 */
+        PLAN_CHANGED,
+        /** 計画は同じだが、始められなかった（条件を満たさない、開発中など）。 */
+        REFUSED
+    }
     // 実際の1.12.2の++tickThisStim > 25の挙動を保つ: 26tick、1tickあたり30 IF。
     public static final int TICKS_PER_STIMULATION = 26, ENERGY_PER_TICK = 30; // 携帯型との互換のための定数。
     private final ServerPlayer owner;
     private final Level level;
     private final DevelopmentDevice device;
     private boolean closed;
-    private ItemStack factor = ItemStack.EMPTY;
+    /** 1.5.2: 取得・変更を始めた時に固定した因子（因子なしでランダムにしたときはnull）。途中で拾った因子は使わない。 */
+    private @javax.annotation.Nullable FactorSearch.Found chosen;
+    /** 1.5.2: 取得・変更を始めた時の計画（開発中に画面へ送る）。 */
+    private @javax.annotation.Nullable FactorPlan lockedPlan;
+    private @javax.annotation.Nullable net.minecraft.resources.ResourceLocation startingCategory;
+    /** ランダムの抽選（候補の数を受け取り、0以上その数未満のインデックスを返す）。既定はサーバーのプレイヤーの乱数。テストで差し替える。 */
+    private java.util.function.IntUnaryOperator picker;
     private int action = -1, state = IDLE, elapsed, total;
     private @javax.annotation.Nullable net.minecraft.resources.ResourceLocation addonSkill;
     private int startingLevel;
@@ -58,6 +89,17 @@ public final class DevelopmentSession {
     }
     public DevelopmentSession(ServerPlayer owner, DevelopmentDevice device) {
         this.owner = owner; this.level = owner.level(); this.device = device;
+        this.picker = bound -> owner.getRandom().nextInt(bound);
+    }
+    /** ランダムの抽選を差し替える（テストで、決まった結果を確かめるため）。 */
+    public DevelopmentSession withPicker(java.util.function.IntUnaryOperator picker) {
+        this.picker = java.util.Objects.requireNonNull(picker, "picker");
+        return this;
+    }
+    /** 候補から1つを選ぶ（候補1つにつき同じ確率）。候補が無ければnull。 */
+    public static @javax.annotation.Nullable AbilityCategory pick(java.util.List<AbilityCategory> candidates, java.util.function.IntUnaryOperator picker) {
+        if (candidates.isEmpty()) return null;
+        return candidates.get(Math.floorMod(picker.applyAsInt(candidates.size()), candidates.size()));
     }
     private PlayerAbilityData data() {
         return AbilityCapabilities.of(owner).orElse(null);
@@ -67,36 +109,65 @@ public final class DevelopmentSession {
         return !closed && owner.isAlive() && !owner.isSpectator() && owner.level() == level
                 && device.valid(owner) && data != null && !data.isReadOnly();
     }
-    /** 原作DevelopActionReset.getFactor: メインインベントリにある、他のいずれかのカテゴリの誘導因子。 */
-    private ItemStack findResetFactor() {
-        var current = data().getAbility();
-        for (var stack : owner.getInventory().items) {
-            var category = AbilityCategory.byFactor(stack);
-            if (category != null && !category.id().equals(current)) return stack;
-        }
-        return ItemStack.EMPTY;
-    }
-    /** 原作DevelopActionReset.canReset。 */
-    private boolean canReset() {
+    /**
+     * 原作DevelopActionReset.canResetのうち、因子に関わらない条件（1.5.2から因子は無くてもよい）: 系統を持ち、レベル3以上、上級開発機、
+     * メインハンドに磁気コイル。
+     */
+    private boolean resetBase() {
         var data = data();
         return data.hasAbility() && data.getLevel() >= 3 && device.tier() == DeveloperTier.ADVANCED
-                && owner.getMainHandItem().is(io.github.pinchan4273.reacademycraft.world.AcademyContent.MAGNETIC_COIL.get())
-                && !findResetFactor().isEmpty();
+                && owner.getMainHandItem().is(io.github.pinchan4273.reacademycraft.world.AcademyContent.MAGNETIC_COIL.get());
     }
-    private ItemStack findFactor() {
-        // 原作の取得はメインインベントリを探す。オフハンドの因子は代わりにならない。
-        for (var stack : owner.getInventory().items)
-            if (AbilityCategory.byFactor(stack) != null) return stack;
-        return ItemStack.EMPTY;
+    /**
+     * 今始めたときの計画（1.5.2）。取得は系統を持たないとき、変更は系統を持つときだけ（それ以外はnull）。因子は{@link FactorSearch}の順で探し、
+     * 変更では今の系統の因子を飛ばす。因子が無ければ、ランダムの候補（変更では今の系統を除く）の数。
+     */
+    private @javax.annotation.Nullable FactorPlan planFor(int requested, FactorSearch.Result search) {
+        var data = data();
+        if (requested == ACQUIRE) {
+            if (data.hasAbility()) return null;
+            return search.found() != null ? FactorPlan.factor(ACQUIRE, search.found(), 1)
+                    : FactorPlan.random(ACQUIRE, AbilityCategory.randomCandidates(null).size(), 1);
+        }
+        if (requested == RESET) {
+            if (!data.hasAbility()) return null;
+            int after = Math.max(0, data.getLevel() - 1);
+            if (search.found() != null) return FactorPlan.factor(RESET, search.found(), after);
+            if (search.sameOnly()) return FactorPlan.sameOnly(RESET, after);
+            return FactorPlan.random(RESET, AbilityCategory.randomCandidates(data.getAbility()).size(), after);
+        }
+        return null;
     }
+    private FactorSearch.Result search(int requested) {
+        return FactorSearch.search(owner, requested == RESET ? data().getAbility() : null);
+    }
+    /**
+     * 画面に出す計画（1.5.2）。取得・変更の開発中は、開始の時に固定した計画。そうでなければ、系統を持たなければ取得の、持っていれば変更の、
+     * 今始めたときの計画。開発機が使えなければnull。
+     */
+    public @javax.annotation.Nullable FactorPlan factorPlan() {
+        if (state == DEVELOPING && (action == ACQUIRE || action == RESET)) return lockedPlan;
+        if (!valid()) return null;
+        int requested = data().hasAbility() ? RESET : ACQUIRE;
+        return planFor(requested, search(requested));
+    }
+    /** 開始の時に固定した因子（テストのため。因子なしのランダム、または取得・変更でなければnull）。 */
+    public @javax.annotation.Nullable FactorSearch.Found chosenFactor() { return chosen; }
     public boolean eligible(int requested) {
         if (!valid()) return false;
         var data = data();
-        // 取得は、プレイヤーが実際に持っている登録済みの因子に従う。ランダムな取得は残りの原作カテゴリを待っている。
-        // 黙って抽選を強制しない。
-        if (requested == ACQUIRE) return !data.hasAbility() && !findFactor().isEmpty();
+        // 1.5.2: 因子があればその系統、無ければランダム（候補が無いとき、変更で今と同じ系統の因子だけを持つときは始めない）。
+        if (requested == ACQUIRE) {
+            if (data.hasAbility()) return false;
+            var plan = planFor(ACQUIRE, search(ACQUIRE));
+            return plan != null && plan.startable();
+        }
         if (requested == LEVEL_UP) return data.canLevelUp();
-        if (requested == RESET) return canReset();
+        if (requested == RESET) {
+            if (!resetBase()) return false;
+            var plan = planFor(RESET, search(RESET));
+            return plan != null && plan.startable();
+        }
         if (requested == LEARN_ADDON) return eligibleAddon(addonSkill);
         if (isDarkMatterLearn(requested))
             return device.tier().supportsSkill(SkillCatalog.find(skillFor(requested)).level())
@@ -133,6 +204,21 @@ public final class DevelopmentSession {
     }
     /** 学んでいる外部の技能（学んでいなければnull）。 */
     public @javax.annotation.Nullable net.minecraft.resources.ResourceLocation addonSkill() { return action == LEARN_ADDON ? addonSkill : null; }
+    /**
+     * 取得・変更を、画面が見た計画 expected で始める（1.5.2）。開始の時に、{@link #factorPlan}と同じ計算で計画を作り直し、
+     * expected と違えば（expected が null のときも）始めずに{@link StartResult#PLAN_CHANGED}を返す。比べるのは計画のすべての値
+     * （取得か変更か、ランダムか因子の指定か、候補の数、因子の系統と場所、変更の後のレベル）。同じなら、{@link #start}と同じ条件で始める。
+     * ランダムと表示した後に因子を拾った、表示した因子を動かした、といった食い違いで、表示と違う因子を使うことが無いように。
+     */
+    public StartResult startCategory(int requested, @javax.annotation.Nullable FactorPlan expected) {
+        if ((requested != ACQUIRE && requested != RESET) || state == DEVELOPING || !valid()) return StartResult.REFUSED;
+        if (!java.util.Objects.equals(planFor(requested, search(requested)), expected)) return StartResult.PLAN_CHANGED;
+        return start(requested) ? StartResult.STARTED : StartResult.REFUSED;
+    }
+    /**
+     * 始める（サーバーが条件を確かめる）。取得・変更は、画面が見た計画と比べる{@link #startCategory}を通すこと（メニューのボタンからは
+     * 始めない。{@link DeveloperMenu#clickMenuButton}）。ここを直接呼ぶのは、計画を見ないテストと、内部の経路だけ。
+     */
     public boolean start(int requested) {
         if (state == DEVELOPING || !eligible(requested)) return false;
         action = requested; elapsed = 0;
@@ -140,37 +226,61 @@ public final class DevelopmentSession {
         // 原作DevelopActionReset.getStimulations: 1レベルにつき10。
         total = (action == ACQUIRE ? 5 : action == LEVEL_UP ? 5 * (startingLevel + 1) : action == RESET ? 10 * startingLevel
                 : DeveloperTier.skillStimulations(SkillCatalog.find(action == LEARN_ADDON ? addonSkill : skillFor(action)).level())) * device.tier().ticksPerStimulation;
-        factor = action == ACQUIRE ? findFactor() : action == RESET ? findResetFactor() : ItemStack.EMPTY;
+        // 1.5.2: 取得・変更は、始めた時にランダムか因子の指定かと、指定の因子（場所とスタックの参照）を固定する。
+        chosen = null; lockedPlan = null; startingCategory = data().getAbility();
+        if (action == ACQUIRE || action == RESET) {
+            var search = search(action);
+            chosen = search.found();
+            lockedPlan = planFor(action, search);
+        }
         state = DEVELOPING; return true;
+    }
+    /** 取得・変更の途中で、続けられなくなったか（1.5.2）。今の因子の有無では決めず、始めた時に固定した物だけを見る。 */
+    private boolean categoryActionBroken() {
+        if (!valid()) return true;
+        var data = data();
+        // 指定の因子を失ったら中断する（別の因子やランダムへ切り替えない）。同じ場所に同じスタックで、始めたときの系統の因子のままか。
+        if (chosen != null && !chosen.holds(owner)) return true;
+        if (action == ACQUIRE) return data.hasAbility();
+        return !resetBase() || data.getLevel() != startingLevel || !java.util.Objects.equals(data.getAbility(), startingCategory);
     }
     public void tick() {
         if (state != DEVELOPING) return;
-        if (!eligible(action) || (action == LEVEL_UP && data().getLevel() != startingLevel)
-                || (action == ACQUIRE && (AbilityCategory.byFactor(factor) == null
-                || owner.getInventory().items.stream().noneMatch(stack -> stack == factor)))
-                || (action == RESET && (data().getLevel() != startingLevel || AbilityCategory.byFactor(factor) == null
-                || owner.getInventory().items.stream().noneMatch(stack -> stack == factor)))) {
-            state = INVALID; return;
-        }
+        boolean broken = action == ACQUIRE || action == RESET ? categoryActionBroken()
+                : !eligible(action) || (action == LEVEL_UP && data().getLevel() != startingLevel);
+        if (broken) { state = INVALID; return; }
         if (!device.consume(device.tier().energyPerTick)) { state = NO_ENERGY; return; }
         if (++elapsed < total) return;
         // 確認と消費はすべてサーバースレッドで行う。クライアントが送った進捗は使わない。
         if (action == ACQUIRE) {
-            // 減らす前に解決する: 空になったスタックからはカテゴリが分からない。
-            data().setAbility(AbilityCategory.byFactor(factor).id()); data().setLevel(1); data().recoverAfterDeath();
-            factor.shrink(1); // 原作の完了はクリエイティブでも因子を消費する。
+            // 因子の指定ならその系統。ランダムなら、正常に完了した今、サーバーが候補から1回だけ抽選する。
+            var target = chosen != null ? chosen.category() : pick(AbilityCategory.randomCandidates(null), picker);
+            if (target == null) { state = INVALID; return; }
+            data().setAbility(target.id()); data().setLevel(1); data().recoverAfterDeath();
+            if (chosen != null) chosen.stack().shrink(1); // 原作の完了はクリエイティブでも因子を消費する。実際に選んだ場所のスタックを減らす。
         } else if (action == LEVEL_UP) data().advanceLevel(startingLevel + 1);
         else if (action == RESET) {
             // 原作onLearnedはまずTransformCategoryEventを送り、何も取り消さなかったときだけ、新しいカテゴリ（技能はすべて忘れる）、
-            // 1つ下のレベル、手に持ったコイルと因子のスタック全体の消費を行う。
-            var category = AbilityCategory.byFactor(factor).id();
-            if (!net.neoforged.neoforge.common.NeoForge.EVENT_BUS.post(
+            // 1つ下のレベル、手に持ったコイルと因子のスタック全体の消費を行う。1.5.2: 因子なしなら、今の系統を除いた候補から抽選し、
+            // コイルだけを消費する。消費はコイルも因子も1個ずつ（原作はスタック全体）。
+            // 取り消されたときは、系統・レベル・技能・コイル・因子のどれも変えない。
+            var target = chosen != null ? chosen.category() : pick(AbilityCategory.randomCandidates(startingCategory), picker);
+            if (target == null) { state = INVALID; return; }
+            var category = target.id();
+            if (net.neoforged.neoforge.common.NeoForge.EVENT_BUS.post(
                     new io.github.pinchan4273.reacademycraft.event.AbilityEvent.TransformCategory(owner, category, startingLevel - 1)).isCanceled()) {
-                data().setAbility(category); data().setLevel(startingLevel - 1);
-                owner.setItemInHand(net.minecraft.world.InteractionHand.MAIN_HAND, ItemStack.EMPTY);
-                int slot = owner.getInventory().items.indexOf(factor);
-                if (slot >= 0) owner.getInventory().items.set(slot, ItemStack.EMPTY);
+                // 取り消しは成功ではない。何も変えずに「取り消された」で終え、コンソールは取り消しの文を出す。
+                state = REJECTED; AbilitySyncEvents.sync(owner, true); return;
             }
+            // 取り消さないリスナーも、選んでいる枠や持ち物、能力を変えられる。消費する直前に、始めたときのまま
+            // （開発機・レベル3以上・メインハンドのコイル、指定の因子が同じ場所に同じスタックで始めたときの系統のまま、系統とレベル）かを
+            // 確かめ直し、違えば何も変えずに打ち切る（メインハンドにある別の物を減らさない）。
+            if (categoryActionBroken()) { state = INVALID; return; }
+            // 消費を先にし、その後で系統を変える（確かめた物だけを減らす）。
+            owner.getMainHandItem().shrink(1);
+            if (chosen != null) chosen.consumeOne(owner);
+            owner.getInventory().setChanged();
+            data().setAbility(category); data().setLevel(startingLevel - 1);
         }
         else data().learn(action == LEARN_ADDON ? addonSkill : skillFor(action));
         state = DONE; AbilitySyncEvents.sync(owner, true);
@@ -203,8 +313,9 @@ public final class DevelopmentSession {
             case LEARN_BRAIN -> 2048; case LEARN_ADVANCED_BRAIN -> 4096; case LEARN_MIND -> 8192;
             case LEARN_ELECTRON_BOMB -> 16384; case LEARN_SCATTER_BOMB -> 32768; case LEARN_LIGHT_SHIELD -> 65536; case LEARN_MINE_RAY_BASIC -> 131072; case LEARN_RAD_INTENSIFY -> 262144; case LEARN_MINE_RAY_EXPERT -> 524288; case LEARN_MINE_RAY_LUCK -> 1048576; case LEARN_JET_ENGINE -> 2097152; case LEARN_RAY_BARRAGE -> 4194304; case LEARN_ELECTRON_MISSILE -> 8388608; case LEARN_MELTDOWNER -> 16777216; case LEARN_THREATENING_TELEPORT -> 33554432; case LEARN_DIM_FOLDING -> 67108864; case LEARN_SPACE_FLUCT -> 134217728; case LEARN_PENETRATE_TELEPORT -> 268435456; case LEARN_MARK_TELEPORT -> 536870912; case LEARN_FLESH_RIPPING -> 1073741824; case LEARN_LOCATION_TELEPORT -> 2147483648L; case LEARN_SHIFT_TP -> 4294967296L; case LEARN_FLASHING -> 8589934592L; case LEARN_DIR_SHOCK -> 17179869184L; case LEARN_GROUND_SHOCK -> 34359738368L; case LEARN_VEC_ACCEL -> 68719476736L; case LEARN_VEC_DEVIATION -> 137438953472L; case LEARN_DIR_BLAST -> 274877906944L; case LEARN_STORM_WING -> 549755813888L; case LEARN_BLOOD_RETRO -> 1099511627776L; case LEARN_VEC_REFLECTION -> 2199023255552L; case LEARN_PLASMA_CANNON -> 4398046511104L;
             case RESET -> 17592186044416L;
-            // v1.5.0: 未元物質の9技能はビット45〜53（1L << 行動番号）。
-            case LEARN_DM_STAB, LEARN_DM_FLIGHT, LEARN_DM_RAY, LEARN_DM_GUARD, LEARN_DM_AIR_CANNON, LEARN_DM_ARMOR,
+            // v1.5.0: 未元物質の9技能はビット45〜53（1L << アクション ID）。
+            // 1.5.2: 50（廃止した未元装甲）は欠番。
+            case LEARN_DM_STAB, LEARN_DM_FLIGHT, LEARN_DM_RAY, LEARN_DM_GUARD, LEARN_DM_AIR_CANNON,
                     LEARN_DM_BEETLE, LEARN_DM_HEAVEN, LEARN_DM_BODY -> 1L << action;
             case ACQUIRE -> 1; default -> 0;
         };
@@ -212,10 +323,17 @@ public final class DevelopmentSession {
     private static final int[] LEARN_ACTIONS = {LEARN_ARC, LEARN_CHARGING, LEARN_MOVEMENT, LEARN_MANIPULATION,
             LEARN_INTENSIFY, LEARN_MINE_DETECT, LEARN_THUNDER_BOLT, LEARN_RAILGUN, LEARN_THUNDER_CLAP,
             LEARN_BRAIN, LEARN_ADVANCED_BRAIN, LEARN_MIND, LEARN_ELECTRON_BOMB, LEARN_SCATTER_BOMB, LEARN_LIGHT_SHIELD, LEARN_MINE_RAY_BASIC, LEARN_RAD_INTENSIFY, LEARN_MINE_RAY_EXPERT, LEARN_MINE_RAY_LUCK, LEARN_JET_ENGINE, LEARN_RAY_BARRAGE, LEARN_ELECTRON_MISSILE, LEARN_MELTDOWNER, LEARN_THREATENING_TELEPORT, LEARN_DIM_FOLDING, LEARN_SPACE_FLUCT, LEARN_PENETRATE_TELEPORT, LEARN_MARK_TELEPORT, LEARN_FLESH_RIPPING, LEARN_LOCATION_TELEPORT, LEARN_SHIFT_TP, LEARN_FLASHING, LEARN_DIR_SHOCK, LEARN_GROUND_SHOCK, LEARN_VEC_ACCEL, LEARN_VEC_DEVIATION, LEARN_DIR_BLAST, LEARN_STORM_WING, LEARN_BLOOD_RETRO, LEARN_VEC_REFLECTION, LEARN_PLASMA_CANNON,
-            LEARN_DM_STAB, LEARN_DM_FLIGHT, LEARN_DM_RAY, LEARN_DM_GUARD, LEARN_DM_AIR_CANNON, LEARN_DM_ARMOR, LEARN_DM_BEETLE, LEARN_DM_HEAVEN, LEARN_DM_BODY};
-    private static boolean isDarkMatterLearn(int action) { return action >= LEARN_DM_STAB && action <= LEARN_DM_BODY; }
+            LEARN_DM_STAB, LEARN_DM_FLIGHT, LEARN_DM_RAY, LEARN_DM_GUARD, LEARN_DM_AIR_CANNON, LEARN_DM_BEETLE, LEARN_DM_HEAVEN, LEARN_DM_BODY};
+    /** 未元物質の学習のID（45〜53）の技能。50（廃止した未元装甲）は null。 */
+    private static final java.util.List<net.minecraft.resources.ResourceLocation> DARK_MATTER_BY_ACTION = java.util.Arrays.asList(
+            io.github.pinchan4273.reacademycraft.skill.DarkMatter.STAB, io.github.pinchan4273.reacademycraft.skill.DarkMatter.FLIGHT,
+            io.github.pinchan4273.reacademycraft.skill.DarkMatter.RAY, io.github.pinchan4273.reacademycraft.skill.DarkMatter.GUARD,
+            io.github.pinchan4273.reacademycraft.skill.DarkMatter.AIR_CANNON, null,
+            io.github.pinchan4273.reacademycraft.skill.DarkMatter.BEETLE, io.github.pinchan4273.reacademycraft.skill.DarkMatter.HEAVEN,
+            io.github.pinchan4273.reacademycraft.skill.DarkMatter.BODY);
+    private static boolean isDarkMatterLearn(int action) { return action >= LEARN_DM_STAB && action <= LEARN_DM_BODY && action != RETIRED_LEARN_DM_ARMOR; }
     private static net.minecraft.resources.ResourceLocation skillFor(int action) {
-        if (isDarkMatterLearn(action)) return io.github.pinchan4273.reacademycraft.skill.DarkMatter.SKILLS.get(action - LEARN_DM_STAB);
+        if (isDarkMatterLearn(action)) return DARK_MATTER_BY_ACTION.get(action - LEARN_DM_STAB);
         return action == LEARN_ARC ? ArcGen.ID : action == LEARN_CHARGING ? CurrentCharging.ID
                 : action == LEARN_MOVEMENT ? MagneticMovement.ID : action == LEARN_MANIPULATION ? MagneticManipulation.ID : action == LEARN_INTENSIFY ? io.github.pinchan4273.reacademycraft.skill.BodyIntensify.ID : action == LEARN_MINE_DETECT ? io.github.pinchan4273.reacademycraft.skill.MineDetect.ID : action == LEARN_THUNDER_BOLT ? io.github.pinchan4273.reacademycraft.skill.ThunderBolt.ID : action == LEARN_RAILGUN ? io.github.pinchan4273.reacademycraft.skill.Railgun.ID : action == LEARN_THUNDER_CLAP ? io.github.pinchan4273.reacademycraft.skill.ThunderClap.ID
                 : action == LEARN_BRAIN ? io.github.pinchan4273.reacademycraft.skill.GenericSkills.BRAIN : action == LEARN_ADVANCED_BRAIN ? io.github.pinchan4273.reacademycraft.skill.GenericSkills.ADVANCED_BRAIN : action == LEARN_ELECTRON_BOMB ? io.github.pinchan4273.reacademycraft.skill.ElectronBomb.ID : action == LEARN_SCATTER_BOMB ? io.github.pinchan4273.reacademycraft.skill.ScatterBomb.ID : action == LEARN_LIGHT_SHIELD ? io.github.pinchan4273.reacademycraft.skill.LightShield.ID : action == LEARN_MINE_RAY_BASIC ? io.github.pinchan4273.reacademycraft.skill.MineRay.BASIC.id() : action == LEARN_MINE_RAY_EXPERT ? io.github.pinchan4273.reacademycraft.skill.MineRay.EXPERT.id() : action == LEARN_MINE_RAY_LUCK ? io.github.pinchan4273.reacademycraft.skill.MineRay.LUCK.id() : action == LEARN_RAD_INTENSIFY ? io.github.pinchan4273.reacademycraft.skill.RadiationIntensify.ID : action == LEARN_JET_ENGINE ? io.github.pinchan4273.reacademycraft.skill.JetEngine.ID : action == LEARN_RAY_BARRAGE ? io.github.pinchan4273.reacademycraft.skill.RayBarrage.ID : action == LEARN_ELECTRON_MISSILE ? io.github.pinchan4273.reacademycraft.skill.ElectronMissile.ID : action == LEARN_MELTDOWNER ? io.github.pinchan4273.reacademycraft.skill.Meltdowner.ID : action == LEARN_THREATENING_TELEPORT ? io.github.pinchan4273.reacademycraft.skill.ThreateningTeleport.ID : action == LEARN_DIM_FOLDING ? io.github.pinchan4273.reacademycraft.skill.DimFoldingTheorem.ID : action == LEARN_SPACE_FLUCT ? io.github.pinchan4273.reacademycraft.skill.SpaceFluctuation.ID : action == LEARN_PENETRATE_TELEPORT ? io.github.pinchan4273.reacademycraft.skill.PenetrateTeleport.ID : action == LEARN_MARK_TELEPORT ? io.github.pinchan4273.reacademycraft.skill.MarkTeleport.ID : action == LEARN_FLESH_RIPPING ? io.github.pinchan4273.reacademycraft.skill.FleshRipping.ID : action == LEARN_LOCATION_TELEPORT ? io.github.pinchan4273.reacademycraft.skill.LocationTeleport.ID : action == LEARN_SHIFT_TP ? io.github.pinchan4273.reacademycraft.skill.ShiftTeleport.ID : action == LEARN_FLASHING ? io.github.pinchan4273.reacademycraft.skill.Flashing.ID : action == LEARN_DIR_SHOCK ? io.github.pinchan4273.reacademycraft.skill.DirectedShock.ID : action == LEARN_GROUND_SHOCK ? io.github.pinchan4273.reacademycraft.skill.Groundshock.ID : action == LEARN_VEC_ACCEL ? io.github.pinchan4273.reacademycraft.skill.VecAccel.ID : action == LEARN_VEC_DEVIATION ? io.github.pinchan4273.reacademycraft.skill.VecDeviation.ID : action == LEARN_DIR_BLAST ? io.github.pinchan4273.reacademycraft.skill.DirectedBlastwave.ID : action == LEARN_STORM_WING ? io.github.pinchan4273.reacademycraft.skill.StormWing.ID : action == LEARN_BLOOD_RETRO ? io.github.pinchan4273.reacademycraft.skill.BloodRetrograde.ID : action == LEARN_VEC_REFLECTION ? io.github.pinchan4273.reacademycraft.skill.VecReflection.ID : action == LEARN_PLASMA_CANNON ? io.github.pinchan4273.reacademycraft.skill.PlasmaCannon.ID : io.github.pinchan4273.reacademycraft.skill.GenericSkills.MIND;

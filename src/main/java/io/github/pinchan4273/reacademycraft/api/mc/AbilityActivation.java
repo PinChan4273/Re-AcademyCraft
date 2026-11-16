@@ -5,9 +5,9 @@ import io.github.pinchan4273.reacademycraft.api.ActivationOutcome;
 import javax.annotation.Nullable;
 
 /**
- * 外部の主体（装備・機械・AI）からの発動（公開API、実験的。1.4.0のS5。サーバーのスレッドでだけ呼ぶ）。
+ * 外部の主体（装備・機械・AI）からの発動（公開API、実験的。1.4.0。サーバーのスレッドでだけ呼ぶ）。
  * <p>
- * 外部の主体が発動できるのは、外部のアドオンが登録した受動でない技能だけ（本体の41技能は発動できない）。
+ * 外部の主体が発動できるのは、外部のアドオンが登録したパッシブでない技能だけ（本体の50技能は発動できない。4カテゴリの41技能と、v1.5.0の未元物質の9技能）。
  * 自然能力者（{@code ActorKind.NATURAL}）は、この入口ではなく技能のキーで発動する。
  * <p>
  * 発動の手順（この順）: 主体の確かめ（使える・位置が読み込まれている）→ 資格（登録・設定で有効・能力の妨害の外・クールダウン・
@@ -24,7 +24,7 @@ public final class AbilityActivation {
     public static ActivationOutcome activate(AbilityActor actor, AbilityId skill, @Nullable ResourcePolicy policy) {
         return io.github.pinchan4273.reacademycraft.ability.ExternalSessions.activate(actor, skill, policy);
     }
-    /** 押し続け型のセッションの心拍。セッションがあればtrue。 */
+    /** 押し続け型のセッションのハートビート。セッションがあればtrue。 */
     public static boolean hold(AbilityActor actor, AbilityId skill) {
         return io.github.pinchan4273.reacademycraft.ability.ExternalSessions.hold(actor, skill);
     }

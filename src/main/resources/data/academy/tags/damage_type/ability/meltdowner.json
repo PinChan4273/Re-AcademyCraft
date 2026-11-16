@@ -1,0 +1,10 @@
+{
+  "replace": false,
+  "values": [
+    "academy:meltdowner",
+    "academy:meltdowner_contact",
+    "academy:meltdowner_stab",
+    "academy:meltdowner_pierce",
+    "academy:meltdowner_ignore_armor"
+  ]
+}

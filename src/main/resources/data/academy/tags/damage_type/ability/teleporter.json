@@ -1,0 +1,10 @@
+{
+  "replace": false,
+  "values": [
+    "academy:teleporter",
+    "academy:teleporter_contact",
+    "academy:teleporter_stab",
+    "academy:teleporter_pierce",
+    "academy:teleporter_ignore_armor"
+  ]
+}

@@ -45,7 +45,7 @@ import org.lwjgl.glfw.GLFW;
 /**
  * 原作DeveloperUI（SkillTree.scalaとguis/rework/page_developer.xml）: 400×187のページ。左に系統のパネルと機械の
  * パネル、右に技能の木（視差のある背景、node、親への線、熟練度の輪）。技能（またはレベルアップのボタン）を
- * クリックすると、暗くした覆いの上にその画面を開き、そこで開発できる。系統を持たない場合、木の場所はAcademy OSの
+ * クリックすると、暗くしたオーバーレイの上にその画面を開き、そこで開発できる。系統を持たない場合、木の場所はAcademy OSの
  * コンソールになり、`learn`で系統を得る。学習も開発もすべてmenuのボタンの動作を通し、サーバーで確かめる。
  * 大きさは原作のCGUIの単位で、画面が小さいときはページ全体を縮める。
  */
@@ -238,7 +238,7 @@ public final class DeveloperScreen extends AbstractContainerScreen<DeveloperMenu
         drawRight(g);
         drawLeft(g);
         pose.popPose();
-        // 外部の系統の正式な名前の案内（1.4.0のS4）。技能の詳細などの上には出さない。
+        // 外部の系統の正式な名前の案内（1.4.0）。技能の詳細などの上には出さない。
         if (nameTooltip != null && view == null && linkPage == null) g.renderTooltip(font, nameTooltip, x, y);
         if (view != null) view.draw(g);
         if (linkPage != null) linkPage.draw(g);
@@ -249,7 +249,7 @@ public final class DeveloperScreen extends AbstractContainerScreen<DeveloperMenu
         quad(pose, PARENT_RIGHT, RIGHT_X, 0, 278, MAIN_H, 1, 1, 1, 1);
         quad(pose, UI_RIGHT, RIGHT_X, 0, 278, MAIN_H, 1, 1, 1, 1);
         if (console != null) { console.draw(g); return; }
-        // 原作: 背景をマウスの逆へ最大1%ずらし、背景の1/1.01の窓から見せる。
+        // 原作: 背景をマウスの逆へ最大1%ずらし、背景の1/1.01の範囲を見せる。
         double inv = 1 / 1.01, du = .01;
         float u = (float) ((parallaxX() * du - .5) * inv + .5), v = (float) ((parallaxY() * du - .5) * inv + .5);
         quad(pose, AREA_BACK, AREA_X, AREA_Y, AREA_W, AREA_H, u, v, u + (float) inv, v + (float) inv, 1, 1, 1, 1);
@@ -285,7 +285,7 @@ public final class DeveloperScreen extends AbstractContainerScreen<DeveloperMenu
             quad(pose, SKILL_OUTLINE, PROG_ALIGN, PROG_ALIGN, PROG, PROG, .2f, .2f, .2f, backAlpha * .6f);
             if (learned) quad(pose, node.icon(), ALIGN, ALIGN, ICON, ICON, 1, 1, 1, iconAlpha);
             else mono(pose, node.icon(), ALIGN, ALIGN, ICON, ICON, iconAlpha);
-            // GUI-PASSIVE-PROFICIENCY-001: Radiation Intensifyは実効熟練度、汎用コースは習得済みの満の輪（そのほかは保存された熟練度）。
+            // Radiation Intensifyは実効熟練度、汎用コースは習得済みの満の輪（そのほかは保存された熟練度）。
             if (learned) ring(pose, SKILL_OUTLINE, PROG_ALIGN, PROG_ALIGN, PROG,
                     progressBlend * io.github.pinchan4273.reacademycraft.skill.PassiveSkillDisplay.ring(data, node.skill(), level5BaseCp()));
             pose.popPose();
@@ -364,21 +364,18 @@ public final class DeveloperScreen extends AbstractContainerScreen<DeveloperMenu
         quad(pose, SkillTreeLayout.categoryIcon(category), ABILITY_X, ABILITY_Y, 32, 32, 1, 1, 1, 1);
         String name = category == null ? I18n.get("academy.developer.machine.not_available")
                 : io.github.pinchan4273.reacademycraft.ability.RegistryViews.categoryName(category).getString();
-        float nameSize = 13;
-        // 1.4.0のS4: 外部の系統は名前の長さが決まっていない。パネルに収まるよう縮めるが、読める大きさ（9）より小さくはせず、
-        // 収まらない分は「…」で切る。導入されていない系統は短い名前を出す。どちらも、名前にマウスを置くと正式な名前を案内に出す
-        // （手動確認 2026-10-25: 長い名前を収めるために縮めると、GUIの大きさ2で読めなかった）。本体の系統は原作どおりの大きさで描く。
-        if (category != null && !"academy".equals(category.getNamespace())) {
-            var full = io.github.pinchan4273.reacademycraft.ability.RegistryViews.categoryName(category);
-            if (!io.github.pinchan4273.reacademycraft.ability.RegistryViews.categoryRegistered(category))
-                name = I18n.get("academy.ability.not_installed_short");
-            float room = LEFT_X + LEFT_W - (ABILITY_X + 31) - 2, width = font.width(name) * 13 / 9f;
-            if (width > room) nameSize = Math.max(9, 13 * room / width);
-            int fits = (int) (room / (nameSize / 9));
-            if (font.width(name) > fits) name = font.plainSubstrByWidth(name, fits - font.width("…")) + "…";
-            if (inside(localX(mouseX), localY(mouseY), ABILITY_X, ABILITY_Y, LEFT_X + LEFT_W - ABILITY_X, 16)) nameTooltip = full;
-        }
-        text(g, name, ABILITY_X + 31, ABILITY_Y + 2, nameSize, Align.LEFT, 0xffffffff);
+        // 1.4.0: 外部の系統は名前の長さが決まっていない。導入されていない系統は短い名前を出す。
+        // 1.5.2: 本体の系統も、言語によってはパネルに収まらない（英語の「Electromaster」が右のコンソールの行の頭に
+        // 重なった）ので、どの系統の名前も同じ決まりで収める（{@link #fitName}）。縮めるのは読める大きさ（9）まで、収まらない分は「…」で切り、
+        // 外部の系統と、切った名前は、名前にマウスを置くと正式な名前を案内に出す（縮めすぎるとGUIの大きさ2で読めない）。
+        boolean addon = category != null && !"academy".equals(category.getNamespace());
+        if (addon && !io.github.pinchan4273.reacademycraft.ability.RegistryViews.categoryRegistered(category))
+            name = I18n.get("academy.ability.not_installed_short");
+        var fitted = fitName(name);
+        if ((addon || !fitted.text().equals(name)) && category != null
+                && inside(localX(mouseX), localY(mouseY), ABILITY_X, ABILITY_Y, LEFT_X + LEFT_W - ABILITY_X, 16))
+            nameTooltip = io.github.pinchan4273.reacademycraft.ability.RegistryViews.categoryName(category);
+        text(g, fitted.text(), ABILITY_X + 31, ABILITY_Y + 2, fitted.size(), Align.LEFT, 0xffffffff);
         float progress = category == null ? 0 : Math.max(.02f, data.getLevelProgress());
         rect(pose, ABILITY_X + 31, ABILITY_Y + (32 - 1.5f) / 2 - 2, 70, 1.5f, 102 / 255f, 102 / 255f, 102 / 255f, 76 / 255f);
         rect(pose, ABILITY_X + 31, ABILITY_Y + (32 - 1.5f) / 2 - 2, 70 * progress, 1.5f, 1, 1, 1, 1);
@@ -391,6 +388,23 @@ public final class DeveloperScreen extends AbstractContainerScreen<DeveloperMenu
             text(g, levelName(data.getLevel()), levelX + 41.156f, ABILITY_Y + (32 - 12) / 2 + 6, 9, Align.RIGHT, 0xff1177d6);
         }
     }
+    /** 左の欄に描く系統の名前と、その大きさ。 */
+    public record FittedName(String text, float size) { }
+    /** 系統の名前を描ける幅（アイコンの右からパネルの右端の2手前まで）。 */
+    public static final float NAME_ROOM = LEFT_X + LEFT_W - (ABILITY_X + 31) - 2;
+    /**
+     * 系統の名前を左の欄に収める（1.5.2）。原作の大きさ13で収まればそのまま。収まらなければ、読める大きさ9まで縮め、
+     * それでも収まらない分は「…」で切る。描く幅は{@link #NAME_ROOM}を超えない。
+     */
+    public FittedName fitName(String name) {
+        float size = 13, width = font.width(name) * 13 / 9f;
+        if (width > NAME_ROOM) size = Math.max(9, 13 * NAME_ROOM / width);
+        int fits = (int) (NAME_ROOM / (size / 9));
+        if (font.width(name) > fits) name = font.plainSubstrByWidth(name, fits - font.width("…")) + "…";
+        return new FittedName(name, size);
+    }
+    /** その名前を描いたときの幅（画面の単位。テストのため）。 */
+    public float drawnWidth(FittedName fitted) { return font.width(fitted.text()) * fitted.size() / 9f; }
     /** 原作AbilityLocalization.levelDesc: レベルごとの名前。 */
     static String levelName(int level) { return I18n.get("academy.developer.ui.level" + Mth.clamp(level, 0, 5)); }
     /** 原作DeveloperType.syncRate。 */
@@ -410,7 +424,7 @@ public final class DeveloperScreen extends AbstractContainerScreen<DeveloperMenu
         if (linkPage != null) { linkPage.click(x, y); return true; }
         if (view != null) { view.click((float) x, (float) y); return true; }
         float lx = localX(x), ly = localY(y);
-        // 原作button_wireless: この開発機の無線のページを、覆いの上に開く。
+        // 原作button_wireless: この開発機の無線のページを、オーバーレイの上に開く。
         if (nodeButton() && inside(lx, ly, LEFT_X + (LEFT_W - 100) / 2, (MAIN_H - 16) / 2 + 29, 100, 16)) { openLinkPage(); return true; }
         if (console == null) {
             for (var node : nodes())
@@ -449,11 +463,11 @@ public final class DeveloperScreen extends AbstractContainerScreen<DeveloperMenu
         return true;
     }
     @Nullable public WirelessPanel linkPanel() { return linkPage == null ? null : linkPage.panel; }
-    /** テスト用の入口: ページの外の覆いをクリックする。 */
+    /** テスト用の入口: ページの外のオーバーレイをクリックする。 */
     public void closeLinkPage() { if (linkPage != null && linkPage.endedAt < 0) linkPage.endedAt = now(); }
 
     /**
-     * 原作blackCoverの中央にWirelessPage.userPageを置く: 覆いは0.7の黒で、0.2秒でフェードイン・アウトする。
+     * 原作blackCoverの中央にWirelessPage.userPageを置く: オーバーレイは0.7の黒で、0.2秒でフェードイン・アウトする。
      * ページの外をクリックすると終わり、原作のCloseEventがパネルを作り直して、nodeの名前をまた問い合わせる。
      * ここでは、ページが最後に伝えた繋がり先を使う。
      */
@@ -503,7 +517,7 @@ public final class DeveloperScreen extends AbstractContainerScreen<DeveloperMenu
         int action() {
             return level ? DevelopmentSession.LEVEL_UP : DevelopmentSession.actionFor(node.skill());
         }
-        /** 外部の技能（1.4.0のS4。旧い行動番号を持たない）か。 */
+        /** 外部の技能（1.4.0。旧いアクションIDを持たない）か。 */
         boolean addon() { return !level && node != null && !"academy".equals(node.skill().getNamespace()); }
         int estimate() {
             var data = ability();
@@ -550,7 +564,7 @@ public final class DeveloperScreen extends AbstractContainerScreen<DeveloperMenu
             else if (addon() ? !ClientDevelopAddons.available(node.skill()) : (menu.availability() & DevelopmentSession.availabilityBit(action())) == 0)
                 message = I18n.get("academy.developer.ui.condition_fail");
             else {
-                // 1.4.0のS4（D11）: 外部の技能は、旧いボタンの番号でなく、技能の名前で学習を求める。
+                // 1.4.0: 外部の技能は、旧いボタンのIDでなく、技能の名前で学習を求める。
                 if (addon()) io.github.pinchan4273.reacademycraft.network.AcademyNetwork.sendToServer(
                         new io.github.pinchan4273.reacademycraft.network.DevelopAddonSkill(node.skill()));
                 else if (minecraft.gameMode != null) minecraft.gameMode.handleInventoryButtonClick(menu.containerId, action());
@@ -582,7 +596,7 @@ public final class DeveloperScreen extends AbstractContainerScreen<DeveloperMenu
                 if (learned) {
                     actionIcon(pose, node.icon(), cx - 25, cy - 25, 0, false);
                     text(g, name, cx, ty + 3, 12, Align.CENTER, 0xffffffff);
-                    // GUI-PASSIVE-PROFICIENCY-001: Radiation Intensifyは実効熟練度と倍率（F4と同じ計算）、汎用コースは習得済み。そのほかはこれまでどおり。
+                    // Radiation Intensifyは実効熟練度と倍率（F4と同じ計算）、汎用コースは習得済み。そのほかはこれまでどおり。
                     var passive = io.github.pinchan4273.reacademycraft.skill.PassiveSkillDisplay.line(data, node.skill(), level5BaseCp());
                     text(g, passive != null ? I18n.get(passive.key(), passive.args().toArray())
                             : I18n.get("academy.developer.ui.skill_exp") + (int) (data.getProficiency(node.skill()) * 100) + "%", cx, ty + 15, 8, Align.CENTER, 0xffa1e1ff);
@@ -641,7 +655,7 @@ public final class DeveloperScreen extends AbstractContainerScreen<DeveloperMenu
             ring(pose, glow ? VIEW_OUTLINE_GLOW : VIEW_OUTLINE, x, y, 50, progress);
         }
     }
-    /** 原作DeveloperType.texture: 開発機自身のアイテムまたはブロックの絵。 */
+    /** 原作DeveloperType.texture: 開発機自身のアイテムまたはブロックのテクスチャ。 */
     static ResourceLocation developerIcon(DeveloperTier tier) {
         return switch (tier) {
             case PORTABLE -> tex("item/developer_portable_empty");
@@ -675,7 +689,39 @@ public final class DeveloperScreen extends AbstractContainerScreen<DeveloperMenu
             numbers.add(localized("boot_failed"));
             animSequence(.3, numbers);
             // 原作の起動の文: override、またはinvalid_catとlearn_hint（learn_hintは開発機があるときだけ）。
-            enqueue(slowPrint(emergency ? localized("override") : menu.viewer() ? localized("invalid_cat") : localized("invalid_cat") + localized("learn_hint")));
+            // 1.5.2: 開発機があるときは、始める前に計画（ランダムと候補の数、または指定の系統と使う因子の場所。変更ではレベルと技能を失う注意）を出す。
+            if (emergency) { enqueue(slowPrint(localized("override"))); enqueue(planLine(DevelopmentSession.RESET)); }
+            else if (menu.viewer()) enqueue(slowPrint(localized("invalid_cat")));
+            else { enqueue(slowPrint(localized("invalid_cat"))); enqueue(planLine(DevelopmentSession.ACQUIRE)); enqueue(slowPrint(localized("learn_hint"))); }
+        }
+        /** サーバーから届いた計画を1行で出す（届くまで最大2秒待つ。届かなければ何も出さない）。 */
+        private Task planLine(int action) {
+            return new Task() {
+                double start;
+                @Override void begin() { start = now(); }
+                @Override boolean finished() { return ClientDevelopFactor.received(menu.containerId) || now() - start > 2; }
+                @Override void finish() { String text = planText(action); if (!text.isEmpty()) output(text); }
+            };
+        }
+        /** 画面に出している、その操作の計画（受け取っていない、または別の操作の計画ならnull）。開始の要求に載せる。 */
+        @Nullable io.github.pinchan4273.reacademycraft.develop.FactorPlan shownPlan(int action) {
+            var plan = ClientDevelopFactor.plan(menu.containerId);
+            return plan == null || plan.action() != action ? null : plan;
+        }
+        /** 計画の文（1.5.2）。計画が無い、または別の操作の計画なら空。 */
+        String planText(int action) {
+            var plan = shownPlan(action);
+            if (plan == null) return "";
+            boolean reset = action == DevelopmentSession.RESET;
+            // 注意は「1つ下がる」ことが分かるよう、今のレベル（変更の後 + 1）と変更の後のレベルの2つを出す。
+            String warning = reset ? localized("reset_warning", plan.level() + 1, plan.level()) : "";
+            return switch (plan.mode()) {
+                case RANDOM -> localized(reset ? "reset_plan_random" : "plan_random", plan.candidates()) + warning;
+                case FACTOR -> localized(reset ? "reset_plan_factor" : "plan_factor",
+                        I18n.get(io.github.pinchan4273.reacademycraft.ability.RegistryViews.categoryNameKey(plan.category())), placeName(plan)) + warning;
+                case SAME_ONLY -> localized("reset_same_factor");
+                case NO_CANDIDATE -> localized(reset ? "reset_no_candidate" : "no_candidate");
+            };
         }
         boolean idle() { return current == inputTask && tasks.isEmpty(); }
         void tick() { }
@@ -728,32 +774,61 @@ public final class DeveloperScreen extends AbstractContainerScreen<DeveloperMenu
         int scrolled() { return scroll; }
         void key(int key) {
             if (current != inputTask) return;
-            // 遡って読んでいる間に入力を変えたら、入力行とカーソルが見えるよう下端へ戻る（L-178-01）。読むだけなら戻さない。
+            // 遡って読んでいる間に入力を変えたら、入力行とカーソルが見えるよう下端へ戻る。読むだけなら戻さない。
             if (key == GLFW.GLFW_KEY_BACKSPACE) { if (!input.isEmpty()) { input = input.substring(0, input.length() - 1); scroll = 0; } }
             else if (key == GLFW.GLFW_KEY_ENTER || key == GLFW.GLFW_KEY_KP_ENTER) { String command = input; input = ""; parse(command); }
         }
         void type(char c) { if (current == inputTask) { input += c; scroll = 0; } }
         private void parse(String command) {
             // 原作は、開発機があるときだけlearnを登録する。
-            if (!emergency && !menu.viewer() && command.equals("learn")) develop(DevelopmentSession.ACQUIRE, "dev_begin", "dev_succ", "dev_fail");
+            if (!emergency && !menu.viewer() && command.equals("learn")) {
+                // 1.5.2: 始める直前の計画をもう一度出す（実際に使う因子と表示を一致させる）。
+                enqueue(print(planText(DevelopmentSession.ACQUIRE)));
+                develop(DevelopmentSession.ACQUIRE, "dev_begin", "dev_succ", "dev_fail");
+            }
             else if (emergency && command.equals("reset")) reset();
             else enqueue(print(localized("invalid_command")));
         }
-        /** 原作のresetのコマンド: DevelopActionReset.canResetが成り立つときだけ。それ以外は理由を表示する。 */
+        /**
+         * 原作のresetのコマンド: DevelopActionReset.canResetが成り立つときだけ。それ以外は理由を表示する。1.5.2: 因子は無くてもよく、
+         * 今と同じ系統の因子だけを持つとき、候補が無いときは、その案内を出す。
+         */
         private void reset() {
-            if ((menu.availability() & DevelopmentSession.availabilityBit(DevelopmentSession.RESET)) != 0)
+            if ((menu.availability() & DevelopmentSession.availabilityBit(DevelopmentSession.RESET)) != 0) {
+                enqueue(print(planText(DevelopmentSession.RESET)));
                 develop(DevelopmentSession.RESET, "reset_begin", "reset_succ", "reset_fail");
-            else enqueue(print(localized(menu.tier() != DeveloperTier.ADVANCED ? "reset_fail_dev" : "reset_fail_other")));
+                return;
+            }
+            var plan = ClientDevelopFactor.plan(menu.containerId);
+            String reason = menu.tier() != DeveloperTier.ADVANCED ? "reset_fail_dev"
+                    : plan != null && plan.mode() == io.github.pinchan4273.reacademycraft.develop.FactorPlan.Mode.SAME_ONLY ? "reset_same_factor"
+                    : plan != null && plan.mode() == io.github.pinchan4273.reacademycraft.develop.FactorPlan.Mode.NO_CANDIDATE ? "reset_no_candidate"
+                    : "reset_fail_other";
+            enqueue(print(localized(reason)));
+        }
+        /** 因子の場所の名前（メインハンド、オフハンド、ホットバーの左からの番号、インベントリの段と左からの番号）。 */
+        private String placeName(io.github.pinchan4273.reacademycraft.develop.FactorPlan plan) {
+            String key = "academy.developer.factor_place." + plan.place().name().toLowerCase(java.util.Locale.ROOT);
+            return switch (plan.place()) {
+                case MAIN_HAND, OFF_HAND -> I18n.get(key);
+                case HOTBAR -> I18n.get(key, plan.index() + 1);
+                case INVENTORY -> I18n.get(key, plan.index() / 9 + 1, plan.index() % 9 + 1);
+            };
         }
         private void develop(int action, String begin, String success, String failure) {
             enqueue(print(localized(begin)));
             enqueue(print(localized("progress", "00")));
-            if (minecraft.gameMode != null) minecraft.gameMode.handleInventoryButtonClick(menu.containerId, action);
+            // 1.5.2: 画面が見た計画（今出している計画）を載せて求める。サーバーが開始の時に計算し直した計画と違えば
+            // 始めずに新しい計画を送り直すので、その拒否のフラグが届いたら、計画が変わったことと新しい計画を出して、入力へ戻る。
+            int refusals = ClientDevelopFactor.refusals();
+            io.github.pinchan4273.reacademycraft.network.AcademyNetwork.sendToServer(new io.github.pinchan4273.reacademycraft.network.DevelopCategoryStart(
+                    menu.containerId, action, shownPlan(action)));
             enqueue(new Task() {
-                boolean seen; int waited;
+                boolean seen, changed; int waited;
                 @Override boolean finished() {
                     int state = menu.state();
                     if (state == DevelopmentSession.DEVELOPING) seen = true;
+                    if (!seen && ClientDevelopFactor.refusals() != refusals) { changed = true; return true; }
                     return (seen && state != DevelopmentSession.DEVELOPING) || (!seen && ++waited > 40);
                 }
                 @Override void update() {
@@ -762,7 +837,14 @@ public final class DeveloperScreen extends AbstractContainerScreen<DeveloperMenu
                 }
                 @Override void finish() {
                     output("\n");
-                    output(seen && menu.state() == DevelopmentSession.DONE ? localized(success) : localized(failure));
+                    if (changed) {
+                        // 始まっていない。計画が変わったことと、新しい計画を出して、もう一度の入力を待つ（作り直さない）。
+                        output(localized("plan_changed"));
+                        output(planText(action));
+                        return;
+                    }
+                    // 変更のイベントが取り消されたときは、成功ではなく取り消しの文。
+                    output(localized(seen ? DevelopmentSession.resultKey(menu.state(), success, failure) : failure));
                     pause(.5);
                     enqueue(new Task() { @Override void begin() { rebuild(); } @Override boolean finished() { return true; } });
                 }
@@ -840,6 +922,8 @@ public final class DeveloperScreen extends AbstractContainerScreen<DeveloperMenu
     public boolean consoleReady() { return console != null && console.idle(); }
     public boolean consoleShown() { return console != null; }
     public List<String> consoleLines() { return console == null ? List.of() : List.copyOf(console.outputs); }
+    /** テスト用: コンソールが出す、取得・変更の計画の文（1.5.2。コンソールが無ければ空）。 */
+    public String consolePlanText(int action) { return console == null ? "" : console.planText(action); }
     /** テスト用: コンソールが遡っている行数。 */
     public int consoleScroll() { return console == null ? 0 : console.scrolled(); }
     public float pageScale() { return scale; }

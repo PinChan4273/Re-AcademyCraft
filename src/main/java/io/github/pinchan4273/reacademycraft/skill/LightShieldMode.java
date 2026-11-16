@@ -4,11 +4,11 @@ import java.util.Locale;
 import javax.annotation.Nullable;
 
 /**
- * Light Shieldの盾が、どの向きを目指すかの選び方（工程2、2026-10-23の司令室8の指示）。盾の防御・移動・描画・費用はどちらも同じで、
+ * Light Shieldの盾が、どの向きを目指すかの選び方。盾の防御・移動・描画・費用はどちらも同じで、
  * 変わるのは標的と目標の向きの選び方だけ。
  * <ul>
  * <li>{@link #AUTO}: 完全自動の防御。視線に依らず、全方向（上下も）から脅威を探し、優先度の高いものへ盾を向ける。</li>
- * <li>{@link #MANUAL}: 利用者向けの名前はSEMI-AUTO（2026-10-23の開発司令室9でモード名を統一）。視線誘導の半自動の防御で、
+ * <li>{@link #MANUAL}: 利用者向けの名前はSEMI-AUTO。視線誘導の半自動の防御で、
  * 視線の中心軸に近い有効な脅威へ盾を向け、対象が無ければ視線の方向へ向ける。カメラは動かさない。</li>
  * </ul>
  * 保存する値は{@link #id()}の小文字の名前（MANUALは互換のため"manual"のまま。既存のセーブも古い版も読める）。コマンドの正式な名前は
@@ -17,7 +17,7 @@ import javax.annotation.Nullable;
 public enum LightShieldMode {
     AUTO("auto", "auto"), MANUAL("manual", "semi");
 
-    /** 設定が無い（新しいプレイヤー、工程2より前のセーブ）ときのモード。 */
+    /** 設定が無い（新しいプレイヤー、この設定が入る前のセーブ）ときのモード。 */
     public static final LightShieldMode DEFAULT = AUTO;
     private final String id, command;
     LightShieldMode(String id, String command) { this.id = id; this.command = command; }

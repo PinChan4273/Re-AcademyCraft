@@ -15,7 +15,7 @@ import net.neoforged.fml.common.Mod;
  * 原作MediaBackend: 一度に1つのメディアを再生し、一時停止・再開・停止し、最後に再生したものを覚える。
  * 5tickごとに、メディアの再生中はゲーム自身の音楽を止め、音が終わったメディアを忘れる。
  *
- * 原作は再生位置を音声ライブラリのsourceから読む。ここの音声エンジンはそれを教えないので、ここで時間を数える:
+ * 原作は再生位置を音声ライブラリのsourceから読む。ここのサウンドエンジンはそれを教えないので、ここで時間を数える:
  * メディアが再生中で、メディアもゲームも一時停止していない間だけ進む。
  */
 @net.neoforged.fml.common.EventBusSubscriber(modid = "academy", value = Dist.CLIENT)

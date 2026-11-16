@@ -30,9 +30,9 @@ import net.neoforged.neoforge.common.util.BlockSnapshot;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * WeAthFolDの2セルの土台と3セルの本体に対する、取引としてのForgeのアダプタ。
+ * WeAthFolDの2セルの土台と3セルの本体に対する、トランザクションとしてのForgeのアダプタ。
  * 回転翼のインベントリは本体のルートに属し、エネルギーを生むのは土台のルートだけ。
- * メニュー、原作の絵、回転翼の描画（WindGeneratorRenderer）は実装済み。
+ * メニュー、原作のテクスチャ、回転翼の描画（WindGeneratorRenderer）は実装済み。
  */
 public final class WindBodyBlock extends BaseEntityBlock {
     /** 1.20.5からBaseEntityBlockに要る。このブロックは状態を持たない設定だけで作られるので、自身を返す。 */

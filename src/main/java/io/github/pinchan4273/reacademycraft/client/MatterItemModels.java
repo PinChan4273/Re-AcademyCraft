@@ -13,7 +13,7 @@ import net.neoforged.fml.common.Mod;
 import net.neoforged.fml.event.lifecycle.FMLClientSetupEvent;
 
 /**
- * WeAthFolDによる原作ItemMatterUnitの4枚の絵のアニメーション。PNGは変更していない。
+ * WeAthFolDによる原作ItemMatterUnitの4枚のテクスチャのアニメーション。PNGは変更していない。
  * Forgeのproperty APIは値をclampするので、フレーム値を正規化している。ワールドやNBTは変更しない。
  */
 @net.neoforged.fml.common.EventBusSubscriber(modid = "academy", value = Dist.CLIENT)

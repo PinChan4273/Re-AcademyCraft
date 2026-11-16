@@ -7,8 +7,8 @@ import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.resources.ResourceLocation;
 
 /**
- * 開いている開発機で今学べる外部の技能（サーバー→クライアント、1.4.0のS4）。メニューのデータの48ビットには入れず、一覧が変わったときだけ
- * 送る。画面は、メニューの番号が今のメニューと同じときだけ使う。表示のためだけの値で、学習の可否はサーバーが確かめ直す。
+ * 開いている開発機で今学べる外部の技能（サーバー→クライアント、1.4.0）。メニューのデータの48ビットには入れず、一覧が変わったときだけ
+ * 送る。画面は、メニューのIDが今のメニューと同じときだけ使う。表示のためだけの値で、学習の可否はサーバーが確かめ直す。
  */
 public record DevelopAddonAvailability(int menu, List<ResourceLocation> skills) implements AcademyPayload {
     private static final int MAX_ID = 256;

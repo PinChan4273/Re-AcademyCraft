@@ -42,7 +42,7 @@ final class WindBaseEnergy {
             return;
         }
         CompoundTag saved = preserved.copy();
-        // 受け口のコールバックが、エネルギーを予約している間に所有者を保存することがある。取引前の合計を保存し、精算が後で最終的な合計を書く。
+        // ハンドラのコールバックが、エネルギーを予約している間に所有者を保存することがある。トランザクション前の合計を保存し、精算が後で最終的な合計を書く。
         saved.putInt("schema_version", 1);
         saved.putInt("energy_units", Math.min(WindGeneratorRules.CAPACITY_UNITS, units + reservedChargeUnits));
         tag.put(KEY, saved);

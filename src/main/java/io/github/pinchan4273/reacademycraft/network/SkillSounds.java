@@ -23,7 +23,7 @@ import net.neoforged.fml.common.Mod;
 public final class SkillSounds {
     /**
      * 付いて行く音を誰が聞くか。原作ContextManager.hBeginLinkは、技能の開始時に25ブロック以内に居たプレイヤーをコンテキストの
-     * 聞き手に固定した（Context.getRangeの50が選ぶのではない）。ここでは音の開始時に50ブロック以内の全員へ送り、それらをすべて含む。
+     * リスナーに固定した（Context.getRangeの50が選ぶのではない）。ここでは音の開始時に50ブロック以内の全員へ送り、それらをすべて含む。
      */
     public static final double RANGE = 50;
     private static final Map<Long, Playing> PLAYING = new LinkedHashMap<>();

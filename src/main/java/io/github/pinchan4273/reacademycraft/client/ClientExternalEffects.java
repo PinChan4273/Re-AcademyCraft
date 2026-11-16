@@ -56,9 +56,9 @@ import net.neoforged.fml.ModList;
 import net.neoforged.fml.common.EventBusSubscriber;
 
 /**
- * 外部の演出（公開API{@link ExternalPresentation}の{@code play}の中身。演出API版2）。自然能力の演出の一覧・台帳・上限とは別の帳簿
+ * 外部の演出（公開API{@link ExternalPresentation}の{@code play}の中身。演出API版2）。自然能力の演出の一覧・管理テーブル・上限とは別の管理テーブル
  * （{@link ExternalBeamBook}、持ち主ごと）で持ち、描画の部品とテクスチャだけを共用する。自然能力のクラスの入口は呼ばない
- * （台帳の枠を使うことと、自然能力の演出を置き換えることを避ける）。ローカルプレイヤーの視線や速度も変えない。
+ * （管理テーブルの枠を使うことと、自然能力の演出を置き換えることを避ける）。ローカルプレイヤーの視線や速度も変えない。
  * 寿命と見た目は自然能力の同じ演出に合わせる。一時停止の間は進まず、ログアウト・世界の切り替え・資源の読み直しで消す。
  */
 @EventBusSubscriber(modid = "academy", value = Dist.CLIENT)
@@ -67,13 +67,13 @@ public final class ClientExternalEffects {
 
     public static final int DEFAULT_LIMIT = 32, MIN_LIMIT = 1, MAX_LIMIT = 256, MAX_PLASMA_PER_OWNER = 2;
 
-    /** 帳簿に入る1つの演出。 */
+    /** 管理テーブルに入る1つの演出。 */
     interface Effect {
         void tick(Minecraft client);
         boolean finished();
-        /** 演出を止める（帳簿から外す前に呼ぶ）。自然能力のクラスへ預けた物を、外部の分だけすぐ取り除く。何度呼んでもよい。 */
+        /** 演出を止める（管理テーブルから外す前に呼ぶ）。自然能力のクラスへ預けた物を、外部の分だけすぐ取り除く。何度呼んでもよい。 */
         default void stop() { }
-        /** 各フレームの描画の前に呼ぶ。追従する実体の同一性を確かめる（自然能力のクラスは番号だけで実体を探すので）。 */
+        /** 各フレームの描画の前に呼ぶ。追従するエンティティの同一性を確かめる（自然能力のクラスはIDだけでエンティティを探すので）。 */
         default void frame(ClientLevel level) { }
         /** 描く段階。描かない演出はnull。 */
         @Nullable default RenderLevelStageEvent.Stage stage() { return null; }
@@ -152,7 +152,7 @@ public final class ClientExternalEffects {
     }
     public static int clear(String ownerModId) {
         onMainThread();
-        // 薄れる演出は、薄れ終わるまで帳簿に残す（上限の外で残らない）。数には入れる。
+        // 薄れる演出は、薄れ終わるまで管理テーブルに残す（上限の外で残らない）。数には入れる。
         int fading = 0;
         for (var effect : BOOK.owned(ownerModId)) {
             if (effect instanceof Fades fade) { if (fade.fade()) fading++; }
@@ -160,7 +160,7 @@ public final class ClientExternalEffects {
         }
         return fading + BOOK.clearIf(ownerModId, effect -> !(effect instanceof Fades));
     }
-    /** 終えると、すぐには消えずに薄れる（畳む）演出。薄れ終わるまで帳簿に残り、上限に数える。 */
+    /** 終えると、すぐには消えずに薄れる（畳む）演出。薄れ終わるまで管理テーブルに残り、上限に数える。 */
     interface Fades {
         /** 薄れ始める。今回で始めたらtrue（すでに薄れていればfalse）。 */
         boolean fade();
@@ -217,18 +217,18 @@ public final class ClientExternalEffects {
         };
     }
 
-    /** 番号とUUIDの両方が合う実体。無ければnull。 */
+    /** IDとUUIDの両方が合うエンティティ。無ければnull。 */
     private static @Nullable Entity follow(EffectRequest request, ClientLevel level) {
         if (request.entityUuid() == null || request.entityId() < 0) return null;
         var entity = level.getEntity(request.entityId());
         return entity != null && entity.getUUID().equals(request.entityUuid()) && !entity.isRemoved() ? entity : null;
     }
-    /** 受け付けたときの実体がいなくなったか、同じ番号が別の実体になったか。実体を持たない演出はfalse。 */
+    /** 受け付けたときのエンティティがいなくなったか、同じIDが別のエンティティになったか。エンティティを持たない演出はfalse。 */
     private static boolean lost(@Nullable Entity entity, ClientLevel level) {
         return entity != null && (entity.isRemoved() || level.getEntity(entity.getId()) != entity);
     }
 
-    /** すぐ終わる演出（粒子や実体を出して、帳簿には残さない）。 */
+    /** すぐ終わる演出（粒子やエンティティを出して、管理テーブルには残さない）。 */
     private enum Done implements Effect {
         INSTANCE;
         @Override public void tick(Minecraft client) { }
@@ -259,7 +259,7 @@ public final class ClientExternalEffects {
             return List.copyOf(out);
         }
     }
-    /** {@code hand}があれば、自然能力と同じく、回した空間で手元へずらす。 */
+    /** {@code hand}があれば、自然能力と同じく、回した座標系で手元へオフセットする。 */
     private static int drawArc(PoseStack pose, Camera camera, Vec3 from, LegacyChargingArcPose.Orientation orientation, LegacyArcMesh.Mesh mesh, @Nullable Entity hand, Minecraft client) {
         var at = from.subtract(camera.getPosition());
         pose.pushPose();
@@ -512,7 +512,7 @@ public final class ClientExternalEffects {
 
     // ---- 血と数式 --------------------------------------------------------------------------------
 
-    /** 体の箱（実体が無ければ、1×2の箱）。 */
+    /** 体のバウンディングボックス（エンティティが無ければ、1×2のバウンディングボックス）。 */
     private record Box(double x, double y, double z, double width, double height) { }
     private static Box box(EffectRequest request, ClientLevel level) {
         var entity = follow(request, level);
@@ -520,14 +520,14 @@ public final class ClientExternalEffects {
         return new Box(request.position().x, request.position().y, request.position().z, 1, 2);
     }
 
-    /** 自然能力の{@link ClientTeleporterBursts}の血しぶきと同じ（4〜6個、10枚の絵を1tickに1枚）。 */
+    /** 自然能力の{@link ClientTeleporterBursts}の血しぶきと同じ（4〜6個、10枚のテクスチャを1tickに1枚）。 */
     private static final class Splashes implements Effect {
         private record Splash(Vec3 at, float size) { }
         final List<Splash> splashes = new ArrayList<>(); int frame;
         Splashes(EffectRequest request, ClientLevel level, boolean large) {
             var box = box(request, level);
             if (large) {
-                // 自然能力の{@link ClientBloodRetro}と同じ（6〜9個、大きさ1.4〜1.8、体の箱の幅の範囲）。
+                // 自然能力の{@link ClientBloodRetro}と同じ（6〜9個、大きさ1.4〜1.8、体のバウンディングボックスの幅の範囲）。
                 for (int i = 0, n = 6 + RANDOM.nextInt(4); i < n; i++)
                     splashes.add(new Splash(new Vec3(box.x + (RANDOM.nextDouble() * 2 - 1) * box.width, box.y + RANDOM.nextDouble() * box.height,
                             box.z + (RANDOM.nextDouble() * 2 - 1) * box.width), 1.4f + RANDOM.nextFloat() * .4f));
@@ -692,7 +692,7 @@ public final class ClientExternalEffects {
         }
         @Override void applied(boolean positionGiven, boolean targetGiven) {
             animation.renew(ExternalPresentation.EFFECT_LEASE_TICKS);
-            // 位置を渡されたときだけ、ずれを取り直す。期間だけの更新で、古い絶対位置へ戻さない。
+            // 位置を渡されたときだけ、オフセットを取り直す。期間だけの更新で、古い絶対位置へ戻さない。
             if (positionGiven && entity != null) offset = current.position().subtract(entity.position());
         }
         @Override public void frame(ClientLevel level) { if (lost(entity, level)) over = true; }
@@ -804,8 +804,8 @@ public final class ClientExternalEffects {
     }
 
     /**
-     * 描画が大きい演出は、自然能力のクラスへ外部の番号（負の数。サーバーが配る正の番号と重ならない）で預け、そのまま描いてもらう。
-     * 預かり先の一覧に上限は無いので、自然能力の演出の枠を奪わない。上限と期間はこの帳簿が持つ。
+     * 描画が大きい演出は、自然能力のクラスへ外部のID（負の数。サーバーが配る正のIDと重ならない）で預け、そのまま描いてもらう。
+     * 預かり先の一覧に上限は無いので、自然能力の演出の枠を奪わない。上限と期間はこの管理テーブルが持つ。
      */
     private static long nextToken = -1;
 
@@ -818,7 +818,7 @@ public final class ClientExternalEffects {
             target.accept(new io.github.pinchan4273.reacademycraft.network.SkillVisual(request.dimension(), request.entityId(), token, kind, value));
         }
         @Override public void stop() { target.accept(new io.github.pinchan4273.reacademycraft.network.SkillVisual(request.dimension(), request.entityId(), token, null, 0)); }
-        /** 同じ番号でも別の実体（UUIDが違う）なら、預けた物を止める。自然能力のクラスは番号だけで実体を探す。 */
+        /** 同じIDでも別のエンティティ（UUIDが違う）なら、預けた物を止める。自然能力のクラスはIDだけでエンティティを探す。 */
         @Override public void frame(ClientLevel level) {
             if (!over && follow(request, level) == null) { stop(); over = true; }
         }
@@ -829,8 +829,8 @@ public final class ClientExternalEffects {
     }
 
     /**
-     * 止めると、自然能力と同じように薄れて消える演出。薄れている間も帳簿に残り、上限に数える。効果IDも使ったまま。
-     * ログアウト・世界の切り替え・資源の読み直し・実体の入れ替わりでは、{@link #stop}ですぐ取り除く。
+     * 止めると、自然能力と同じように薄れて消える演出。薄れている間も管理テーブルに残り、上限に数える。効果IDも使ったまま。
+     * ログアウト・世界の切り替え・リソースの読み直し・エンティティの入れ替わりでは、{@link #stop}ですぐ取り除く。
      */
     private abstract static class Fading extends Visual implements Fades {
         /** 預け先から消えないときに自分で取り除くまでのtick（どちらの演出も、薄れるのにこれより短い）。 */
@@ -903,15 +903,15 @@ public final class ClientExternalEffects {
         @Override public void frame(ClientLevel level) { }
     }
 
-    /** 自然能力の{@link ClientRailgunHand}へ預ける（寿命1.6秒の間、帳簿の枠を持つ）。 */
+    /** 自然能力の{@link ClientRailgunHand}へ預ける（寿命1.6秒の間、管理テーブルの枠を持つ）。 */
     private static final class RailgunHand implements Effect {
         final EffectRequest request; final Object burst; int ticks; boolean gone;
         RailgunHand(EffectRequest request) { this.request = request; burst = ClientRailgunHand.startExternal(request.entityId()); }
         @Override public void stop() { ClientRailgunHand.endExternal(burst); gone = true; }
         @Override public void frame(ClientLevel level) { if (!gone && follow(request, level) == null) stop(); }
         /**
-         * 自然能力の一覧は実時間（1600ms）で消すので、tickの数だけで帳簿から外すと、消える前に帳簿の外へ出る。
-         * 一覧から消えるまで帳簿に持つ。描画が止まって一覧から消えないときのために、64tick（寿命の2倍）で自分で取り除く。
+         * 自然能力の一覧は実時間（1600ms）で消すので、tickの数だけで管理テーブルから外すと、消える前に管理テーブルの外へ出る。
+         * 一覧から消えるまで管理テーブルに持つ。描画が止まって一覧から消えないときのために、64tick（寿命の2倍）で自分で取り除く。
          */
         @Override public void tick(Minecraft client) {
             frame(client.level);
@@ -921,10 +921,10 @@ public final class ClientExternalEffects {
     }
 
     // ---- 未元物質（演出API版3） -------------------------------------------------------------------
-    // 翼と頭上の輪は、自然能力の状態とは別の外部の状態（ClientDarkWings・ClientDarkBody）を札で出し、自然能力と同じ体の描画（DarkWingsLayer・
-    // DarkHaloLayer）が描く。柱・光線・輪は、自然能力のクラスの描画の部品を、外部の帳簿の分だけ呼ぶ。
+    // 翼と頭上の輪は、自然能力の状態とは別の外部の状態（ClientDarkWings・ClientDarkBody）をハンドルで出し、自然能力と同じ体の描画（DarkWingsLayer・
+    // DarkHaloLayer）が描く。柱・光線・輪は、自然能力のクラスの描画の部品を、外部の管理テーブルの分だけ呼ぶ。
 
-    /** 外部の六翼（持続）。止めると本体と同じ速さで畳み、畳み終わるまで帳簿に残る（{@link StormWing}と同じ扱い）。 */
+    /** 外部の六翼（持続）。止めると本体と同じ速さで畳み、畳み終わるまで管理テーブルに残る（{@link StormWing}と同じ扱い）。 */
     private static final class DarkWings extends Lasting implements Fades {
         final Object token = new Object(); final EffectRequest request; boolean folding;
         DarkWings(EffectRequest request, ClientLevel level) {
@@ -940,7 +940,7 @@ public final class ClientExternalEffects {
         }
         @Override boolean fading() { return folding; }
         @Override void expire() { fade(); }
-        /** すぐ取り除く（ログアウト・世界の切り替え・資源の読み直し・実体の入れ替わり）。 */
+        /** すぐ取り除く（ログアウト・世界の切り替え・リソースの読み直し・エンティティの入れ替わり）。 */
         @Override public void stop() { ClientDarkWings.dropExternal(request.entityId(), token); }
         @Override public void frame(ClientLevel level) {
             if (!over && follow(request, level) == null) { stop(); over = true; }
@@ -954,8 +954,8 @@ public final class ClientExternalEffects {
     }
 
     /**
-     * 外部の白翼刺突・羽の球（一発）。外部の翼を札で出し（出ていなければすぐ開いた形にする）、自然能力と同じ動きを始める。動きが終わると札を離し、
-     * この演出が出した翼が畳み終わるまで帳簿に残る。早めに終えると、動きを止めて同じように畳む。
+     * 外部の白翼刺突・羽の球（一発）。外部の翼をハンドルで出し（出ていなければすぐ開いた形にする）、自然能力と同じ動きを始める。動きが終わるとハンドルを離し、
+     * この演出が出した翼が畳み終わるまで管理テーブルに残る。早めに終えると、動きを止めて同じように畳む。
      */
     private static final class DarkWingMove implements Effect, Fades {
         final Object token = new Object(); final EffectRequest request; final boolean stab; @Nullable final Entity entity;
@@ -1009,7 +1009,7 @@ public final class ClientExternalEffects {
         }
     }
 
-    /** 外部の未元空気砲の柱（一発）。自然能力の柱の一覧へ札を付けて預け、柱が消えるまで帳簿に残る。 */
+    /** 外部の未元空気砲の柱（一発）。自然能力の柱の一覧へハンドルを付けて預け、柱が消えるまで管理テーブルに残る。 */
     private static final class DarkCannon implements Effect {
         final Object token = new Object(); boolean gone;
         DarkCannon(EffectRequest request, ClientLevel level) { ClientDarkEffects.gustExternal(level, request.position(), request.target(), token); }
@@ -1050,7 +1050,7 @@ public final class ClientExternalEffects {
         }
     }
 
-    // ---- 帳簿を進める・描く ----------------------------------------------------------------------
+    // ---- 管理テーブルを進める・描く ----------------------------------------------------------------------
 
     @SubscribeEvent public static void tick(ClientTickEvent.Post event) {
         currentWorld();
@@ -1067,7 +1067,7 @@ public final class ClientExternalEffects {
     @SubscribeEvent(priority = EventPriority.LOWEST)
     public static void render(RenderLevelStageEvent event) {
         var stage = event.getStage();
-        // フレームの最初の段階で計数を戻す（AFTER_SKY は、どの描く段階よりも前）。
+        // フレームの最初の段階でカウンターを戻す（AFTER_SKY は、どの描く段階よりも前）。
         if (stage == RenderLevelStageEvent.Stage.AFTER_SKY) {
             lastFrameQuads = lastFrameBatches = 0; lastFrameNanos = 0;
             var level = Minecraft.getInstance().level;
@@ -1082,7 +1082,7 @@ public final class ClientExternalEffects {
         long started = System.nanoTime();
         int quads = 0;
         for (var effect : effects) {
-            // 実体を失ったなどで終わった演出は、次のtickで帳簿から外れるまでの間も描かない。
+            // エンティティを失ったなどで終わった演出は、次のtickで管理テーブルから外れるまでの間も描かない。
             if (effect.stage() != stage || effect.finished()) continue;
             int drawn = effect.render(event.getPoseStack(), event.getCamera(), event.getPartialTick().getGameTimeDeltaPartialTick(false), client);
             quads += drawn;
@@ -1101,11 +1101,11 @@ public final class ClientExternalEffects {
 
     @SubscribeEvent public static void externalEffectsLogout(ClientPlayerNetworkEvent.LoggingOut event) { cancelAll(); world = null; }
 
-    /** 試験用の入口: 球の、揺れを足す前の位置。球でなければnull。 */
+    /** テスト用の入口: 球の、揺れを足す前の位置。球でなければnull。 */
     public static @Nullable Vec3 orbBaseForTest(String ownerModId, long effectId, float partial) {
         return BOOK.get(ownerModId, effectId) instanceof Orb orb ? orb.base(partial) : null;
     }
 
-    /** 試験用の入口: 帳簿の数も含めて捨てる。 */
+    /** テスト用の入口: 管理テーブルの数も含めて捨てる。 */
     public static void resetForTest() { BOOK.reset(); world = null; lastFrameQuads = lastFrameBatches = 0; lastFrameNanos = totalQuads = 0; }
 }

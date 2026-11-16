@@ -1,0 +1,11 @@
+{
+  "replace": false,
+  "values": [
+    "academy:skill_contact",
+    "academy:electromaster_contact",
+    "academy:meltdowner_contact",
+    "academy:teleporter_contact",
+    "academy:vecmanip_contact",
+    "academy:dark_matter_contact"
+  ]
+}

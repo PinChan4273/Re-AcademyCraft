@@ -36,7 +36,7 @@ public record SkillBurst(ResourceLocation dimension, int entityId, ResourceLocat
                 b.readVarInt(), b.readResourceLocation(), b.readUnsignedByte());
     }
 
-    /** 術者と範囲内の全員へ伝える。テストの治具プレイヤーはlevelのプレイヤー一覧に居ないので、術者には明示的に送る。 */
+    /** 術者と範囲内の全員へ伝える。テストのFakePlayerはlevelのプレイヤー一覧に居ないので、術者には明示的に送る。 */
     public static void showNear(ServerPlayer caster, Entity target, ResourceLocation kind, int value) {
         var burst = new SkillBurst(caster.level().dimension().location(), target.getId(), kind, value);
         send(caster, burst);

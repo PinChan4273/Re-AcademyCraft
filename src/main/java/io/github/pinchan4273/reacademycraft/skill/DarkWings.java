@@ -13,7 +13,7 @@ import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.neoforge.network.PacketDistributor;
 
 /**
- * 未元物質の六翼の展開（§1）。系統を取得していれば、技能が未習得でもVキーの能力使用モードで翼が出て、OFFで収納する。
+ * 未元物質の六翼の展開。系統を取得していれば、技能が未習得でもVキーの能力使用モードで翼が出て、OFFで収納する。
  * 見た目だけで費用は無い。ここはサーバーの状態を持ち、変化を術者と見ている人へ伝える。描画は {@code client/ClientDarkWings}。
  */
 @net.neoforged.fml.common.EventBusSubscriber(modid = "academy")
@@ -50,7 +50,7 @@ public final class DarkWings {
             net.neoforged.neoforge.network.PacketDistributor.sendToPlayer(watcher, new io.github.pinchan4273.reacademycraft.network.DarkWingAction(target.getId(), io.github.pinchan4273.reacademycraft.network.DarkWingAction.FLIGHT, WhiteWingFlight.mode(target), 0));
     }
     @SubscribeEvent public static void logout(PlayerEvent.PlayerLoggedOutEvent e) { DEPLOYED.remove(e.getEntity().getUUID()); }
-    // 次元の移動と復活ではクライアントの実体が作り直されるので、次のtickで送り直す。
+    // ディメンションの移動と復活ではクライアントのエンティティが作り直されるので、次のtickで送り直す。
     @SubscribeEvent public static void dimension(PlayerEvent.PlayerChangedDimensionEvent e) { DEPLOYED.remove(e.getEntity().getUUID()); }
     @SubscribeEvent public static void respawn(PlayerEvent.PlayerRespawnEvent e) { DEPLOYED.remove(e.getEntity().getUUID()); }
     @SubscribeEvent public static void stopped(ServerStoppedEvent e) { DEPLOYED.clear(); }

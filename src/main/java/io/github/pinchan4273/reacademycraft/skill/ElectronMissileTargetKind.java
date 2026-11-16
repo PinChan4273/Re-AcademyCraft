@@ -4,11 +4,11 @@ import java.util.Locale;
 import javax.annotation.Nullable;
 
 /**
- * Electron Missileの攻撃対象の4つの分類（F9-02）。分類ごとに、撃ってよいかをプレイヤーがON／OFFで選ぶ。
+ * Electron Missileの攻撃対象の4つの分類。分類ごとに、撃ってよいかをプレイヤーがON／OFFで選ぶ。
  * 生き物がどの分類になるかは{@link ElectronMissileTargeting#classify}が決める（重なるときの順もそこに書く）。
  * <p>
  * 既定は敵対だけON（{@link #defaultOn()}）。1.2.0は射程の中のすべての生き物を撃っていたので、選んでいないプレイヤー（既存のセーブを含む）は、
- * 中立・友好の生き物とプレイヤーを撃たなくなる（安全側の既定。採用の根拠は正式RCの証拠に記録する）。
+ * 中立・友好の生き物とプレイヤーを撃たなくなる（安全側の既定）。
  */
 public enum ElectronMissileTargetKind {
     HOSTILE("hostile", true), NEUTRAL("neutral", false), FRIENDLY("friendly", false), PLAYER("player", false);

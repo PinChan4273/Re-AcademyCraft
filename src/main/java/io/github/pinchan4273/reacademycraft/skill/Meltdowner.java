@@ -20,7 +20,8 @@ import net.neoforged.fml.common.Mod;
 /**
  * 原作Meltdowner（WeAthFolD）: カテゴリの名前の由来であるレベル3技能。
  *
- * 押し続けて溜める。Scatter BombやLight Shieldと同じく、オーバーロードは開始時に1回払ってそこを下限にし、CPは毎tick払う。
+ * 押し続けて溜める。オーバーロードは開始時に1回lerp(200, 120)払い（1.5.2。1.5.1はlerp(200, 170)）、CPは毎tick払う。
+ * 原作は開始の値を溜めの間の下限にしたが、1.5.2から、溜めの間もオーバーロードは回復する。
  * 20tick以上溜めてから離すと、広く貫く光線を1本撃つ。それより早く離すか中断すると何も撃たず、溜めは失われる。100tickを超えて
  * 押し続けても撃たずに溜めが終わる。光線の強さは溜めた長さ（40tickが上限）に従い、原作のtimeRateは20tickで0.8、40tickで1.2まで上がる。
  *
@@ -28,9 +29,11 @@ import net.neoforged.fml.common.Mod;
  * （RailgunAttack、RailgunTerrain、RailgunGeometry）を共有する: 半径lerp(2, 3, exp)の円柱に沿ったエンティティへのダメージ
  * （横の距離で減衰）、次に同じ断面でのエネルギーに限りのある地形の光線。光線を反射する対象（リスナーが取り消したSkillReflectEvent）は
  * そこで光線を止め、反射した者からlerp(20, 50, exp)の半分で10ブロックの光線を1本撃つ。原作の唯一のリスナーはVector Manipulationの
- * Vector Reflectionなので、移植版ではまだこのイベントを取り消すものは無い。
+ * Vector Reflectionで、移植版も1.5.2から、無効にできる光線を{@link VecReflection}が反射方向へ折り返す。
+ * ベクトル反射が折り返す光線の量は、半分の値ではなく、反射した人に当たるはずだった量
+ * （timeRate × lerp(18, 50, exp) × 横の減衰。補正のイベントの後）× 反射した人の割合（{@link VecReflection#beamDamage}）。
  *
- * 原作はここでMDDamageHelperではなくctx.attackでダメージを与えるので、カテゴリの名前の由来である光線はRadiation Intensifyの印を
+ * 原作はここでMDDamageHelperではなくctx.attackでダメージを与えるので、カテゴリの名前の由来である光線はRadiation Intensifyのマーカーを
  * 残さない。書かれたとおりに移植している。
  */
 @net.neoforged.fml.common.EventBusSubscriber(modid = "academy")
@@ -45,13 +48,15 @@ public final class Meltdowner {
     /** 原作Context.getRange(): コンテキストのクライアントへのメッセージは50ブロック以内の全員へ届く。 */
     private static final double PRESENTATION_RANGE = 50;
     private static final Map<UUID, Session> ACTIVE = new HashMap<>();
+    /** 開始のオーバーロード（1.5.2でlerp(200, 170)からlerp(200, 120)へ）。 */
+    public static float startOverload(float exp) { return ArcGen.lerp(200, 120, exp); }
 
     private static final class Session {
-        final Level level; final int preset, slot; final float exp, overloadFloor;
+        final Level level; final int preset, slot; final float exp;
         int ticks; long heartbeat;
         Session(ServerPlayer player, PlayerAbilityData data, int slot) {
             level = player.level(); preset = data.getCurrentPreset(); this.slot = slot;
-            exp = data.getProficiency(ID); overloadFloor = data.getOverload(); heartbeat = level.getGameTime();
+            exp = data.getProficiency(ID); heartbeat = level.getGameTime();
         }
         float tickConsumption() { return ArcGen.lerp(10, 15, exp); }
     }
@@ -77,8 +82,8 @@ public final class Meltdowner {
         if (data.getCooldown(ID) > 0) return "academy.cast.cooldown";
         if (player.containerMenu != player.inventoryMenu) return "academy.cast.unlearned";
         if (ACTIVE.containsKey(player.getUUID())) return "";
-        // 原作はオーバーロード全体を最初に払い、それより下へ減らさない。
-        if (!data.consume(ID, 0, ArcGen.lerp(200, 170, data.getProficiency(ID)), player.getAbilities().instabuild))
+        // 原作はオーバーロード全体を最初に払い、それより下へ減らさなかった（1.5.2から、溜めの間も回復する）。
+        if (!data.consume(ID, 0, startOverload(data.getProficiency(ID)), player.getAbilities().instabuild))
             return "academy.cast.cp";
         ACTIVE.put(player.getUUID(), new Session(player, data, slot));
         // 原作c_start: md.md_chargeはコンテキストが終わるまで（離した後も含む）術者に付いて行く。
@@ -145,9 +150,9 @@ public final class Meltdowner {
 
     /**
      * 原作c_perform/c_reflected。主光線は反射時にmin(30, reflector.getDistanceSq(player))へ短くなる。距離の2乗を長さと比べているが、
-     * 描画にしか影響しないので再現している。反射光線は術者自身の視線に沿って、反射した者の目が術者から離れているのと同じだけ先から始まり、
-     * 反射した者ではなく術者の方向を保つ: 原作は新しいEntityMDRay(player, 10)を回さずにそこへ動かし、ダメージ自体は反射した者の
-     * 見る方向へ行く。
+     * 描画にしか影響しないので再現している。反射光線は術者自身の視線に沿って、反射した者の目が術者から離れているのと同じだけ先から始まる。
+     * 原作は反射光線を回さずに術者の方向のまま描き、ダメージだけが反射した者の見る方向へ行った。1.5.2から、描画も実際の当たりと
+     * 同じ向き（{@link RailgunAttack.Result#reflectDirection}）へ描く。
      */
     private static void present(ServerPlayer player, Vec3 look, RailgunAttack.Result attack) {
         var eyes = player.getEyePosition(); var feet = player.position();
@@ -159,11 +164,10 @@ public final class Meltdowner {
         }
         var reflector = attack.reflector();
         if (reflector != null) {
-            var ends = beamEnds(eyes, feet, look, REFLECTED_BEAM_LENGTH);
-            var start = eyes.add(look.scale(eyes.distanceTo(reflector.getEyePosition())));
-            var shift = start.subtract(ends[0]);
+            // 1.5.2: 実際の当たりと同じ始点（反射した者の目）と向きで描く。
+            var ends = RailgunAttack.reflectedBeam(eyes, look, attack, REFLECTED_BEAM_LENGTH);
             broadcast(player, new MdRayEffect(dimension, player.getUUID(), player.getId(), nextSession(),
-                    start, ends[1].add(shift), MdRayEffect.MELTDOWNER));
+                    ends[0], ends[1], MdRayEffect.MELTDOWNER));
         }
     }
     private static long nextSession() { return io.github.pinchan4273.reacademycraft.network.MdSessions.next(); }
@@ -182,9 +186,8 @@ public final class Meltdowner {
                 || data.getCurrentPreset() != session.preset
                 || !ID.equals(data.getSlot(session.preset, session.slot))
                 || now - session.heartbeat > 10) { stop(player); return; }
-        // 原作はまずtickを数え、次にオーバーロードの下限を設け、CPを払い、許容時間を適用する。
+        // 原作はまずtickを数え、次にオーバーロードの下限を設け（1.5.2 R2で廃止）、CPを払い、許容時間を適用する。
         session.ticks++;
-        if (data.getOverload() < session.overloadFloor) data.setOverload(session.overloadFloor);
         if (!data.consume(ID, session.tickConsumption(), 0, player.getAbilities().instabuild) || session.ticks > TICKS_TOLE)
             stop(player);
     }

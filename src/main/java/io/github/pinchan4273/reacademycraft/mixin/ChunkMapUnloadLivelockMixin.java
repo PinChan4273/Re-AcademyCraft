@@ -11,7 +11,7 @@ import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
- * 「保存して終了」でサーバーが止まる問題（M-03）の回避（W1、2026-10-17。修正候補で、M-03はまだ解決済みではない）。
+ * 「保存して終了」でサーバーが止まる問題の回避（すべての場合で直ったことは確かめていない）。
  *
  * <p>Minecraft 1.21.1の{@code ChunkMap.processUnloads}の後半の
  * {@code while ((hasMoreTime || k > 0) && (runnable = unloadQueue.poll()) != null)}は、
@@ -25,7 +25,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  *
  * <p>列の要素は取り除かず（{@code null}を返してループを終えるだけ）、保存・解放・生成の処理は飛ばさない。
  * 時間の無いとき（{@code hasMoreTime}がfalseで{@code k}が0）は、元から{@code poll()}を呼ばないので変わらない。
- * 挙動は、診断のE1-Fで確かめた{@code m03diag.mixin.ChunkMapW1Mixin}（02ca6e9f）と同じで、計測だけを除いた。
+ * 挙動は、診断で確かめた版と同じで、計測だけを除いた。
  */
 @Mixin(ChunkMap.class)
 abstract class ChunkMapUnloadLivelockMixin {

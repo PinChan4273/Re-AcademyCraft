@@ -28,7 +28,7 @@ import net.neoforged.fml.common.Mod;
 import org.lwjgl.glfw.GLFW;
 
 /**
- * 原作FreqTransmitterUI（AcademyCraft commit 7b1401c）: 周波数送信機のアプリの窓。端末から切り替わった後、ゲームの上に描く。
+ * 原作FreqTransmitterUI（AcademyCraft commit 7b1401c）: 周波数送信機のアプリのウィンドウ。端末から切り替わった後、ゲームの上に描く。
  * 開いている間、マウスのボタンはこのアプリが使う: 目から4ブロック以内のブロックを右クリックすると、それを対象にする。
  *
  * - 開始: 「matrixかnodeを右クリック」。matrixなら、そのSSID（無ければe0）を問い合わせ、次にそのネットワークのパスワードを求める。
@@ -38,7 +38,7 @@ import org.lwjgl.glfw.GLFW;
  * - nodeの後: 右クリックした各機械を、そのnodeへ繋ぐ（e5、次にe6で戻る。またはe3）。
  * - どの状態も20秒で、サーバーの返事を待つ間は3秒で時間切れになる（"st"）。
  *
- * 文言・箱・位置は原作のもの: アプリの箱は(15, 15)でアイコン付き、注記は中央の右下、パスワードの箱は140×40。
+ * 文言・ボックス・位置は原作のもの: アプリのボックスは(15, 15)でアイコン付き、注記は中央の右下、パスワードのボックスは140×40。
  * 原作は、パスワードの入力中、キーをすべて横取りする。ここでは空の画面がキーを受け取り、Escapeで送信機を閉じる。
  * 原作のnodeのパスワードの入力は、案内に"Authorizing..."（s1_1）を出す。そのまま残している。
  */
@@ -91,7 +91,7 @@ public final class FreqTransmitterHud {
         var client = Minecraft.getInstance(); var player = client.player;
         if (player == null) return null;
         var eye = player.getEyePosition(); var end = eye.add(player.getViewVector(1).scale(4));
-        // filNormalを使う原作traceLiving(player, 4, nothing): 当たり判定の箱があるブロックだけで止まる。
+        // filNormalを使う原作traceLiving(player, 4, nothing): 当たり判定のバウンディングボックスがあるブロックだけで止まる。
         var hit = client.level.clip(new ClipContext(eye, end, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, player));
         return hit.getType() == HitResult.Type.BLOCK ? hit : null;
     }
@@ -139,7 +139,7 @@ public final class FreqTransmitterHud {
         if (client.screen != null && !(client.screen instanceof KeyCapture)) return;
         var g = event.getGuiGraphics();
         float w = net.minecraft.client.Minecraft.getInstance().getWindow().getGuiScaledWidth(), h = net.minecraft.client.Minecraft.getInstance().getWindow().getGuiScaledHeight();
-        // アプリの箱: アイコンと名前を(15, 15)に。
+        // アプリのボックス: アイコンと名前を(15, 15)に。
         var pose = g.pose(); var font = client.font;
         String name = local("name");
         float len = font.width(name) * 10 / 9f;
@@ -163,7 +163,7 @@ public final class FreqTransmitterHud {
         g.drawString(Minecraft.getInstance().font, text, 0, 0, argb, false);
         g.pose().popPose();
     }
-    /** 原作drawTextBox: 文字を120で折り返し、余白5の箱に入れる。 */
+    /** 原作drawTextBox: 文字を120で折り返し、余白5のボックスに入れる。 */
     private static void textBox(GuiGraphics g, String str, float x, float y) {
         var font = Minecraft.getInstance().font; float s = 10 / 9f;
         List<String> lines = TutorialMarkdown.multiline(str, t -> font.width(t) * s, 0, 120);

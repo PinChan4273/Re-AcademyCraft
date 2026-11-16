@@ -4,7 +4,7 @@ import org.joml.Matrix3f;
 import org.joml.Vector3f;
 
 /**
- * 刺突でしなる翼の中心の線（2026-11-05のユーザーの要望「元の直線的な翼のままの刺突を緩やかにしならせる」と、同じ日に決めた「しなりを相手までの距離で変える」）。
+ * 刺突でしなる翼の中心の線（元の直線的な翼のままの刺突を緩やかにしならせ、しなりを相手までの距離で変える）。
  * <p>
  * 線は根元Pから出だしの向きe1で出て、e1とe2の面の上で曲がる。向きの角φは、根元から曲がりの長さLbまでは θ·g(s/Lb)、その先はθのまま
  * （まっすぐ相手へ向かう）。g は曲率が κ ∝ 1 - C·u の形で、C（曲がり方の配分）が0なら真円の弧、大きいほど根元の側に曲がりが集まる。
@@ -13,7 +13,7 @@ import org.joml.Vector3f;
  * 形は相手までの距離で連続に変える（{@link #design}）: 近いほど真横へ出て真円に近い小さな弧で体の横を包むように回り、遠いほど外かつ前へ出て、
  * 根元の近くでゆるく曲がってから長くまっすぐ伸びる。曲がる側はいつも翼と同じ側（外）で、頭の上を越えて反対側へ回ることはない。
  * <p>
- * Minecraftの部品に依らない（jomlだけを使う）ので、掃引の道具からも同じ物を動かせる。位置と長さは翼の取付の空間（モデルの単位。+xが翼の外側）。
+ * Minecraftの部品に依らない（jomlだけを使う）ので、掃引の道具からも同じ物を動かせる。位置と長さは翼の取付の座標系（モデルの単位。+xが翼の外側）。
  */
 final class WingBend {
     /** 距離の境目（ブロック、根元から届いた点まで）: これ以下は一番近い形、これ以上は一番遠い形（射程の上限16ブロック）。間は連続に移す。 */
@@ -130,7 +130,7 @@ final class WingBend {
 
     // ---- 距離で形を決める ----
 
-    /** 決めた形: 曲がる側（取付の空間、届いた点の向きに直角）、曲がりの角（度）、平均の半径、曲がり方の配分。 */
+    /** 決めた形: 曲がる側（取付の座標系、届いた点の向きに直角）、曲がりの角（度）、平均の半径、曲がり方の配分。 */
     static final class Shape {
         final Vector3f side = new Vector3f();
         float theta, radius, curl, gamma;  // gamma: 根元の向き（真横から前へ、度）
@@ -151,7 +151,7 @@ final class WingBend {
      * 半径と曲がり方の配分も距離で移し、その根元の向きになる曲がりの角θを解く。
      * <p>
      * 体に当たらない分だけ外へ出す: その形で中心の線と根元・中節の羽（probes）が体（{@link #DEEP}）へ入るなら、根元の向きを入らなくなる所まで外へ戻す
-     * （連続に動くよう二分法で詰める。外へ戻しても入るなら、刻んだ中で一番浅い所）。rightは右の翼か（取付の空間の前の向きが左右で逆）。
+     * （連続に動くよう二分法で詰める。外へ戻しても入るなら、刻んだ中で一番浅い所）。rightは右の翼か（取付の座標系の前の向きが左右で逆）。
      * naturalは伸ばさない翼の長さ、maxStretchは引き伸ばしてよい倍率、width・rootWidthは中節から先と根元の節の幅の倍率（描くときと同じ）。
      * 届く組がなければfalse。
      */
@@ -162,7 +162,7 @@ final class WingBend {
         if (distance < 1e-2f) return false;
         u.div(distance);
         float k = reachShare(distance);
-        // 取付の空間の前の向き（左は-z、右は+z。右は親がY軸で180度回っている）。届いた点の水平の向き（真横から前へ測る角、度）。
+        // 取付の座標系の前の向き（左は-z、右は+z。右は親がY軸で180度回っている）。届いた点の水平の向き（真横から前へ測る角、度）。
         float forward = right ? 1 : -1, ahead = u.z * forward;
         float azimuth = u.x * u.x + ahead * ahead < 1e-4f ? 90 : (float) Math.toDegrees(Math.atan2(ahead, u.x));
         // 反対側の的では、真横から出ると曲がりの角の上限を超えないと届かないので、開きがOPEN_MAXを超えないよう根元を前へ回す。
@@ -213,8 +213,8 @@ final class WingBend {
     /** 形を測る羽: 真っ直ぐな翼での付け根の位置（根元からの長さ）、羽自身の回転、長さ、幅、根元の節か。 */
     record Probe(float base, Matrix3f turn, float length, float width, boolean root) { }
     /**
-     * 体の箱（体の部品の空間、{x, y, z の最小, x, y, z の最大}）。余裕なしの頭と胴を1だけ内へ縮めた物（根元は背中のすぐ後ろにあり、止まっている
-     * 翼の根元の羽も余裕なしの箱へ少し入るので、はっきり貫くかをこちらで測る）。
+     * 体のバウンディングボックス（体の部品の座標系、{x, y, z の最小, x, y, z の最大}）。余裕なしの頭と胴を1だけ内へ縮めた物（根元は背中のすぐ後ろにあり、止まっている
+     * 翼の根元の羽も余裕なしのバウンディングボックスへ少し入るので、はっきり貫くかをこちらで測る）。
      */
     static final float[][] DEEP = {{-3, -7, -3, 3, -1, 3}, {-3, 1, -1, 3, 11, 1}};
     /** 中心の線を確かめるときに区切る数。 */
@@ -237,13 +237,13 @@ final class WingBend {
         var at = new Vector3f(); var turn = new Matrix3f(); var shapeOf = new Matrix3f(); var scratch = new Vector3f();
         for (var probe : probes) {
             curve.feather(probe.base * stretch, probe.length * stretch, back, at, turn);
-            // 羽の板: 付け根から+xへ長さ、±yへ幅の半分（扇の角は羽自身の回転）。引き伸ばしと幅の倍率は羽の向きの空間で掛ける。
+            // 羽の板: 付け根から+xへ長さ、±yへ幅の半分（扇の角は羽自身の回転）。引き伸ばしと幅の倍率は羽の向きの座標系で掛ける。
             shapeOf.set(turn).scale(stretch, probe.root ? rootWidth : width, 1).mul(probe.turn);
             total += kite(right, at, shapeOf, probe.length, probe.width, DEEP, scratch);
         }
         return total;
     }
-    /** 羽の板（付け根at、向きと倍率shape、長さ、幅）を涙形に近い凧形（付け根・長さの15%で一番広い所・先）で、箱を通る長さを測る。 */
+    /** 羽の板（付け根at、向きと倍率shape、長さ、幅）を涙形に近い凧形（付け根・長さの15%で一番広い所・先）で、バウンディングボックスを通る長さを測る。 */
     static float kite(boolean right, Vector3f at, Matrix3f shape, float length, float width, float[][] boxes, Vector3f scratch) {
         var base = toBody(right, new Vector3f(at));
         var end = toBody(right, shape.transform(scratch.set(length, 0, 0)).add(at));
@@ -254,11 +254,11 @@ final class WingBend {
         return through(base, end, boxes) + through(base, up, boxes) + through(base, down, boxes) + through(up, end, boxes)
                 + through(down, end, boxes) + through(down, up, boxes);
     }
-    /** 取付の空間の位置を、体の部品の空間へ（翼の親は(0,3,3)、取付は左右に1.5。右はY軸で180度回っている）。vを書き換えて返す。 */
+    /** 取付の座標系の位置を、体の部品の座標系へ（翼の親は(0,3,3)、取付は左右に1.5。右はY軸で180度回っている）。vを書き換えて返す。 */
     static Vector3f toBody(boolean right, Vector3f v) {
         return right ? v.set(-1.5f - v.x, 3 + v.y, 3 - v.z) : v.set(1.5f + v.x, 3 + v.y, 3 + v.z);
     }
-    /** 線分abが、箱（{x, y, z の最小, x, y, z の最大}の並び）の中を通る長さ。 */
+    /** 線分abが、バウンディングボックス（{x, y, z の最小, x, y, z の最大}の並び）の中を通る長さ。 */
     static float through(Vector3f a, Vector3f b, float[][] boxes) {
         float total = 0, length = a.distance(b);
         for (var box : boxes) {

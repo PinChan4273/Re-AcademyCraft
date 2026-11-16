@@ -3,7 +3,7 @@ package io.github.pinchan4273.reacademycraft.api;
 import javax.annotation.Nullable;
 
 /**
- * 開発機の技能の木の中の場所（公開API、実験的）。木の領域は257×139で、技能の印は16×16なので、xは0〜241、yは0〜123。
+ * 開発機の技能の木の中の場所（公開API、実験的）。木の領域は257×139で、技能のアイコンは16×16なので、xは0〜241、yは0〜123。
  * parentは線を引く元の技能（無ければnull）。線は、その技能の前提の1つから引く（前提でない技能からは引かない）。
  */
 public record TreePosition(float x, float y, @Nullable AbilityId parent) {

@@ -9,10 +9,10 @@ import io.github.pinchan4273.reacademycraft.api.SkillRequirement;
 import java.util.List;
 
 /**
- * 本体の4カテゴリと41技能の定義（1.4.0のS2）と、v1.5.0で後ろに足した未元物質（1カテゴリ・9技能、{@link #registerDarkMatter}）。値と並びは公開1.3.0のSkillCatalog・AbilityCategory・GenericSkills・AbilityActionと同じで、
+ * 本体の4カテゴリと41技能の定義（1.4.0）と、v1.5.0で後ろに足した未元物質（1カテゴリ・9技能、{@link #registerDarkMatter}）。値と並びは公開1.3.0のSkillCatalog・AbilityCategory・GenericSkills・AbilityActionと同じで、
  * CatalogGoldenGameTestsが、1.3.0のソースから取り出した正解の表と照らす。原作の由来の説明は、移す前のSkillCatalog・AbilityCategoryの
- * 注記（git履歴の03f1f238）にある。IDは技能のクラスの定数でなく文字列で書く（登録簿を作る時に技能のクラスを読み込まない）。
- * 発動の種類: 受動はPASSIVE、AbilityActionの押し続けの集合はHELD、切り替えの集合はTOGGLE、ほか（モードを持つ技能を含む）はINSTANT。
+ * 注記（git履歴）にある。IDは技能のクラスの定数でなく文字列で書く（レジストリを作る時に技能のクラスを読み込まない）。
+ * 発動の種類: パッシブはPASSIVE、AbilityActionの押し続けの集合はHELD、切り替えの集合はTOGGLE、ほか（モードを持つ技能を含む）はINSTANT。
  */
 final class BuiltinAbilities {
     private BuiltinAbilities() { }
@@ -20,13 +20,13 @@ final class BuiltinAbilities {
     static AbilityRegistry register(AbilityRegistry registry) {
         var r = registry.registrar(AbilityRegistry.ACADEMY);
         r.category(new CategoryDefinition(AbilityId.parse("academy:electromaster"), AbilityId.parse("academy:factor_electromaster"), List.of(2, 2, 2, 2, 1),
-                new Presentation("academy.ability.electromaster", null, null)));
+                new Presentation("academy.ability.electromaster", null, null), true));
         r.category(new CategoryDefinition(AbilityId.parse("academy:meltdowner"), AbilityId.parse("academy:factor_meltdowner"), List.of(1, 2, 2, 3, 2),
-                new Presentation("academy.ability.meltdowner", null, null)));
+                new Presentation("academy.ability.meltdowner", null, null), true));
         r.category(new CategoryDefinition(AbilityId.parse("academy:teleporter"), AbilityId.parse("academy:factor_teleporter"), List.of(1, 2, 2, 1, 1),
-                new Presentation("academy.ability.teleporter", null, null)));
+                new Presentation("academy.ability.teleporter", null, null), true));
         r.category(new CategoryDefinition(AbilityId.parse("academy:vecmanip"), AbilityId.parse("academy:factor_vecmanip"), List.of(2, 2, 2, 2, 1),
-                new Presentation("academy.ability.vecmanip", null, null)));
+                new Presentation("academy.ability.vecmanip", null, null), true));
         r.skill(new SkillDefinition(AbilityId.parse("academy:arc_gen"), AbilityId.parse("academy:electromaster"), 1, List.of(),
                 ActivationKind.INSTANT, new Presentation("academy.skill.arc_gen", "academy.developer.desc.arc_gen", null)));
         r.skill(new SkillDefinition(AbilityId.parse("academy:charging"), AbilityId.parse("academy:electromaster"), 1, List.of(new SkillRequirement(AbilityId.parse("academy:arc_gen"), 0.3f)),
@@ -114,22 +114,23 @@ final class BuiltinAbilities {
     }
 
     /**
-     * v1.5.0の未元物質（採用仕様・版41の§1）。既存の41技能・4カテゴリの並びと条件を変えないよう、すべての後ろに登録する。
-     * 能動技能の数はレベル1〜5で2・2・2・1・1（§2）。人体生成は受動（Lv5）。前提の熟練度は§1の表のとおり。
+     * v1.5.0の未元物質。既存の41技能・4カテゴリの並びと条件を変えないよう、すべての後ろに登録する。
+     * アクティブ技能の数はレベル1〜5で2・2・2・1・1。人体生成はパッシブ（Lv5）。
      * 習得できるのは実装済みの技能だけ（{@link io.github.pinchan4273.reacademycraft.skill.DarkMatter#learnable}）。
      */
     private static void registerDarkMatter(io.github.pinchan4273.reacademycraft.api.AbilityRegistrar r) {
         var dm = AbilityId.parse("academy:dark_matter");
+        // レベル3の2は、1.5.2 で未元装甲を廃止した後もそのまま（昇級の必要経験を変えない。AbilityCategory.DARK_MATTER）。
         r.category(new CategoryDefinition(dm, AbilityId.parse("academy:factor_dark_matter"), List.of(2, 2, 2, 1, 1),
-                new Presentation("academy.ability.dark_matter", null, null)));
+                new Presentation("academy.ability.dark_matter", null, null), true));
         dmSkill(r, dm, "white_wing_stab", 1, List.of(), ActivationKind.HELD);
-        // 白翼飛行は受動（2026-11-03のユーザーの決定。翼の展開中、設定に応じたジャンプ操作（既定は長押し、2回押しも選べる）で離陸する）。キーに割り当てない。
+        // 白翼飛行はパッシブ（翼の展開中、設定に応じたジャンプ操作（既定は長押し、2回押しも選べる）で離陸する）。キーに割り当てない。
         dmSkill(r, dm, "white_wing_flight", 1, List.of(), ActivationKind.PASSIVE);
         dmSkill(r, dm, "dark_matter_ray", 2, List.of(new SkillRequirement(AbilityId.parse("academy:white_wing_stab"), 0.25f)), ActivationKind.TOGGLE);
         dmSkill(r, dm, "white_wing_guard", 2, List.of(new SkillRequirement(AbilityId.parse("academy:white_wing_flight"), 0.25f)), ActivationKind.TOGGLE);
         dmSkill(r, dm, "dark_matter_air_cannon", 3, List.of(new SkillRequirement(AbilityId.parse("academy:dark_matter_ray"), 0.25f)), ActivationKind.INSTANT);
-        // 未元装甲は能力使用モードの間だけ働く受動技能（2026-11-03のユーザーの決定。以前はトグル）。
-        dmSkill(r, dm, "dark_matter_armor", 3, List.of(new SkillRequirement(AbilityId.parse("academy:white_wing_guard"), 0.5f)), ActivationKind.PASSIVE);
+        // 1.5.2: 未元装甲（Lv3、白翼自動防御50%が前提のパッシブ技能）は廃止して、翼の防御に集約した。登録しない
+        // （旧ID academy:dark_matter_armor の習得・熟練度の記録は、PlayerAbilityData が読み書きで残す）。
         // v1.5.1: 押し続け型（短く押して離すと生成、長押しで全個体の回収。DarkMatterBeetles）。
         dmSkill(r, dm, "dark_matter_beetle", 4, List.of(new SkillRequirement(AbilityId.parse("academy:dark_matter_air_cannon"), 0.25f)), ActivationKind.HELD);
         dmSkill(r, dm, "heaven_manifest", 5, List.of(new SkillRequirement(AbilityId.parse("academy:dark_matter_beetle"), 0.25f)), ActivationKind.TOGGLE);

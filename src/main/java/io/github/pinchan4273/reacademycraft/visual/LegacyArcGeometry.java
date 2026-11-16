@@ -55,7 +55,7 @@ public final class LegacyArcGeometry {
         return generate(profile, profile.from + random.nextDouble() * (profile.to - profile.from), random);
     }
 
-    /** 長さは幾何の空間のもので、能力の射程や対象の許可ではない。 */
+    /** 長さは幾何の座標系のもので、能力の射程や対象の許可ではない。 */
     public static Pattern generate(Profile profile, double length, RandomGenerator random) {
         Objects.requireNonNull(profile); Objects.requireNonNull(random);
         if (!Double.isFinite(length) || length < 0 || length > 32)

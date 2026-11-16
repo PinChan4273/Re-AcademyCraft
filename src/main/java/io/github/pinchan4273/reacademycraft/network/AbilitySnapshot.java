@@ -76,7 +76,7 @@ public record AbilitySnapshot(UUID player, ResourceLocation dimension,
         cpPart.putBoolean(AbilityDataSchema.DARK_BODY, darkBody);
         skills.writeToTag(tag);
         data.load(tag);
-        // 妨害の印は保存される形には含まれない。保存せず、伝えるだけ。
+        // 妨害のフラグは保存される形には含まれない。保存せず、伝えるだけ。
         data.setInterfering(interfering);
         // セーフティの明滅も同じく伝えるだけ。loadの後に置くので、次の同期まで値が残る。
         data.setClientSafetyBlink(safetyBlink);

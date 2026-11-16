@@ -38,12 +38,12 @@ Re:AcademyCraftは、原作AcademyCraftに基づいて作った、**非公式**�
 - **LambdaLib2のシェーダー**: `src/main/resources/assets/academy/shaders/core/mono.fsh`は、LambdaLib2の`legacy_shader/mono.frag`（上記commit、ShaderMonoが使用）から移植しました。そのcommitのREADMEは「This project uses MIT license.」と述べていますが、LICENSEファイルも著作権の表示もありません。そのためMITの条件はそのREADMEの記述として記録するだけで、著作権者は推定していません。
 - **Minecraft由来のシェーダー**: `shaders/core/position_tex_color_keep.fsh`と`shaders/core/particle_keep.fsh`は、Minecraft 1.20.1（Mojang）の`position_tex_color.fsh`と`particle.fsh`の写しで、断片を捨てる条件を`color.a < 0.1`から`color.a == 0.0`へ変えたものです（Forge版と同じファイル）。Mojangのコンテンツとして、Minecraft EULAと利用ガイドラインに従います。
 - **NeoForge MDK**: `build.gradle`・`settings.gradle`・`gradle.properties`と`src/main/templates/META-INF/neoforge.mods.toml`は、NeoForgedのMDK（NeoForgeMDKs/MDK-1.21.1-ModDevGradle、commit `3bca8f1e0756c001e4b71f266c328d1568d29363`）を元にしています。そのテンプレートはMIT License（`TEMPLATE_LICENSE.txt`、Copyright (c) 2023 NeoForged project）です。
-- **Gradle wrapper**: `gradle/wrapper/gradle-wrapper.jar`はGradle 9.2.1のもの、`gradlew`と`gradlew.bat`はGradleの起動スクリプトで、Apache-2.0のヘッダーを保持しています。いずれもApache License 2.0です（`licenses/Gradle-Apache-2.0.txt`）。`gradle-wrapper.jar`のSHA-256は`423cb469ccc0ecc31f0e4e1c309976198ccb734cdcbb7029d4bda0f18f57e8d9`で、<https://services.gradle.org/distributions/gradle-9.2.1-wrapper.jar.sha256>の値と一致します（2026-10-14に確認）。配布ZIPのSHA-256は`gradle-wrapper.properties`で`72f44c9f8ebcb1af43838f45ee5c4aa9c5444898b3468ab3f4af7b6076c5bc3f`に固定しています。
+- **Gradle wrapper**: `gradle/wrapper/gradle-wrapper.jar`はGradle 9.2.1のもの、`gradlew`と`gradlew.bat`はGradleの起動スクリプトで、Apache-2.0のヘッダーを保持しています。いずれもApache License 2.0です（`licenses/Gradle-Apache-2.0.txt`）。`gradle-wrapper.jar`のSHA-256は`423cb469ccc0ecc31f0e4e1c309976198ccb734cdcbb7029d4bda0f18f57e8d9`で、<https://services.gradle.org/distributions/gradle-9.2.1-wrapper.jar.sha256>の値と一致します。配布ZIPのSHA-256は`gradle-wrapper.properties`で`72f44c9f8ebcb1af43838f45ee5c4aa9c5444898b3468ab3f4af7b6076c5bc3f`に固定しています。
 - **NeoForge**: 依存物です。この版には同梱していません（LGPL 2.1）。
 
 ## 素材
 
 - 画像・モデル・シェーダー・音・言語ファイル・教程の多くは、上流のAcademyCraftに由来します。
-- そのうち一部は、合理的な調査でも作者・権利者・再配布の条件を特定できていません。素材ごとの出所と状態はリポジトリの`ASSET_PROVENANCE.tsv`にあり、該当するものは`UNRESOLVED`としています。これは、使用許諾や権利の処理が済んでいるという意味ではありません。NeoForge版の`assets/`の中の画像・音・シェーダーなどの素材ファイル（jsonを除く556件）は、Forge版1.1.0と同じものです（2026-10-14にGitのblobで一致を確認）。
+- そのうち一部は、合理的な調査でも作者・権利者・再配布の条件を特定できていません。素材ごとの出所と状態はリポジトリの`ASSET_PROVENANCE.tsv`にあり、該当するものは`UNRESOLVED`としています。これは、使用許諾や権利の処理が済んでいるという意味ではありません。NeoForge版の`assets/`の中の画像・音・シェーダーなどの素材ファイル（jsonを除く556件）は、Forge版1.1.0と同じものです（Gitのblobで一致を確認）。
 - 権利の申立ては、リポジトリの`RIGHTS_CLAIMS.md`を見てください。
 - 原作が同梱していた市販の楽曲（「only my railgun」「LEVEL5-judgelight-」「sister's noise」）とそのCDジャケットは、**含みません**。

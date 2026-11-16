@@ -3,14 +3,14 @@ package io.github.pinchan4273.reacademycraft.skill;
 import net.minecraft.world.phys.Vec3;
 
 /**
- * Light Shieldの1枚の盾面の幾何（工程2）。サーバーの判定とクライアントの描画は、同じ値（法線・距離・半径）からここの式で盾を置く。
+ * Light Shieldの1枚の盾面の幾何。サーバーの判定とクライアントの描画は、同じ値（法線・距離・半径）からここの式で盾を置く。
  * <ul>
  * <li>盾の基点は術者の足元から{@link #CHEST}上（胸の高さ。1.2.0の描画と同じ）。中心は基点から法線の向きへ{@link #DISTANCE}。</li>
  * <li>見た目は法線の周りに回る正方形（一辺{@link #SIZE}、1.2.0と同じ）なので、判定は回転によらない内接円（半径＝一辺の半分）にする。
- * 中心から見た半角は約42度（Phase 0のS-A）。</li>
+ * 中心から見た半角は約42度。</li>
  * <li>大きさは起動から{@link #GROW_TICKS}tickで0.2倍から1倍へ育つ（1.2.0の描画と同じ）。判定も同じ大きさで育てる。</li>
  * </ul>
- * 数値はPhase 0の比較の第一候補（R-B 12、W-B 18度/tick、S-A 1.8）で、正式な値ではない。
+ * 数値は比較の第一候補で、正式な値ではない。
  */
 public final class LightShieldGeometry {
     private LightShieldGeometry() { }
@@ -23,9 +23,9 @@ public final class LightShieldGeometry {
     /** 大きさが育つtick数と、そのときの初めの倍率。 */
     public static final int GROW_TICKS = 15;
     public static final float GROW_FROM = .2f;
-    /** 1tickに回せる最大の角度（W-B）。 */
+    /** 1tickに回せる最大の角度。 */
     public static final double TURN_DEGREES = 18;
-    /** 標的を探す半径（R-B）。 */
+    /** 標的を探す半径。 */
     public static final double SEARCH_RADIUS = 12;
 
     /** 起動からticks経った盾の半径（判定にも描画にも使う）。 */
@@ -69,7 +69,7 @@ public final class LightShieldGeometry {
 
     /**
      * 攻撃の元の位置pointから術者へ向かう攻撃を、盾が受けるか。pointが盾の面より前にあれば、pointと基点を結ぶ線が面を通る点が、
-     * 円（半径radius + margin）の内にあるかで決める。面より手前（基点と面の間）にあれば、その位置の横のずれで決める。
+     * 円（半径radius + margin）の内にあるかで決める。面より手前（基点と面の間）にあれば、その位置の横のオフセットで決める。
      * 基点より後ろ（法線との内積が0以下）は受けない。marginは攻撃の元の当たり判定の半分の幅など、円を広げる量。
      */
     public static boolean covers(Vec3 base, Vec3 normal, double radius, Vec3 point, double margin) {

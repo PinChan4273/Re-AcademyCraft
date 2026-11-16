@@ -47,18 +47,18 @@ public final class AcademyCraft {
         NeoForge.EVENT_BUS.addListener(EventPriority.LOWEST, AbilityCapabilities::clonePlayer);
         NeoForge.EVENT_BUS.addListener(AbilityCapabilities::wakeUp);
         NeoForge.EVENT_BUS.addListener(this::registerCommands);
-        // v1.5.0 §15: 死亡の最終判断は、全MODのリスナーの後（最低優先度の最後）に置く。全MODの読み込みの完了の後、主スレッドで登録する。
+        // 死亡の最終判断は、全MODのリスナーの後（最低優先度の最後）に置く。全MODの読み込みの完了の後、主スレッドで登録する。
         modBus.addListener((net.neoforged.fml.event.lifecycle.FMLLoadCompleteEvent e) -> e.enqueueWork(io.github.pinchan4273.reacademycraft.skill.DeathOrder::register));
     }
 
     private void commonSetup(FMLCommonSetupEvent event) {
         event.enqueueWork(() -> {
-            // 1.4.0のS2: アドオンの能力の登録の窓を開いて閉じる（すべてのmodのバスへ1回だけ出し、すぐに凍結する）。
+            // 1.4.0: アドオンの能力の登録の受付期間を開いて閉じる（すべてのmodのバスへ1回だけ出し、すぐに凍結する）。
             net.neoforged.fml.ModLoader.postEvent(new io.github.pinchan4273.reacademycraft.api.neoforge.RegisterAbilitiesEvent());
             io.github.pinchan4273.reacademycraft.ability.AbilityRegistry.INSTANCE.freeze();
-            // 1.4.0のS4: 外部の技能の振る舞いの窓も閉じ、振り分けの表へ足す。
+            // 1.4.0: 外部の技能の振る舞いの受付期間も閉じ、ディスパッチテーブルへ足す。
             io.github.pinchan4273.reacademycraft.ability.SkillBehaviorRegistry.INSTANCE.freeze();
-            // 1.4.0のS4（D12）: 外部の技能の設定（名前空間ごとのSTARTUPの設定ファイル）。
+            // 1.4.0: 外部の技能の設定（名前空間ごとのSTARTUPの設定ファイル）。
             io.github.pinchan4273.reacademycraft.config.AddonSkillConfig.register(io.github.pinchan4273.reacademycraft.ability.AbilityRegistry.INSTANCE);
             LOGGER.info("AcademyCraft ability registry frozen: {} categories, {} skills",
                     io.github.pinchan4273.reacademycraft.ability.AbilityRegistry.INSTANCE.categories().size(),

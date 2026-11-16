@@ -4,9 +4,9 @@ import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.world.phys.Vec3;
 
 /**
- * 甲虫の空気砲撃の通知（サーバー→甲虫を見ている人、v1.5.0 §9）。判定はサーバーだけが持ち、描画はこの通知だけで作れる。
+ * 甲虫の空気砲撃の通知（サーバー→甲虫を見ている人、v1.5.0）。判定はサーバーだけが持ち、描画はこの通知だけで作れる。
  * <ul>
- * <li>{@link #FIRE}: 発射。posは砲口（muzzle骨）の位置、directionは単位ベクトル、rangeは射程（ブロック）、speedはブロック/tick。</li>
+ * <li>{@link #FIRE}: 発射。posは砲口（muzzleボーン）の位置、directionは単位ベクトル、rangeは射程（ブロック）、speedはブロック/tick。</li>
  * <li>{@link #IMPACT}: 着弾または射程切れ。posは止まった点。directionは撃った向きのまま。rangeは使わない（0）。</li>
  * </ul>
  * shotIdは同じ弾のFIREとIMPACTの組（甲虫ごとではなくサーバー全体で増える）。

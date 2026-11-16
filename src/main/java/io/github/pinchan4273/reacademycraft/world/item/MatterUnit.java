@@ -142,7 +142,7 @@ public final class MatterUnit extends Item {
         return level.clip(new ClipContext(eye, end, ClipContext.Block.OUTLINE, fluid, p));
     }
     // Forgeのリスナーはプレイヤーを動かし、ディメンションや射程を変え、編集の権限を取り消せる。
-    // 取り消し可能・外部のコールバックの後には毎回、操作の文脈全体を検証し直す。
+    // 取り消し可能・外部のコールバックの後には毎回、操作のコンテキスト全体を検証し直す。
     private static boolean contextValid(ServerPlayer p, Level originalLevel, BlockHitResult hit, BlockPos destination, ItemStack stack) {
         return p.serverLevel() == originalLevel && itemReach(p) > 0
                 && p.getEyePosition().distanceToSqr(hit.getLocation()) <= itemReach(p) * itemReach(p)

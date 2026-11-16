@@ -22,7 +22,7 @@ public final class SyncedAcademyRules {
     public static boolean skillEnabled(ResourceLocation id) {
         var rules = current;
         if (rules == null || id == null) return true;
-        // 1.4.0のS4: 外部の技能は、名前空間付きの無効の一覧。
+        // 1.4.0: 外部の技能は、名前空間付きの無効の一覧。
         return "academy".equals(id.getNamespace()) ? !rules.disabledSkills().contains(id.getPath()) : !rules.disabledAddonSkills().contains(id);
     }
     public static float initCp(int level) {

@@ -6,7 +6,7 @@ import java.util.Random;
 
 /**
  * 原作TornadoEffectとTornadoRendererの幾何: 高さまで積んだテクスチャ付きの輪の柱。輪はそれぞれ幅・位相・大きさを持ち、時間と共に
- * Perlinノイズで揺れ、高いほど速く回る。生成時に1回決め、独自の時間のずれを持つ。時間は原作のGameTimerの秒 × 4。
+ * Perlinノイズで揺れ、高いほど速く回る。生成時に1回決め、独自の時間のオフセットを持つ。時間は原作のGameTimerの秒 × 4。
  * 描画処理は輪を四角形にする。描くのは呼び出し元。
  */
 public final class LegacyTornado {
@@ -42,7 +42,7 @@ public final class LegacyTornado {
     }
     private static double range(Random random, double min, double max) { return min + random.nextDouble() * (max - min); }
 
-    /** 原作time(): GameTimerの秒 × 4から、この竜巻のずれを引いたもの。 */
+    /** 原作time(): GameTimerの秒 × 4から、この竜巻のオフセットを引いたもの。 */
     public double time(double seconds) { return seconds * 4 - timeOffset; }
 
     /** 四角形1つ: テクスチャのu, vを持つ4つの角(x, y, z)。 */

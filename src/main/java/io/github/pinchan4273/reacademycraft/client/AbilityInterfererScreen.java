@@ -25,7 +25,7 @@ import org.lwjgl.glfw.GLFW;
 
 /**
  * 原作GuiAbilityInterferer（guis/rework/page_interfere.xml）をTechUIのインベントリのページに置いたもの。
- * ui_interfereの絵には、電池の枠とホットバーだけがある。ページの座標で:
+ * ui_interfereのテクスチャには、電池の枠とホットバーだけがある。ページの座標で:
  * - panel_config（160×32、中央、25下）: 「Switch:」と、(48, 25)のbutton_switch_onまたは_off
  *   （OFFのときは0.6に暗くする）。「Range:」と、(48, 41)・(108, 41)の矢印（10から100まで10ずつ変える）と、その間の範囲。
  * - panel_whitelist（160×80、中央、中央から28下）: (12, 81.5)と(32, 81.5)に追加と削除、右側に上下。
@@ -94,7 +94,7 @@ public final class AbilityInterfererScreen extends TechScreen<AbilityInterfererM
         if (chosen != null && !menu.whitelist().contains(chosen)) chosen = null;
         scroll = Math.min(scroll, maxScroll());
     }
-    /** 原作はpage_interfere自身の窓をui_inventory無しで渡す。ホットバーはui_interfereが描く。 */
+    /** 原作はpage_interfere自身のウィンドウをui_inventory無しで渡す。ホットバーはui_interfereが描く。 */
     @Override protected boolean inventoryLayer() { return false; }
     @Override protected List<Component> pageTooltip() {
         return List.of(title, switchText(), Component.translatable("academy.interferer.range", menu.range()),

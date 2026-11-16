@@ -20,7 +20,7 @@ import net.neoforged.neoforge.client.event.RenderLevelStageEvent;
 import net.neoforged.bus.api.SubscribeEvent;
 
 /**
- * 甲虫のクライアント側（v1.5.0 §9）。砲撃の弾を独自に描く（バニラの粒子は使わない）。弾は発射の通知から直進し、着弾の通知で消える。
+ * 甲虫のクライアント側（v1.5.0）。砲撃の弾を独自に描く（バニラの粒子は使わない）。弾は発射の通知から直進し、着弾の通知で消える。
  * 所有者本人の照準が自分の甲虫を選ばないようにする判定もここに置く（共通のクラスからクライアントのクラスを呼ばないため）。
  */
 @net.neoforged.fml.common.EventBusSubscriber(modid = "academy", value = Dist.CLIENT)

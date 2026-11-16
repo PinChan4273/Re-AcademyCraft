@@ -56,14 +56,14 @@ public final class LocationTeleportScreen extends Screen {
     public static List<LocationTeleport.Location> locations() { return cached; }
     /**
      * 写しは届いた接続のもの: 別のワールドやサーバーには別のリストがあるので、次のリストは改めて問い合わせる。
-     * こちらを表示しながら別のリストの番号で操作することがないようにする。
+     * こちらを表示しながら別のリストのインデックスで操作することがないようにする。
      */
     @net.neoforged.bus.api.SubscribeEvent
     public static void loggedOut(net.neoforged.neoforge.client.event.ClientPlayerNetworkEvent.LoggingOut event) { cached = List.of(); }
 
     @Override protected void init() {
         // 開くたびにサーバーへ改めて問い合わせ、その間は古い写しを表示しない。再接続前の写しや、ログアウト時の消去の後に
-        // 届いた返答の番号を使わせないため。
+        // 届いた返答のインデックスを使わせないため。
         if (!asked) { asked = true; cached = List.of(); net.neoforged.neoforge.network.PacketDistributor.sendToServer(LocationRequest.query()); }
         first = Math.max(0, Math.min(first, cached.size() - visibleRows()));
     }

@@ -1,0 +1,10 @@
+{
+  "replace": false,
+  "values": [
+    "academy:dark_matter",
+    "academy:dark_matter_contact",
+    "academy:dark_matter_stab",
+    "academy:dark_matter_pierce",
+    "academy:dark_matter_ignore_armor"
+  ]
+}

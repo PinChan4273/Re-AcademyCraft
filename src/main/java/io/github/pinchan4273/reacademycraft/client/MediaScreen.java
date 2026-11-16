@@ -16,7 +16,7 @@ import net.minecraft.util.Mth;
 import org.lwjgl.glfw.GLFW;
 
 /**
- * 原作MediaGui（guis/media_player.xml、AcademyCraft commit 7b1401c）: 0.32倍で中央に置いた650x504の窓。
+ * 原作MediaGui（guis/media_player.xml、AcademyCraft commit 7b1401c）: 0.32倍で中央に置いた650x504のウィンドウ。
  * 再生/一時停止と停止、音量バー、再生位置、タイトル。その下に、プレイヤーが持つ全メディアの一覧
  * （カバー、名前、説明、長さ）を1ページ5件で並べ、横にスクロールバーを置く。クリックで再生する。
  * 外部メディアには2本の鉛筆があり、名前と説明を書き換えられる。位置・大きさ・色は原作のもので、

@@ -12,7 +12,7 @@ import net.neoforged.fml.common.Mod;
 import org.lwjgl.opengl.GL11;
 
 /**
- * 原作MineDetectのHandlerRender（術者のクライアントだけで描く）: 各鉱石の上に、各辺0.05内側へ寄せた箱を描き、
+ * 原作MineDetectのHandlerRender（術者のクライアントだけで描く）: 各鉱石の上に、各辺0.05内側へ寄せたボックスを描き、
  * 各面にeffects/mineview.png（1ピクセルの枠と薄い粒、残りは透明）を貼る。採掘レベルの色で着色し、光の影響なし、
  * カリングなし、壁越しに描く。アルファは距離で下がる（0.3 + 0.7 (1 - 2.2 d / range)）。
  */
@@ -45,7 +45,7 @@ public final class OreSurveyRenderer {
             int alpha=(int)(255*Math.max(0,Math.min(1,1-1.54*Math.sqrt(dx*dx+dy*dy+dz*dz)/range)));
             if(alpha==0)continue;
             int[] color=COLORS[mark.color()];
-            // LegacyMeshUtils.createBoxWithUV: 各面に絵全体を貼る。
+            // LegacyMeshUtils.createBoxWithUV: 各面にテクスチャ全体を貼る。
             for(var face:FACES)for(int i=0;i<4;i++) { int corner=face[i];
                 float x=(float)(p.getX()+((corner&1)==0?.05:.95)-camera.x);
                 float y=(float)(p.getY()+((corner&2)==0?.05:.95)-camera.y);

@@ -56,7 +56,7 @@ public final class PresetEditorScreen extends Screen {
 
     // ---- ページの配置 ----
     private float xFor(int page, int centre) { return STEP * (page - centre); }
-    /** このフレームでページをどこにどう描くか: 中央からのずれ、倍率、アルファ。 */
+    /** このフレームでページをどこにどう描くか: 中央からのオフセット、倍率、アルファ。 */
     private float[] place(int page) {
         if (!transiting) return new float[] {xFor(page, active), page == active ? MAX_SCALE : MIN_SCALE, page == active ? MAX_ALPHA : MIN_ALPHA};
         float p = (float) transitProgress;
@@ -65,7 +65,7 @@ public final class PresetEditorScreen extends Screen {
         if (page == active) return new float[] {dx, Mth.lerp(p, MIN_SCALE, MAX_SCALE), Mth.lerp(p, MIN_ALPHA, MAX_ALPHA)};
         return new float[] {dx, MIN_SCALE, MIN_ALPHA};
     }
-    /** CGuiの中央揃えウィジェット: 拡大縮小したページを画面中央に置き、ずれの分だけ動かす。 */
+    /** CGuiの中央揃えウィジェット: 拡大縮小したページを画面中央に置き、オフセットの分だけ動かす。 */
     private float pageLeft(float[] place) { return (width - PAGE_W * place[1]) / 2 + place[0]; }
     private float pageTop(float[] place) { return (height - PAGE_H * place[1]) / 2; }
 
@@ -173,7 +173,7 @@ public final class PresetEditorScreen extends Screen {
     }
 
     /**
-     * 原作Selector: マウスの位置に、白い光に囲まれた49,49,49の箱を出し、外す×印、続けて技能を1行4つ並べる。
+     * 原作Selector: マウスの位置に、白い光に囲まれた49,49,49のボックスを出し、外す×印、続けて技能を1行4つ並べる。
      * マウスの下のものの名前を上に出す（無ければ"Select Skill"）。
      */
     final class Selector {
@@ -187,7 +187,9 @@ public final class PresetEditorScreen extends Screen {
             var data = data();
             List<ResourceLocation> available = new ArrayList<>();
             if (data != null) for (var skill : SkillCatalog.CONTROLLABLE)
-                if (skill.offeredTo(data.getAbility()) && data.hasLearned(skill.id()) && !inPreset(data, active, skill.id())) available.add(skill.id());
+                // 1.5.2: パッシブに切り替えた技能は、パッシブの間はスロットに置けない（サーバーも断る）。
+                if (skill.offeredTo(data.getAbility()) && data.hasLearned(skill.id()) && !inPreset(data, active, skill.id())
+                        && !ClientPassiveFlight.passive(skill.id())) available.add(skill.id());
             choices.addAll(available);
             int rows = (choices.size() + MAX_PER_ROW - 1) / MAX_PER_ROW;
             h = MARGIN * 2 + SIZE + SEL_STEP * (rows - 1);

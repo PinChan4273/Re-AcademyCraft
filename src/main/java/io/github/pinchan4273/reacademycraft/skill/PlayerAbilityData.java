@@ -42,47 +42,105 @@ public final class PlayerAbilityData {
     private int currentPreset;
     private int cpRecoveryDelay;
     private int overloadRecoveryDelay;
+    /**
+     * 1.5.2: 過負荷の回復待ちの間に残る回復の割合（{@link #overloadWaitRecovery}）。待ちを作った支払いの技能の熟練度で決まり、
+     * 待ちが重なったときは低い方を使う。待ちが0なら使わない。保存しない（読み込んだ直後に待ちが残っていれば、割合を0として扱い、その待ちの間は回復しない）。
+     */
+    private float overloadWaitRate;
+    /** 1.5.2: 能力の飛行で空中にいるか（サーバーが毎tickの精算の前に置く。保存しない）。 */
+    private boolean airborneFlight;
+    /**
+     * 1.5.2（ロックからの戻し方）: ロック中に、優先順位の順で再稼働を許した技能（{@link PassiveSkills}が置く）。
+     * この技能だけは、ロック中でも開始・継続できる（維持だけ。稼働の払いは{@link #payAction}・{@link #chargeActionOverload}が断る）。
+     * ロックの始まりと解除で空にする。保存も同期もしない。
+     */
+    private final java.util.Set<ResourceLocation> lockAllowed = new java.util.HashSet<>();
+    /** 1.5.2: 能力の飛行が動いているか（地上を含む。ストームウィングの溜めは含まない）。動いている間は形態の維持を払わない。保存しない。 */
+    private boolean abilityFlight;
+    /**
+     * 1.5.2: 技能ごとの稼働の残りtick。稼働の払い（{@link #payAction}・{@link #chargeActionOverload}）で置き、毎tick減らす。
+     * 1つでも残っている間は過負荷が回復しない。保存も同期もしない（読み込み直後は稼働していない）。
+     */
+    private final Map<ResourceLocation, Integer> actionLeft = new LinkedHashMap<>();
+    /**
+     * 1.5.2: 天界発現の再生を、未元物質人間は CP の回復の上乗せとして受ける。
+     * 基準の回復（{@link #g0PerTick}）に対する割合と、残りtick。G0 には足さない別枠。保存も同期もしない（読み込み直後は無い）。
+     */
+    private float heavenCpShare;
+    private int heavenCpLeft;
     private boolean overloadLocked;
     private float bonusCp;
     private float bonusOverload;
     private float levelExperience;
     /**
-     * Light Shieldのモード（工程2）。nullは「プレイヤーが選んでいない」で、{@link LightShieldMode#DEFAULT}として動く。選んでいないときは
+     * Light Shieldのモード。nullは「プレイヤーが選んでいない」で、{@link LightShieldMode#DEFAULT}として動く。選んでいないときは
      * 保存で何も書かないので、読んだときにあった知らない値（新しい版のモードなど）はそのまま残る。
      */
     private @Nullable LightShieldMode lightShieldMode;
-    /** Electron Missileの照準のモード（F9-02）。nullは「選んでいない」で、{@link ElectronMissileAimMode#DEFAULT}（AUTO）として動く。 */
+    /** Electron Missileの照準のモード。nullは「選んでいない」で、{@link ElectronMissileAimMode#DEFAULT}（AUTO）として動く。 */
     private @Nullable ElectronMissileAimMode electronMissileAimMode;
-    /** Electron Missileの攻撃対象のフィルターのうち、プレイヤーが選んだもの（F9-02）。無い分類は既定（{@link ElectronMissileTargetKind#defaultOn()}）。 */
+    /** Electron Missileの攻撃対象のフィルターのうち、プレイヤーが選んだもの。無い分類は既定（{@link ElectronMissileTargetKind#defaultOn()}）。 */
     private final java.util.EnumMap<ElectronMissileTargetKind, Boolean> electronMissileTargets = new java.util.EnumMap<>(ElectronMissileTargetKind.class);
-    /** v1.5.0 §9: 甲虫の接触ブロック破壊（初期ON）、修復方式、攻撃方針。系統を失っても保持する（§15）。 */
+    /** v1.5.0: 甲虫の接触ブロック破壊（初期ON）、修復方式、攻撃方針。系統を失っても保持する。 */
     private boolean beetleContactBreak = true;
     private DarkMatterBeetles.Repair beetleRepair = DarkMatterBeetles.Repair.AUTO;
     private DarkMatterBeetles.Stance beetleStance = DarkMatterBeetles.Stance.MID;
-    /** v1.5.0 §9: 甲虫の追従開始距離（ブロック）。攻撃方針と同じく、系統を失っても保持する。 */
+    /** v1.5.0: 甲虫の追従開始距離（ブロック）。攻撃方針と同じく、系統を失っても保持する。 */
     private int beetleFollow = DarkMatterBeetles.FOLLOW_DEFAULT;
-    /** v1.5.0 §9（ユーザーの決定）: 甲虫が自動で狙う分類のうち、プレイヤーが選んだもの。無い分類は既定（敵対だけON）。系統を失っても保持する。 */
+    /** v1.5.0: 甲虫が自動で狙う分類のうち、プレイヤーが選んだもの。無い分類は既定（敵対だけON）。系統を失っても保持する。 */
     private final java.util.EnumMap<ElectronMissileTargetKind, Boolean> beetleTargets = new java.util.EnumMap<>(ElectronMissileTargetKind.class);
-    /** v1.5.0 §9: 甲虫の個体の記録（{@link DarkMatterBeetles}が書く）。ログアウトと再起動を越えて残す。系統を失うと消える。 */
+    /** v1.5.0: 甲虫の個体の記録（{@link DarkMatterBeetles}が書く）。ログアウトと再起動を越えて残す。系統を失うと消える。 */
     private ListTag beetleRecords = new ListTag();
-    /** v1.5.0 §15: 未元物質人間か。系統を失うと解ける。保存する。 */
+    /** v1.5.0: 未元物質人間か。系統を失うと解ける。保存する。 */
     private boolean darkBody;
-    /** v1.5.0 §15: 死亡後の復活形態（trueは未元物質人間で、初期値）。系統を失っても保持する。 */
+    /** v1.5.0: 死亡後の復活形態（trueは未元物質人間で、初期値）。系統を失っても保持する。 */
     private boolean darkBodyRespawn = true;
     /** 白翼飛行の飛び立ちと停止の操作が連打か（既定は長押し）。系統を失っても保持する。 */
     private boolean flightDoubleTap;
-    /** 系統の喪失の直前のCPの残量率（{@code DarkBody#category}が受け取る。人体生成は第2便）。無ければ負。保存しない。 */
+    /** 1.5.2: ベクトル反射の反射方向（既定は攻撃者へ）。系統を失っても保持する。 */
+    private ReflectionDirection reflectionDirection = ReflectionDirection.DEFAULT;
+    /** 1.5.2: 反射方向の自動の2方式で、PvPの相手プレイヤーを候補に含めるか（既定は含めない）。系統を失っても保持する。 */
+    private boolean reflectionPvp;
+    /** 系統の喪失の直前のCPの残量率（{@code DarkBody#category}が受け取る）。無ければ負。保存しない。 */
     private float darkBodyLossRate = -1;
     /**
-     * 未元物質人間の未修復の身体損傷（CP。COMMAND-RE-150-DARK-BODY-REPAIR-R1-20261104、ユーザーの採用）。身体に通った最終ダメージの分だけ増え、
-     * 毎秒{@link #BODY_REPAIR_PER_SECOND}CPずつ修復してCPへ戻す。CP不足の内訳で、通常の自然回復はこの分を埋めない（上限は最大CP−損傷）。
+     * 未元物質人間の未修復の身体損傷（CP）。身体に通った最終ダメージの分だけ増え、
+     * 継続の収支が0以上の tick だけ、毎秒{@link #BODY_REPAIR_PER_SECOND}CPまで修復してCPへ戻す（1.5.2）。CP不足の内訳で、
+     * 通常の自然回復はこの分を埋めない（上限は最大CP−損傷）。
      * 明示的なCP回復で損傷の分まで戻ったら、その分だけ損傷も減る（常に損傷 ≤ 最大CP−現在CP にそろえる）。
      */
     private float bodyDamage;
-    /** 身体修復の速さ（CP/秒）。 */
-    public static final float BODY_REPAIR_PER_SECOND = 2;
-    /** v1.5.0 §10〜§12: 天界発現の設定。系統を失っても保持する（§15）。領域そのものは保存しない。 */
+    /** 身体へ通った損傷の換算（1 HP あたりの CP。1.5.2）。 */
+    public static final float BODY_CP_PER_HP = 10;
+    /** 身体修復の速さの上限（CP/秒 ＝ 1 HP/秒。1.5.2）。 */
+    public static final float BODY_REPAIR_PER_SECOND = 10;
+    /**
+     * 未元物質人間の形態の維持の、G0 に対する割合（1.5.2）。熟練度に依らない。
+     * サーバーの設定の skill.dark_matter_body.cp_consume_speed を掛ける（{@link #formDue}）。
+     */
+    public static final float FORM_UPKEEP_SHARE = .3f;
+    /** 形態の維持を払わない（クリエイティブ。サーバーが毎tickの精算の前に置く。保存しない）。 */
+    private boolean formExempt;
+    /** v1.5.0: 天界発現の設定。系統を失っても保持する。領域そのものは保存しない。 */
     private HeavenSettings heavenSettings = new HeavenSettings();
+    /**
+     * 1.5.2: ベクトル操作の解析度。分類のキー（{@link VectorAnalysis.Category#key()}）→ 0〜1。0の分類と、いつも100%の
+     * バニラの物理は持たない。保存する（系統を失っても残す）。作り直し（Clone）は{@link #copyFrom}の保存と読み込みで引き継ぐ。
+     */
+    private final Map<String, Float> analysis = new LinkedHashMap<>();
+    /** 解析度の分類の表示の名前（未元物質の使い手の名前など。無い分類は持たない）。 */
+    private final Map<String, String> analysisLabels = new LinkedHashMap<>();
+    /** 解析度が変わった回数（同期の判定用。保存しない）。 */
+    private int analysisVersion;
+    /**
+     * 1.5.2: パッシブ（能力使用モードで自動で起動）に切り替えた技能。習得済みの、切り替えられる技能（{@link PassiveSkills#switchable}）だけ。
+     * 保存する。パッシブの間はどのプリセットのスロットにも置けない。系統を変える・技能を忘れると外れる。
+     */
+    private final java.util.Set<ResourceLocation> passiveSkills = new java.util.LinkedHashSet<>();
+    /** パッシブで起動している技能の数（{@link PassiveSkills}がサーバーで毎tick置く。保存しない）。 */
+    private int passiveRunning;
+    /** 持つ解析度の分類の上限。超えたら、いちばん低い分類から忘れる。 */
+    public static final int MAX_ANALYSIS_ENTRIES = 256;
     /**
      * このデータが属するサーバーのプレイヤー（原作の能力イベント用）。どのプレイヤーにも属さないデータ（写し、テスト専用のもの）や
      * クライアントにあるデータではnullで、その場合は何も送らない。
@@ -102,7 +160,7 @@ public final class PlayerAbilityData {
     }
     /**
      * 原作getInitCP / getInitOverload: レベルの値（オーバーロードはコースのボーナスを加える）をイベントに通したもの。
-     * 1.0.0の後の仕様では、コースは最大CPを増やさない（docs/CP_RECOVERY_TOGGLE_SPEC_JA.md）。
+     * 1.0.0の後の仕様では、コースは最大CPを増やさない。
      */
     private float initialCp() { return calc(io.github.pinchan4273.reacademycraft.event.AbilityEvent.MaxCP::new, io.github.pinchan4273.reacademycraft.config.AcademyConfig.initCp(level)); }
     private float initialOverload() { return calc(io.github.pinchan4273.reacademycraft.event.AbilityEvent.MaxOverload::new, io.github.pinchan4273.reacademycraft.config.AcademyConfig.initOverload(level) + GenericSkills.overloadBonus(this)); }
@@ -137,8 +195,8 @@ public final class PlayerAbilityData {
         loads++; clearSkills();
         levelExperience = 0;
         ability = value;
-        if (!DarkMatter.CATEGORY.equals(value)) beetleRecords = new ListTag(); // §15: 系統を失ったら収納個体も回収する。
-        // §15: 形態を解く。下の再計算でCPが満たされるので、復帰HPのための残量率は今読む。
+        if (!DarkMatter.CATEGORY.equals(value)) beetleRecords = new ListTag(); // 系統を失ったら収納個体も回収する。
+        // 形態を解く。下の再計算でCPが満たされるので、復帰HPのための残量率は今読む。
         if (darkBody && !DarkMatter.CATEGORY.equals(value)) { darkBody = false; bodyDamage = 0; darkBodyLossRate = maxCp > 0 ? cp / maxCp : 0; }
         level = value == null ? 0 : Math.max(1, level);
         if (value == null) active = false;
@@ -171,7 +229,7 @@ public final class PlayerAbilityData {
         float base = maxCp;
         bonusCp = Math.max(0, Math.min(io.github.pinchan4273.reacademycraft.config.AcademyConfig.addCp(level), before - base));
         maxCp = base + bonusCp; cp = maxCp;
-        // C217-F01（WORK-183）: 明示的にCPが増えたら、その場で身体損傷を減らす（同じtickの後の支払いで損傷が戻らないように）。
+        // 明示的にCPが増えたら、その場で身体損傷を減らす（同じtickの後の支払いで損傷が戻らないように）。
         clampBodyDamage();
         post(io.github.pinchan4273.reacademycraft.event.AbilityEvent.LevelChange::new);
     }
@@ -186,7 +244,7 @@ public final class PlayerAbilityData {
     public void setCp(float value) {
         requireWritable();
         cp = Math.min(requireNonnegativeFinite(value), maxCp);
-        // C217-F01（WORK-183）: 明示的にCPが増えたら、その場で身体損傷を減らす（同じtickの後の支払いで損傷が戻らないように）。
+        // 明示的にCPが増えたら、その場で身体損傷を減らす（同じtickの後の支払いで損傷が戻らないように）。
         clampBodyDamage();
     }
 
@@ -218,9 +276,9 @@ public final class PlayerAbilityData {
     }
     /** 原作CPDataの死亡時の回復。死亡後の置き換えにだけ適用する。 */
     public void recoverAfterDeath() {
-        if (readOnly) return; // 未対応のデータをNBTの水準でバイト単位で保つ。
+        if (readOnly) return; // 未対応のデータをNBTのレベルでバイト単位で保つ。
         active = false;
-        cooldowns.clear(); cpRecoveryDelay = overloadRecoveryDelay = 0; overloadLocked = false;
+        cooldowns.clear(); cpRecoveryDelay = overloadRecoveryDelay = 0; overloadLocked = false; lockAllowed.clear();
         if (hasAbility()) {
             cp = maxCp;
             overload = 0;
@@ -251,7 +309,7 @@ public final class PlayerAbilityData {
 
     /**
      * 原作CPDataの妨害: いずれかの発生源がまだ妨害していると言う間、プレイヤーは能力を一切使えない。発生源はサーバーにだけあり、
-     * 保存しない。原作は妨害しているものが作り直すmapにそれを持ち、クライアントへ届くのは印だけ。
+     * 保存しない。原作は妨害しているものが作り直すmapにそれを持ち、クライアントへ届くのはフラグだけ。
      */
     private final java.util.Map<String, java.util.function.BooleanSupplier> interferences = new java.util.LinkedHashMap<>();
     private boolean interfering;
@@ -261,17 +319,27 @@ public final class PlayerAbilityData {
         interferences.put(id, lasts); interfering = true;
     }
     public boolean hasInterference(String id) { return interferences.containsKey(id); }
-    /** 原作は妨害をやめた最初のtickに発生源を外す。印が変わったらtrueを返す。 */
+    /** 原作は妨害をやめた最初のtickに発生源を外す。フラグが変わったらtrueを返す。 */
     public boolean tickInterference() {
         interferences.values().removeIf(source -> !source.getAsBoolean());
         boolean now = !interferences.isEmpty();
         if (now == interfering) return false;
         interfering = now; return true;
     }
-    /** クライアント側: サーバーが最後に送った印。 */
+    /** クライアント側: サーバーが最後に送ったフラグ。 */
     public void setInterfering(boolean value) { interfering = value; }
     /** 原作canUseAbility: 有効で、オーバーロードしておらず、妨害されていない。 */
     public boolean canUseAbility() { return isActive() && !isOverloadLocked() && !interfering; }
+    /** 1.5.2: その技能で能力を使えるか。ロック中でも、ロック中の再稼働を許した技能（{@link #lockBlocks}が false）なら使える。 */
+    public boolean canUseAbility(@Nullable ResourceLocation skill) { return isActive() && !lockBlocks(skill) && !interfering; }
+    /** 1.5.2: その技能をロックが止めるか。ロック中で、ロック中の再稼働を許していなければ true。技能が分からなければロック中は true。 */
+    public boolean lockBlocks(@Nullable ResourceLocation skill) { return overloadLocked && (skill == null || !lockAllowed.contains(skill)); }
+    /** 1.5.2: ロック中で、過負荷の回復の待ちが終わって回復している（減り始めた）か。 */
+    public boolean isLockRecovering() { return overloadLocked && overloadRecoveryDelay == 0; }
+    /** 1.5.2: ロック中の再稼働を許す（ロック中でなければ何もしない）。 */
+    public void allowDuringLock(ResourceLocation skill) { if (overloadLocked) lockAllowed.add(skill); }
+    /** 1.5.2: ロック中の再稼働を許した技能か。 */
+    public boolean allowedDuringLock(ResourceLocation skill) { return overloadLocked && lockAllowed.contains(skill); }
     public int getCurrentPreset() { return currentPreset; }
     public ResourceLocation getSlot(int preset, int slot) {
         checkSlot(preset, slot); return presets[preset][slot];
@@ -285,7 +353,7 @@ public final class PlayerAbilityData {
         if (newlyLearned) {
             maxCp = initialCp() + bonusCp;
             maxOverload = initialOverload() + bonusOverload;
-            // 原作SkillLearnEventは能動技能の資源も更新する。
+            // 原作SkillLearnEventはアクティブ技能の資源も更新する。
             // 消費の成長、タイマー、プリセット、既存の技能の進捗は保つ。
             cp = maxCp; overload = 0;
             clampBodyDamage();
@@ -304,7 +372,7 @@ public final class PlayerAbilityData {
      */
     public void addProficiency(ResourceLocation skill, float amount) { gain(skill, amount, true); }
     /**
-     * 熟練度だけの獲得（1.1.0、T178-10）: モードを待機のまま維持している間の微量。技能の熟練度だけを増やし、能力レベルの経験値は
+     * 熟練度だけの獲得（1.1.0）: モードを待機のまま維持している間の微量。技能の熟練度だけを増やし、能力レベルの経験値は
      * 増やさない（待機の放置でレベルが上がらないように）。それ以外（技能ごとの倍率、0〜1、イベント、読み取り専用・未習得・カテゴリの
      * 拒否）はaddProficiencyと同じ。
      */
@@ -325,14 +393,14 @@ public final class PlayerAbilityData {
     }
     private boolean gainable(ResourceLocation skill) {
         SkillCatalog.Definition definition = SkillCatalog.find(skill);
-        // 白翼飛行は2026-11-03に受動へ変えたが、飛んで熟練度を得る（§5）ので、受動技能のうちこれだけは受け取る。
+        // 白翼飛行はパッシブだが、飛んで熟練度を得るので、パッシブ技能のうちこれだけは受け取る。
         return definition != null && definition.offeredTo(ability) && hasLearned(skill)
                 && (!GenericSkills.isPassive(skill) || DarkMatter.passiveGains(skill));
     }
     /**
      * 原作AbilityData.addSkillExpそのもの。まだ習得していない技能は、レベルや前提条件を確かめず（カテゴリが提供するかだけを確かめ）、
      * まず習得させる。テレポーターのクリティカルはこれに頼る: Dimension Folding TheoremとSpace Fluctuationに経験値を与え、
-     * その場で習得させる。それ以外はすべてaddProficiencyを通り、未習得や受動の技能は拒否される。
+     * その場で習得させる。それ以外はすべてaddProficiencyを通り、未習得やパッシブの技能は拒否される。
      */
     public void addSkillExperience(ResourceLocation skill, float amount) {
         requireWritable(); requireNonnegativeFinite(amount);
@@ -358,6 +426,7 @@ public final class PlayerAbilityData {
         requireWritable();
         if (skills.remove(Objects.requireNonNull(skill)) == null) return;
         cooldowns.remove(skill);
+        passiveSkills.remove(skill);
         for (var preset : presets) for (int i = 0; i < preset.length; i++)
             if (skill.equals(preset[i])) preset[i] = null;
         maxCp = hasAbility() ? initialCp() + bonusCp : DEFAULT_MAX_CP;
@@ -371,7 +440,9 @@ public final class PlayerAbilityData {
     }
     public void setSlot(int preset, int slot, @Nullable ResourceLocation skill) {
         requireWritable(); checkSlot(preset, slot);
-        if (skill != null && (!hasLearned(skill) || GenericSkills.isPassive(skill))) throw new IllegalArgumentException("Skill is not a learned controllable skill");
+        // 1.5.2: パッシブに切り替えた技能は、パッシブの間はスロットに置けない。
+        if (skill != null && (!hasLearned(skill) || GenericSkills.isPassive(skill) || passiveSkills.contains(skill)))
+            throw new IllegalArgumentException("Skill is not a learned controllable skill");
         boolean changed = !Objects.equals(presets[preset][slot], skill);
         presets[preset][slot] = skill;
         if (changed) post(io.github.pinchan4273.reacademycraft.event.AbilityEvent.PresetUpdate::new);
@@ -387,7 +458,7 @@ public final class PlayerAbilityData {
             throw new IllegalArgumentException("Invalid preset/slot");
     }
     private void clearSkills() {
-        skills.clear(); cooldowns.clear(); currentPreset = 0;
+        skills.clear(); cooldowns.clear(); currentPreset = 0; passiveSkills.clear();
         for (var preset : presets) java.util.Arrays.fill(preset, null);
     }
     /** 原作CPData.recalcMaxValue。求められれば、changedLevelと同じくaddMaxCP/addMaxOverloadを消す。 */
@@ -396,52 +467,176 @@ public final class PlayerAbilityData {
         maxCp = hasAbility() ? initialCp() + bonusCp : DEFAULT_MAX_CP;
         maxOverload = hasAbility() ? initialOverload() + bonusOverload : DEFAULT_MAX_OVERLOAD;
         cp = hasAbility() ? maxCp : 0; overload = 0;
-        cpRecoveryDelay = overloadRecoveryDelay = 0; overloadLocked = false;
+        cpRecoveryDelay = overloadRecoveryDelay = 0; overloadLocked = false; lockAllowed.clear();
         // 原作CalcEvent: MaxCPとMaxOverloadはinitialCp()/initialOverload()で、CPRecoverSpeedとOverloadRecoverSpeedはtick()で
         // 設定の倍率と並ぶ倍率として、SkillAttackはSkillCombat.attack()でAcademyConfig.DAMAGE_SCALE（calc_global.damage_scale）の前に使う。
     }
 
     /**
-     * tickはサーバーでだけ行う。オーバーロードの式は1.12.2のCPData/default.confと同じ。CPの回復は1.0.0の後に承認した定量
-     * （{@link #recovery}）。回復待ちの長さは習得した最上位のコースで決まる。
+     * tickはサーバーでだけ行う。オーバーロードの式の形は1.12.2のCPData/default.confと同じだが、1.5.2からは
+     * 伸びた分を含む今の上限で計算し、パッシブで起動している技能の数で遅くする（{@link #passiveOverloadFactor}）。CPの回復は1.0.0の後の
+     * 定量（{@link #recovery}）。回復待ちの長さは習得した最上位のコースで決まる（熟練度では縮まず、過負荷の待ちの間は払った技能の熟練度に応じた割合だけ回復する。{@link #charge}）。
      */
     public void tick() {
         if (readOnly || !hasAbility()) return;
-        // §7・§15: 未元物質人間のCPが0のときの死亡は、同じtickの自然回復より先に確定する（{@link DarkBody}が同じtickの終わりに死亡させる）。
+        // 未元物質人間のCPが0のときの死亡は、同じtickの自然回復より先に確定する（{@link DarkBody}が同じtickの終わりに死亡させる）。
         if (darkBody && cp <= 0) return;
         clampBodyDamage();
-        // 身体修復: 回復待ち・能力OFF・過負荷・プリセット変更・干渉に関係なく、未修復の損傷を毎秒2CPずつ戻す（端数も毎tick）。
-        if (bodyDamage > 0) {
-            float repair = Math.min(bodyDamage, BODY_REPAIR_PER_SECOND / 20f);
-            bodyDamage -= repair;
-            cp = Math.min(maxCp, cp + repair);
-        }
         cooldowns.replaceAll((id, ticks) -> ticks - 1);
         cooldowns.values().removeIf(ticks -> ticks <= 0);
+        // 1.5.2: 稼働の残りも同じく減らす。
+        actionLeft.replaceAll((id, ticks) -> ticks - 1);
+        actionLeft.values().removeIf(ticks -> ticks <= 0);
         if (safetyBlockedCost >= 0 && (!cpSafety || cp - safetyBlockedCost > safetyLine())) safetyBlockedCost = -1;
-        // 被弾などでラインを割ったときも、動いている消費技能を止める（§14）。
+        // 被弾などでラインを割ったときも、動いている消費技能を止める。
         if (cpSafety && !upkeeps.isEmpty() && cp <= safetyLine()) tripSafety(0);
-        float rawOverload = Math.max(0, maxOverload - bonusOverload);
-        if (overload == 0 && overloadRecoveryDelay == 0) overloadLocked = false;
+        // 1.5.2: 回復の式は、使って伸びた分を含む今の上限で計算する（伸びる前の上限ではない）。
+        float limit = Math.max(0, maxOverload);
+        // 1.5.2: パッシブで起動している技能が多いほど、過負荷の回復を遅くする（全部パッシブでも半分より遅くしない）。
+        float passive = passiveOverloadFactor(passiveSkillCount());
+        if (overload == 0 && overloadRecoveryDelay == 0) unlock();
         boolean waiting = cpRecoveryDelay > 0;
         if (waiting) cpRecoveryDelay--;
-        float hover = -1;
         // 通常の自然回復は、未修復の身体損傷の分を埋めない（上限は最大CP−損傷）。
-        if (upkeeps.isEmpty()) { if (!waiting && maxCp > 0) cp = (float) Math.max(cp, Math.min(maxCp - bodyDamage, cp + recovery())); }
-        else hover = settleUpkeep(waiting);
-        if (overloadRecoveryDelay > 0) overloadRecoveryDelay--;
-        else if (hover >= 0) {
-            // Storm Wingの推進しない滞空: 通常のオーバーロード回復の代わりに、滞空の回復（熟練度で2〜4/秒）。
-            overload = (float) Math.max(0, overload - io.github.pinchan4273.reacademycraft.config.AcademyConfig.OVERLOAD_RECOVER_SPEED_MULTIPLIER.get()
-                    * calc(io.github.pinchan4273.reacademycraft.event.AbilityEvent.OverloadRecoverSpeed::new, 1) * hover);
-            if (overload == 0) overloadLocked = false;
+        // 1.5.2: 未元物質人間は形態の維持 G0 × 30% を毎tick払う（回復待ちの間も）。
+        float form = formDue();
+        if (upkeeps.isEmpty() && !(form > 0)) {
+            lastUpkeepPerTick = 0;
+            if (!waiting && maxCp > 0) cp = (float) Math.max(cp, Math.min(maxCp - bodyDamage, cp + recovery()));
+            // 払う維持が無いので、継続の収支は0以上: 身体を修復する。
+            repairBody();
         }
-        else if (rawOverload > 0) {
-            overload = (float) Math.max(0, overload - io.github.pinchan4273.reacademycraft.config.AcademyConfig.OVERLOAD_RECOVER_SPEED_MULTIPLIER.get()
-                    * calc(io.github.pinchan4273.reacademycraft.event.AbilityEvent.OverloadRecoverSpeed::new, 1)
-                    * Math.max(0.002f * rawOverload, 0.007f * rawOverload * (1 - 0.25f * overload / rawOverload)));
-            if (overload == 0) overloadLocked = false;
+        else settleUpkeep(waiting, form);
+        // 天界発現の再生（未元物質人間）: 回復待ちの間も、能力の飛行中も、別枠で足す。
+        applyHeavenCpRegen();
+        // 1.5.2: Storm Wingの推進しない滞空で、過負荷の回復を遅い滞空の回復（2〜4/秒）に置き換える作りは無くした。
+        // 1.5.2: 回復待ちの間も、待ちを作った技能の熟練度に応じた割合だけ回復する（熟練度0%なら回復しない）。
+        // 能力の飛行で空中にいる間は回復が遅い。防御がオンの間は、その確保の分より下げない（ロック中は確保しない）。
+        float share = 1;
+        if (overloadRecoveryDelay > 0) { overloadRecoveryDelay--; share = overloadWaitRate; }
+        // 1.5.2: どれかの技能が稼働中なら、過負荷は回復しない（単発の払いの後の待ちは、待ちの間の回復の割合のまま）。
+        if (!actionLeft.isEmpty()) share = 0;
+        if (limit > 0 && share > 0) {
+            float air = airborneFlight ? io.github.pinchan4273.reacademycraft.config.AcademyConfig.airborneOverloadRecovery() : 1;
+            float floor = overloadLocked ? 0 : reservedOverload();
+            float fall = (float) (io.github.pinchan4273.reacademycraft.config.AcademyConfig.OVERLOAD_RECOVER_SPEED_MULTIPLIER.get()
+                    * calc(io.github.pinchan4273.reacademycraft.event.AbilityEvent.OverloadRecoverSpeed::new, 1) * passive * air * share
+                    * Math.max(0.002f * limit, 0.007f * limit * (1 - 0.25f * overload / limit)));
+            overload = Math.max(Math.min(overload, floor), overload - fall);
+            // 解除は tick の初めと同じく「OL 0 かつ待ち0」のときだけ（待ちの間の回復で OL が先に0になっても解かない）。
+            if (overload == 0 && overloadRecoveryDelay == 0) unlock();
         }
+    }
+    /**
+     * 1.5.2: ロックを解く（過負荷0かつ待ち0のとき）。ロック中に再稼働した防御などが確保しなかった分は、ここで確保する
+     * （ロック中は確保しない。{@link #reserveOverload}）。許した技能は忘れる。
+     */
+    private void unlock() {
+        if (!overloadLocked) return;
+        overloadLocked = false;
+        lockAllowed.clear();
+        for (var upkeep : java.util.List.copyOf(upkeeps.values())) {
+            float want = upkeep.pendingReserve;
+            upkeep.pendingReserve = 0;
+            if (want > 0 && upkeep.reservedOverload <= 0) reserveOverload(upkeep, want, false);
+        }
+    }
+    /** 1.5.2: 能力の飛行で空中にいるかを置く（{@link AbilityGameplay}が毎tick）。 */
+    public void setAirborneFlight(boolean airborne) { airborneFlight = airborne; }
+    /** 1.5.2: 能力の飛行が動いているか。毎tick、{@link #tick}の前に{@link AbilityGameplay}が書く。 */
+    public void setAbilityFlight(boolean flying) { abilityFlight = flying; }
+    public boolean isAbilityFlight() { return abilityFlight; }
+    public boolean isAirborneFlight() { return airborneFlight; }
+    /** 今の回復待ちの間に残る回復の割合（テストと表示用。待ちが0なら1）。 */
+    public float getOverloadWaitRate() { return overloadRecoveryDelay > 0 ? overloadWaitRate : 1; }
+    /** 1.5.2: 動いている防御が確保している過負荷の合計。回復はこれより下げない。 */
+    public float reservedOverload() {
+        float sum = 0;
+        for (var upkeep : upkeeps.values()) sum += upkeep.reservedOverload;
+        return sum;
+    }
+    /**
+     * 1.5.2: 防御の開始の過負荷を払い、オンの間それを確保する（1.5.1 の「開始の値より下がらない」を、確保の量だけの形にした物）。
+     * ロック中・維持が外れている・払えないときは false。クリエイティブは払わず、確保もしない。確保は維持が外れると一緒に消える。
+     */
+    public boolean reserveOverload(@Nullable Upkeep upkeep, float amount, boolean creative) {
+        if (!upkeepHeld(upkeep)) return false;
+        if (!(amount > 0) || creative) return true;
+        if (readOnly || !hasAbility()) return false;
+        if (overloadLocked) {
+            // 1.5.2: ロック中の再稼働を許した技能は、確保せずに始める（ロック中は確保しない）。解けたら確保する。
+            if (!lockAllowed.contains(upkeep.skill)) return false;
+            upkeep.reservedOverload = 0; upkeep.pendingReserve = amount;
+            return true;
+        }
+        // CPは払わないので、CPセーフティは見ない（維持の精算がラインを見る）。技能の過負荷の倍率とイベントは通す。
+        float before = overload;
+        charge(upkeep.skill, 0, perform(0, overloadFor(upkeep.skill, amount))[1], false, false);
+        upkeep.reservedOverload = Math.max(0, overload - before);
+        return true;
+    }
+
+    /** 1.5.2: 確保の合計の上限（最大過負荷に対する割合）。確保だけではロックしない。 */
+    public static final float RESERVE_CAP_SHARE = .99f;
+    /**
+     * 1.5.2（天界発現の常時の効果）: この維持の確保を target に決め直す。増えたら差を払って過負荷を上げ、減ったら確保だけを下げる
+     * （下がった分は通常どおり回復する）。どちらも回復の待ちは作らず、稼働にもしない。確保の合計と、払って上がる過負荷は、
+     * 最大過負荷の {@link #RESERVE_CAP_SHARE} で止める（確保だけではロックしない）。ロック中は確保しない（防御と同じ）。
+     * クリエイティブは払わず、確保もしない。技能の過負荷の倍率を掛ける。確保は維持が外れると一緒に消え、保存しない。
+     */
+    public void setReservedOverload(@Nullable Upkeep upkeep, float target, boolean creative) {
+        if (upkeep == null || !upkeepHeld(upkeep) || readOnly || !hasAbility()) return;
+        if (creative || overloadLocked || !(target > 0)) { upkeep.reservedOverload = 0; return; }
+        float cap = maxOverload * RESERVE_CAP_SHARE;
+        float others = reservedOverload() - upkeep.reservedOverload;
+        float wanted = Math.min(overloadFor(upkeep.skill, target), Math.max(0, cap - others));
+        float delta = wanted - upkeep.reservedOverload;
+        if (delta > 0) overload = Math.max(overload, Math.min(cap, overload + delta));
+        upkeep.reservedOverload = wanted;
+    }
+    /** 1.5.2: この維持が今確保している過負荷（テストと表示用）。 */
+    public float reservedOverload(@Nullable Upkeep upkeep) { return upkeep == null ? 0 : upkeep.reservedOverload; }
+
+    /**
+     * 1.5.2: パッシブで起動している技能の数nに対する、過負荷の回復の倍率 max(0.5, 1 − 0.15 × n)。
+     * nが0以下なら1（遅くしない）。
+     */
+    public static float passiveOverloadFactor(int passiveCount) {
+        return passiveCount <= 0 ? 1 : Math.max(0.5f, 1 - 0.15f * passiveCount);
+    }
+    /** テスト用に置いた、パッシブで起動している技能の数（負なら置いていない）。保存しない。 */
+    private int passiveCountForTest = -1;
+    /**
+     * パッシブで起動している技能の数。数えるのは、切り替えでパッシブにして、今セッションが動いている技能だけ
+     * （{@link PassiveSkills}がサーバーで毎tick数えて{@link #setPassiveRunningCount}で置く）。白翼飛行・Radiation Intensifyなどの
+     * 元からのパッシブは数えない（1.5.2 で廃止した未元装甲も、元からのパッシブとして数えていなかった。翼の防御はパッシブに切り替えると数える）。パッシブの飛行（ストームウィング・ジェット・エンジン）は、離陸できる状態では数えず、飛んでいる間だけ数える。
+     * テストが{@link #setPassiveSkillCountForTest}で置いた値があれば、それを返す。
+     */
+    public int passiveSkillCount() { return passiveCountForTest >= 0 ? passiveCountForTest : passiveRunning; }
+    /** テスト用の入口: パッシブで起動している技能の数を置く。負の値で置いたものを外す。 */
+    public void setPassiveSkillCountForTest(int count) { passiveCountForTest = count; }
+    /** {@link PassiveSkills}が数えた、パッシブで起動している技能の数を置く（負は0）。 */
+    public void setPassiveRunningCount(int count) { passiveRunning = Math.max(0, count); }
+
+    /** 1.5.2: その技能をパッシブに切り替えているか。 */
+    public boolean isPassiveSkill(@Nullable ResourceLocation skill) { return skill != null && passiveSkills.contains(skill); }
+    /** パッシブに切り替えている技能の写し（切り替えた順）。 */
+    public java.util.Set<ResourceLocation> passiveSkills() { return java.util.Collections.unmodifiableSet(new java.util.LinkedHashSet<>(passiveSkills)); }
+    /**
+     * 技能をパッシブ（true）かアクティブ（false）にする。パッシブにするときは、すべてのプリセットのスロットからその技能を外す。
+     * アクティブに戻してもスロットは戻さない。熟練度などの条件は呼ぶ側（{@link PassiveSkills#set}）が確かめる。
+     * 切り替えられない技能・習得していない技能をパッシブにしようとすると例外。何か変わったらtrue。
+     */
+    public boolean setPassiveSkill(ResourceLocation skill, boolean passive) {
+        requireWritable();
+        Objects.requireNonNull(skill);
+        if (!passive) return passiveSkills.remove(skill);
+        if (!PassiveSkills.switchable(skill) || !hasLearned(skill)) throw new IllegalArgumentException("Skill cannot be switched to passive: " + skill);
+        boolean changed = passiveSkills.add(skill), slots = false;
+        for (var preset : presets) for (int i = 0; i < preset.length; i++)
+            if (skill.equals(preset[i])) { preset[i] = null; slots = true; }
+        if (slots) post(io.github.pinchan4273.reacademycraft.event.AbilityEvent.PresetUpdate::new);
+        return changed || slots;
     }
 
     /**
@@ -467,14 +662,12 @@ public final class PlayerAbilityData {
         /** 常に行動しているモード（Jet Engineは入力が無くても推進し、Body Intensifyのバフは常に効く）。待機にならない。 */
         private boolean alwaysActing;
         /**
-         * 維持の熟練度の受け取り方だけを、CPの精算の区分（{@link #alwaysActing}）から分ける（2026-10-16、案B）: 立てたモードは、精算で
+         * 維持の熟練度の受け取り方だけを、CPの精算の区分（{@link #alwaysActing}）から分ける: 立てたモードは、精算で
          * 行動として払っても、維持の熟練度は待機と同じ{@link #HOLD_IDLE_PROFICIENCY}を、技能の熟練度だけに受け取る（能力レベルの経験値なし）。
          * 常に効果を出すモード（Body Intensify、Jet Engine）が、維持しているだけでレベルを上げないため。
          */
         private boolean skillOnlyHold;
-        /** Storm Wing: 推進しない滞空で失うCPと、そのときのオーバーロードの回復（熟練度ごと、1tickあたり）。 */
-        private @Nullable java.util.function.DoubleUnaryOperator idleLoss, hoverRecovery;
-        /** 費用をモードが自分で決める（白翼飛行）。与えられた回復から、このtickの費用を返す。払った後も回復待ちは動かない。 */
+        /** 費用をモードが自分で決める（飛行の部類: 白翼飛行・Storm Wing・Jet Engine）。与えられた回復から、このtickの費用を返す。払った後も回復待ちは動かない。 */
         private @Nullable java.util.function.DoubleUnaryOperator custom;
         /** このtickの精算が払い終えた維持の種類（{@link #upkeepEarn}が1回だけ受け取る）: 0は無し、1は待機、2は行動。 */
         private int earned;
@@ -484,16 +677,36 @@ public final class PlayerAbilityData {
         /** CPセーフティを自分で判定するモード（白翼飛行は外れずに滞空へ移る）。 */
         private boolean selfSafety;
         public Upkeep selfSafety() { selfSafety = true; return this; }
+        /**
+         * 部類の外の切り替え型の共通の形（1.5.2）: オンの間は毎tick G × lerp(1.0, 0.25, 熟練度) ＋
+         * toggle_upkeepの値 × (1 − 熟練度) を払う（Gはそのtickに実際に入る回復で、回復待ちの間は0）。{@link #custom}もあれば、
+         * その額（天界発現の基本の維持費など）を足す。待機と行動の区別、「1つだけのときの特典」は無く、いくつ同時に使っても
+         * それぞれの割合で済む。
+         */
+        private boolean recoveryShare;
+        public Upkeep recoveryShare() { recoveryShare = true; return this; }
+        /** 1.5.2: この防御が開始で払い、オンの間確保している過負荷（{@link #reserveOverload}）。天界発現の常時の効果も使う（{@link #setReservedOverload}）。 */
+        private float reservedOverload;
+        public float reservedOverload() { return reservedOverload; }
+        /** 1.5.2: ロック中の再稼働で確保しなかった分（ロックが解けたら確保する。{@link #unlock}）。 */
+        private float pendingReserve;
+        /**
+         * 1.5.2: 基準の回復G0に対する割合の維持。1tickに G0 × lerp(熟練度0%の割合, 100%の割合, 熟練度) を払う。
+         * G0は待ちの無いときの回復なので、回復待ちの間も同じ額を払う（そのtickの回復の有無に依らない）。{@link #custom}もあれば、
+         * その額（G0を渡す）を足す。
+         */
+        private boolean g0Share;
+        private float shareAtZero, shareAtFull;
+        public Upkeep g0Share(float atZero, float atFull) { g0Share = true; shareAtZero = atZero; shareAtFull = atFull; return this; }
+        /**
+         * 1.5.2: 払えない・セーフティに掛かるとき、止める前に状態を1段下げる（飛行: 高速 → 通常 → 滞空）。下げたら true を返す。
+         * 精算は下げた後の額で計算し直し、それでも足りなければもう1段、下げられなければ止める。
+         */
+        private @Nullable java.util.function.BooleanSupplier stepDown;
+        public Upkeep stepDown(java.util.function.BooleanSupplier step) { stepDown = step; return this; }
         public Upkeep alwaysActing() { alwaysActing = true; return this; }
         /** 維持の熟練度を、待機と同じ量・技能の熟練度だけにする（{@link #skillOnlyHold}）。CPの精算は変えない。 */
         public Upkeep skillOnlyHold() { skillOnlyHold = true; return this; }
-        /**
-         * 滞空の資源（Storm Wing）: 待機中のCPは回復待ちに関係なく正味でidleLossずつ減り（熟練度100%で単独なら回復の一部が残る）、
-         * 行動中（推進）は回復を止める。推進そのものの費用は技能が払う。待機中はオーバーロードがhoverRecoveryずつ回復する。
-         */
-        public Upkeep flight(java.util.function.DoubleUnaryOperator idleLoss, java.util.function.DoubleUnaryOperator hoverRecovery) {
-            this.idleLoss = idleLoss; this.hoverRecovery = hoverRecovery; return this;
-        }
     }
     /** このデータが置き換えられた、または能力が変わった回数: リスナーがどちらかを行った精算は止まる。 */
     private int loads;
@@ -518,11 +731,11 @@ public final class PlayerAbilityData {
     public int upkeepCount() { return upkeeps.size(); }
 
     /**
-     * 維持による熟練度（2026-10-16、ユーザー承認の統合指示書2章。1.1.0の待機2e-6・行動1e-5から変更）。20 tick/秒・技能の倍率1で、
+     * 維持による熟練度（1.1.0の待機2e-6・行動1e-5から変更）。20 tick/秒・技能の倍率1で、
      * 待機は+0.1パーセントポイント/秒（5e-5/tick）、行動（防御・射撃・ワープ・停止・反射・推進などの効果を出したtick）は
      * +0.2パーセントポイント/秒（1e-4/tick）。技能ごとのexp_incr_speedは、これまでどおりgainが掛ける。
      * 常に効果を出すモード（Body Intensify、Jet Engine）は{@link Upkeep#skillOnlyHold}により、CPの精算では行動のまま、熟練度は
-     * 待機と同じ量を技能だけに受け取る（案B）。効果ごとの成功の熟練度は各技能がこれとは別に与える。
+     * 待機と同じ量を技能だけに受け取る。効果ごとの成功の熟練度は各技能がこれとは別に与える。
      */
     public static final float HOLD_IDLE_PROFICIENCY = 5e-5f, HOLD_ACTING_PROFICIENCY = 1e-4f;
     /**
@@ -536,25 +749,30 @@ public final class PlayerAbilityData {
         if (!upkeepHeld(upkeep)) return;
         int earned = upkeep.earned; upkeep.earned = 0;
         if (earned == 0 || readOnly || !hasAbility() || !active || interfering || !gainable(upkeep.skill)) return;
-        // 案B: 精算では行動として払ったモードでも、維持の熟練度は待機と同じ量を技能だけに（能力レベルの経験値なし）。
+        // 精算では行動として払ったモードでも、維持の熟練度は待機と同じ量を技能だけに（能力レベルの経験値なし）。
         if (upkeep.skillOnlyHold) { if (getProficiency(upkeep.skill) < 1) gain(upkeep.skill, HOLD_IDLE_PROFICIENCY, false); return; }
         if (earned == 2) gain(upkeep.skill, HOLD_ACTING_PROFICIENCY, true);
         else if (getProficiency(upkeep.skill) < 1) gain(upkeep.skill, HOLD_IDLE_PROFICIENCY, false);
     }
 
     /**
-     * 維持コストの取り決め（docs/CP_RECOVERY_TOGGLE_SPEC_JA.md）: このtickに待ち無しでもたらされる回復Rと、実際に与える回復G
+     * 維持コストの取り決め: このtickに待ち無しでもたらされる回復Rと、実際に与える回復G
      * （待ち中は0）を1回だけ求める。各モードはSkillPerformを通してcp_consume_speed倍の次の額を払う。
      * <ul>
      * <li>熟練度100%のモード1つだけで、前のtickに行動していない（待機）: (1 − idle_recovery_share) × G。正味で回復の半分が残る。</li>
-     * <li>滞空（Storm Wing）: G + 待機ならidleLoss。正味で待機は−idleLoss、推進中は回復が止まる（推進の費用は技能が払う）。
-     * 他のモードと同時でもこの専用の費用で払い、1.0.0の維持費を重ねない（仕様書5.3、ユーザー判断A）。</li>
-     * <li>それ以外（Storm Wing以外のモードが、行動中・100%未満・複数同時）: 1.0.0の契約のまま R + E × (1 − 熟練度)。待ちが回復を止めている間もRを使う。</li>
+     * <li>それ以外（行動中・100%未満・複数同時）: 1.0.0の契約のまま R + E × (1 − 熟練度)。待ちが回復を止めている間もRを使う。</li>
      * </ul>
+     * 飛行の部類（白翼飛行・Storm Wing・Jet Engine。1.5.2）は{@link Upkeep#custom}で{@link FlightCost}の額を払う
+     * （上のどれでもなく、ほかのモードと同時でも、それぞれの額で済む）。
+     * 部類の外の切り替え型（{@link Upkeep#recoveryShare}。1.5.2）は、上のどれでもなく G × lerp(1.0, 0.25, 熟練度) ＋
+     * E × (1 − 熟練度)（＋{@link Upkeep#custom}の額）を払う。熟練度100%で1つだけのときの特典は無く、いくつ同時でもそれぞれの割合で済む。
+     * 防御の部類（1.5.2）は{@link Upkeep#g0Share}で G0 × 割合を払う（G0は待ちの無いときの回復の
+     * {@code basis}で、回復待ちの間も同じ額）。割合は0。
+     * 上の2つは、飛行・防御の部類と部類の外の切り替え型の形を使わないモードのための、今の形。
      * CPと与えられた回復ですべてを払えないときは、払えるまで新しいモードから外れる。残りは1つの差分として精算する。
-     * どちらの回復待ちも動かさない。戻り値は推進しない滞空でのオーバーロードの回復（1tickあたり）、滞空が無ければ−1。
+     * どちらの回復待ちも動かさない。払った分だけ最大CPが伸びる。
      */
-    private float settleUpkeep(boolean waiting) {
+    private void settleUpkeep(boolean waiting, float form) {
         double recovered = maxCp > 0 ? recovery() : 0;
         // リスナーの有限の倍率でも、回復がfloatの範囲を超えることがある。その場合は要求の無い回復と同じくCPを最大まで満たし、
         // コストは標準の割合を取る。
@@ -568,7 +786,6 @@ public final class PlayerAbilityData {
         int loads = this.loads;
         var order = new java.util.ArrayList<>(upkeeps.values());
         boolean alone = order.size() == 1;
-        float hover = -1;
         float[] cost = new float[order.size()];
         boolean[] idles = new boolean[order.size()];
         for (int i = 0; i < order.size(); i++) {
@@ -577,45 +794,210 @@ public final class PlayerAbilityData {
             idles[i] = idle;
             upkeep.acted = false; upkeep.earned = 0;
             if (!active || !hasLearned(upkeep.skill)) { endUpkeep(upkeep); continue; }
-            float proficiency = getProficiency(upkeep.skill);
-            if (idle && upkeep.hoverRecovery != null) hover = Math.max(hover, (float) upkeep.hoverRecovery.applyAsDouble(proficiency));
             if (upkeep.exempt.getAsBoolean()) continue;
-            float due;
-            // 熟練度100%は保存された値そのもので判定する（表示の丸めで100%に見える値は含めない）。
-            if (upkeep.custom != null) due = (float) upkeep.custom.applyAsDouble(granted);
-            else if (idle && alone && proficiency >= 1) due = (1 - io.github.pinchan4273.reacademycraft.config.AcademyConfig.idleRecoveryShare()) * granted;
-            else if (upkeep.idleLoss != null) due = granted + (idle ? (float) upkeep.idleLoss.applyAsDouble(proficiency) : 0);
-            else due = basis + io.github.pinchan4273.reacademycraft.config.AcademyConfig.toggleUpkeep(upkeep.skill) * (1 - proficiency);
-            cost[i] = perform(cpFor(upkeep.skill, due), 0)[0];
-            // SkillPerformは他の者が聞き、その間に何をしてもよい: 下を参照。
+            cost[i] = perform(cpFor(upkeep.skill, due(upkeep, basis, granted, idle, alone)), 0)[0];
+            // SkillPerformは他のリスナーが受け取り、その間に何をしてもよい: 下を参照。
             if (loads != this.loads || readOnly || !hasAbility()) break;
         }
         // リスナーが残したもの: リスナーが読み込んだ、または能力を変えたデータは、この精算が書くものではない。リスナーが能力をオフにしたら、
         // すべての要求を払わずに終える。リスナーが終えた要求は課さない。
-        if (loads != this.loads || readOnly || !hasAbility()) return -1;
+        if (loads != this.loads || readOnly || !hasAbility()) return;
         if (!active) upkeeps.clear();
         double total = 0;
         for (int i = 0; i < order.size(); i++) if (upkeepHeld(order.get(i))) total += cost[i];
         double available = (double) cp + granted;
-        for (int i = order.size() - 1; i >= 0 && total > available; i--)
-            if (cost[i] > 0 && upkeepHeld(order.get(i))) { endUpkeep(order.get(i)); total -= cost[i]; }
-        // CPセーフティ: 払った後がライン以下になる維持は新しいものから外し、作動させる（§14。回復の分はこのtickに実際に入る分だけ数える）。
+        // 形態の維持は外さない。払えない分はCPを0まで使い、CPが0のときの真の死亡（{@link DarkBody}）へ進む。
+        double formCost = form > 0 && Float.isFinite(form) ? form : 0;
+        // 1.5.2: セーフティがオンの間、止める順は今のプリセットのセーフティの並びの下から（並びに無い技能はすべての候補の下、
+        // 始めた順の新しい物から）で、飛行は止める前に段を下げる（{@link Upkeep#stepDown}）。セーフティがオフの間は、今までどおり新しい物から止め、
+        // 段は下げない（オフのときの決まりは変えない）。
+        var ranked = SafetyPriority.resolve(getSafetyOrder(currentPreset));
+        Integer[] stop = new Integer[order.size()];
+        for (int i = 0; i < stop.length; i++) stop[i] = i;
+        boolean ordered = cpSafety;
+        java.util.Arrays.sort(stop, (a, b) -> {
+            int ra = ordered ? SafetyPriority.rank(ranked, order.get(a).skill) : 0, rb = ordered ? SafetyPriority.rank(ranked, order.get(b).skill) : 0;
+            return ra != rb ? Integer.compare(rb, ra) : Integer.compare(b, a);
+        });
+        for (int k = 0; k < stop.length && total + formCost > available; k++) {
+            int i = stop[k]; var upkeep = order.get(i);
+            if (!(cost[i] > 0) || !upkeepHeld(upkeep)) continue;
+            while (ordered && total + formCost > available && upkeep.stepDown != null && upkeep.stepDown.getAsBoolean()) {
+                float stepped = perform(cpFor(upkeep.skill, due(upkeep, basis, granted, idles[i], alone)), 0)[0];
+                total += stepped - cost[i]; cost[i] = stepped;
+            }
+            if (total + formCost > available) { endUpkeep(upkeep); total -= cost[i]; safetyEnded.add(upkeep.skill); }
+        }
+        // CPセーフティ: 払った後がライン（＋未元物質人間の形態の予約）以下になる維持は、並びの下から段を下げ、それでも足りなければ外して作動させる
+        // （回復の分はこのtickに実際に入る分だけ数える）。形態の維持はセーフティでは止めない（最上位）。
         if (cpSafety && total > 0) {
             double line = safetyLine();
-            for (int i = order.size() - 1; i >= 0 && total > 0 && available - total <= line; i--)
-                if (cost[i] > 0 && upkeepHeld(order.get(i)) && !order.get(i).selfSafety) { endUpkeep(order.get(i)); total -= cost[i]; tripSafety(cost[i]); }
+            for (int k = 0; k < stop.length && total > 0 && available - total - formCost <= line; k++) {
+                int i = stop[k]; var upkeep = order.get(i);
+                if (!(cost[i] > 0) || !upkeepHeld(upkeep) || upkeep.selfSafety) continue;
+                while (available - total - formCost <= line && upkeep.stepDown != null && upkeep.stepDown.getAsBoolean()) {
+                    float stepped = perform(cpFor(upkeep.skill, due(upkeep, basis, granted, idles[i], alone)), 0)[0];
+                    total += stepped - cost[i]; cost[i] = stepped;
+                    tripSafety(0);
+                }
+                if (available - total - formCost <= line) { endUpkeep(upkeep); total -= cost[i]; tripSafety(cost[i]); safetyEnded.add(upkeep.skill); }
+            }
         }
-        double change = granted - total;
+        if (loads != this.loads || readOnly || !hasAbility()) return;
+        lastUpkeepPerTick = (float) Math.max(0, Math.min(Float.MAX_VALUE, total + formCost));
+        // 1.5.2: 維持費の支払いでも最大CPが伸びる（払い終えた技能の維持の分だけ。形態の維持は技能ではないので伸ばさない）。
+        if (total > 0 && total <= Float.MAX_VALUE) growMaxCp((float) total);
+        double change = granted - total - formCost;
         // 回復の分は、未修復の身体損傷の分を埋めない（上限は最大CP−損傷。払う分は従来どおり）。
         if (Double.isFinite(change)) cp = (float) Math.max(0, Math.min(change > 0 ? Math.max(cp, maxCp - bodyDamage) : maxCp, cp + change));
+        // 1.5.2: 継続の収支（実際に入る回復 − 払う維持の合計）が0以上の tick だけ、身体を修復する。
+        if (change >= 0) repairBody();
         // 払い終えた維持だけが、このtickの維持の熟練度を受け取れる（技能が続くと確かめてからupkeepEarnで）。
         for (int i = 0; i < order.size(); i++) if (upkeepHeld(order.get(i))) order.get(i).earned = idles[i] ? 1 : 2;
-        return hover;
+    }
+
+    /** 維持1つの1tickの額（技能の倍率の前）。割合の維持はすべて G0（basis）から決め、回復待ちの間も同じ額（1.5.2）。 */
+    private float due(Upkeep upkeep, float basis, float granted, boolean idle, boolean alone) {
+        // 熟練度100%は保存された値そのもので判定する（表示の丸めで100%に見える値は含めない）。
+        float proficiency = getProficiency(upkeep.skill);
+        if (upkeep.g0Share) return basis * ArcGen.lerp(upkeep.shareAtZero, upkeep.shareAtFull, Math.max(0, Math.min(1, proficiency)))
+                + (upkeep.custom != null ? (float) upkeep.custom.applyAsDouble(basis) : 0);
+        if (upkeep.recoveryShare) return recoveryShareDue(upkeep.skill, proficiency, basis, abilityFlight)
+                + (upkeep.custom != null ? (float) upkeep.custom.applyAsDouble(basis) : 0);
+        if (upkeep.custom != null) return (float) upkeep.custom.applyAsDouble(basis);
+        if (idle && alone && proficiency >= 1) return (1 - io.github.pinchan4273.reacademycraft.config.AcademyConfig.idleRecoveryShare()) * granted;
+        return basis + io.github.pinchan4273.reacademycraft.config.AcademyConfig.toggleUpkeep(upkeep.skill) * (1 - proficiency);
+    }
+    /** 前の精算で払った維持の合計（形態を含む、1tick）。入れ直しの閾値に使う（1.5.2）。 */
+    private float lastUpkeepPerTick;
+    /** 前の精算で払った維持の合計の1秒分（形態を含む）。 */
+    public float upkeepPerSecond() { return lastUpkeepPerTick * 20; }
+    /** 精算が、払えない・セーフティのために外した維持の技能（入れ直しのため。{@link #takeSafetyEnded}が1回だけ受け取る。保存しない）。 */
+    private final java.util.Set<ResourceLocation> safetyEnded = new java.util.HashSet<>();
+    /** その技能の維持を、精算が払えない・セーフティのために外したか（受け取ったら忘れる）。本人の操作で止めた物は含まない。 */
+    public boolean takeSafetyEnded(ResourceLocation skill) { return safetyEnded.remove(skill); }
+
+    /**
+     * 1.5.2: G0（その人の待ちの無いときの1tickの回復）。設定の回復の倍率とCPRecoverSpeedのイベントを含む。それが0以下
+     * （倍率0など）なら標準の回復（倍率の前）、それも0なら1。回復が float を超えるときは標準の回復。維持費の割合は、すべてこれに掛ける。
+     */
+    public float g0PerTick() {
+        double recovered = maxCp > 0 ? recovery() : 0;
+        float potential = !(recovered <= Float.MAX_VALUE) ? 0 : (float) recovered;
+        float standard = (float) io.github.pinchan4273.reacademycraft.config.AcademyConfig.cpRecoveryPerTick(level, GenericSkills.courses(this));
+        return potential > 0 ? potential : standard > 0 ? standard : 1;
+    }
+    /**
+     * 形態の維持の1tickの額（未元物質人間で、免除されていなければ G0 × 30% × 未元物質・人体生成のCPの倍率。それ以外は0）。
+     * 1.5.2: 能力の飛行が動いている間は0。飛行の費用も G0 に対する割合で決まるので、同じ回復を二重に払わせない
+     * （形態の分は、飛行の費用に含めたと扱う）。
+     */
+    public float formDue() { return darkBody && hasAbility() && !formExempt && !abilityFlight ? cpFor(DarkMatter.BODY, g0PerTick() * FORM_UPKEEP_SHARE) : 0; }
+    /** 形態の維持を払わない（クリエイティブ）か。サーバーが毎tickの精算の前に置く。 */
+    public void setFormExempt(boolean exempt) { formExempt = exempt; }
+    /** 身体修復の1tick: 未修復の損傷を、毎秒{@link #BODY_REPAIR_PER_SECOND}CP（端数も毎tick）までCPへ戻す。 */
+    private void repairBody() {
+        if (!(bodyDamage > 0)) return;
+        float repair = Math.min(bodyDamage, BODY_REPAIR_PER_SECOND / 20f);
+        bodyDamage -= repair;
+        cp = Math.min(maxCp, cp + repair);
+    }
+
+    /** 共通の形の、回復の割合（熟練度0%で1.0、100%で0.25）。 */
+    public static final float SHARE_DUE_AT_ZERO = 1f, SHARE_DUE_AT_FULL = .25f;
+    /**
+     * 部類の外の切り替え型が1tickに払う額（技能の倍率の前）: G0 × lerp(1.0, 0.25, 熟練度) ＋ toggle_upkeepの値 × (1 − 熟練度)。
+     * 1.5.2: G0 は待ちの無いときの回復（{@link #g0PerTick}）で、回復待ちの間も同じ額を払う（その tick に
+     * 実際に入る回復ではないので、待ちの間も0にならない）。
+     */
+    public static float recoveryShareDue(ResourceLocation skill, float proficiency, float g0) {
+        return recoveryShareDue(skill, proficiency, g0, false);
+    }
+    /**
+     * 1.5.2: 能力の飛行が動いている間（flying）は、G0 の割合の分を払わない。飛行の費用も G0 に対する割合で決まるので、
+     * 同じ回復を二重に払わせないため（形態の維持と同じ理由）。toggle_upkeep の分と技能ごとの額は払う。
+     */
+    public static float recoveryShareDue(ResourceLocation skill, float proficiency, float g0, boolean flying) {
+        float p = Math.max(0, Math.min(1, proficiency));
+        return (flying ? 0 : g0 * ArcGen.lerp(SHARE_DUE_AT_ZERO, SHARE_DUE_AT_FULL, p))
+                + io.github.pinchan4273.reacademycraft.config.AcademyConfig.toggleUpkeep(skill) * (1 - p);
     }
 
     /**
-     * オンであることに対する切り替え型モード自身のオーバーロード（Vector Deviation、Storm Wing）: consumeがオーバーロードを課すのと同じく
-     * 課す（回復待ち、オーバーロードのイベント、最大値の成長）が、モードの維持コストが触れないCP回復の待ちには触れない。
+     * 1.5.2: 同時に稼働している技能の数 n に対する、稼働の過負荷の倍率 (1 ＋ 0.5 ×（n − 1））÷ n。
+     * 2つなら各0.75（合わせて1.5倍）、3つなら各2/3（合わせて2倍）。同時に稼働を続けている間は払う順に依らない。稼働していなかった技能が同じtickに続けて稼働を始めると、先に払った技能はその時点の数で払う。n が1以下なら1。
+     */
+    public static float actionFactor(int running) { return running <= 1 ? 1 : (1 + .5f * (running - 1)) / running; }
+    /** 1.5.2: 今稼働している技能の数。skill が稼働していなければ、それも足した数（これから払う技能を含めて数える）。 */
+    public int actionCount(@Nullable ResourceLocation skill) { return actionLeft.size() + (skill != null && !actionLeft.containsKey(skill) ? 1 : 0); }
+    /**
+     * 天界発現の再生を、未元物質人間の CP の回復として受ける（{@link HeavenEffects}が1秒ごとに置く）。share は基準の回復に対する割合、
+     * ticks はこの割合で回復を続ける長さ。重なる領域は呼ぶ側が強い1つを選ぶ。
+     */
+    public void giveHeavenCpRegen(float share, int ticks) {
+        if (readOnly || !(share > 0) || ticks <= 0) return;
+        heavenCpShare = share; heavenCpLeft = Math.max(heavenCpLeft, ticks);
+    }
+    /** 今の1tickの天界発現の CP の回復（未元物質人間で、受けている間だけ。上限の前の額）。 */
+    public float heavenCpRegenPerTick() { return darkBody && heavenCpLeft > 0 ? g0PerTick() * heavenCpShare : 0; }
+    /**
+     * 天界発現の CP の回復を1tick分入れる（{@link #tick}が精算の後に呼ぶ。テストからも呼ぶ）。上限は自然回復と同じ「最大CP − 未修復の身体損傷」で、
+     * 損傷そのものは直さない。支払いではないので、最大CPは伸びない。
+     */
+    public void applyHeavenCpRegen() {
+        if (heavenCpLeft <= 0) return;
+        float amount = heavenCpRegenPerTick();
+        heavenCpLeft--;
+        if (heavenCpLeft == 0) heavenCpShare = 0;
+        if (readOnly || !(amount > 0) || maxCp <= 0) return;
+        float cap = maxCp - bodyDamage;
+        if (cp < cap) cp = Math.min(cap, cp + amount);
+    }
+    /** 1.5.2: この技能が稼働中か。 */
+    public boolean isActing(ResourceLocation skill) { return actionLeft.containsKey(skill); }
+    /** 1.5.2: どれかの技能が稼働中か（稼働中は過負荷が回復しない）。 */
+    public boolean isActing() { return !actionLeft.isEmpty(); }
+    /** 1.5.2: この技能の稼働の残りtick（稼働していなければ0）。 */
+    public int actionTicksLeft(ResourceLocation skill) { return actionLeft.getOrDefault(skill, 0); }
+    /** 稼働の残りを置く。長さはコースの過負荷の待ちと minTicks の長いほう（既に長く残っていれば縮めない）。 */
+    private void markAction(ResourceLocation skill, int minTicks) {
+        int ticks = Math.max(Math.max(1, minTicks), overloadWait(skill, GenericSkills.topCourse(this)));
+        actionLeft.merge(skill, ticks, Math::max);
+    }
+    /**
+     * 1.5.2: 稼働の払い（撃つ・防ぐ・跳ぶなど）。CPは払うが、CPの回復待ちはやり直さない。過負荷には同時稼働の倍率
+     * （{@link #actionFactor}）と技能の倍率を掛け、過負荷の回復待ちをやり直し、技能を稼働中にする（minTicks: 稼働の最短の長さ。
+     * 次の稼働までの間隔より長くして、続けて稼働している間に回復しないようにする）。拒否の条件は呼ぶ側の今の払い方に合わせて渡す。
+     */
+    public boolean payAction(ResourceLocation skill, float cpCost, float overloadCost, boolean creative,
+                             boolean needActive, boolean needCp, boolean refuseLocked, int minTicks) {
+        requireNonnegativeFinite(cpCost); requireNonnegativeFinite(overloadCost);
+        // 1.5.2（ロックからの戻し方）: ロック中は稼働しない（撃つ・防ぐ・跳ぶ。ロック中に再稼働した技能も維持だけ）。
+        if (overloadLocked) return false;
+        float ol = overloadFor(skill, overloadCost) * actionFactor(actionCount(skill));
+        if (!pay(skill, cpFor(skill, cpCost), ol, creative, needActive, needCp, refuseLocked, false)) return false;
+        markAction(skill, minTicks);
+        return true;
+    }
+    /**
+     * 1.5.2: 稼働の過負荷だけを課す（光線が当たった・天界の効果をかけた・現象が起きた・身体強化のバフを使った）。
+     * 断らない（CPセーフティにも掛けない。働いた効果は取り消さない）。過負荷には同時稼働の倍率と技能の倍率を掛け、
+     * 過負荷の回復待ちをやり直し、技能を稼働中にする。
+     */
+    public void chargeActionOverload(ResourceLocation skill, float overloadCost, boolean creative, int minTicks) {
+        requireNonnegativeFinite(overloadCost);
+        // 1.5.2（ロックからの戻し方）: ロック中は稼働の過負荷を課さない（呼ぶ側も働きを止める）。
+        if (readOnly || !hasAbility() || overloadLocked) return;
+        float cost = perform(0, overloadFor(skill, overloadCost) * actionFactor(actionCount(skill)))[1];
+        if (readOnly || !hasAbility()) return;
+        charge(skill, 0, cost, creative, false);
+        markAction(skill, minTicks);
+    }
+
+    /**
+     * オンであることに対する切り替え型モード自身のオーバーロード（Vector Deviation、未元光線）: consumeがオーバーロードを課すのと同じく
+     * 課す（オーバーロードのイベント、最大値の成長）が、どちらの回復待ちにも触れない。1.5.2から、モード中に
+     * 過負荷の回復待ちをやり直し続ける作りはなくしたので、オンの間も過負荷は回復を続ける。
      */
     public void chargeUpkeepOverload(ResourceLocation skill, float overloadCost, boolean creative) {
         requireNonnegativeFinite(overloadCost);
@@ -624,18 +1006,17 @@ public final class PlayerAbilityData {
         if (readOnly || !hasAbility()) return;
         if (!creative) {
             overload = Math.min(maxOverload, overload + cost);
-            overloadRecoveryDelay = io.github.pinchan4273.reacademycraft.config.AcademyConfig.overloadRecoverCooldown(GenericSkills.topCourse(this));
-            if (overload >= maxOverload && !overloadLocked) { overloadLocked = true; post(io.github.pinchan4273.reacademycraft.event.AbilityEvent.Overload::new); }
+            if (overload >= maxOverload && !overloadLocked) { overloadLocked = true; lockAllowed.clear(); post(io.github.pinchan4273.reacademycraft.event.AbilityEvent.Overload::new); }
         }
         float overloadIncrease = Math.max(0, Math.min(io.github.pinchan4273.reacademycraft.config.AcademyConfig.addOverload(level) - bonusOverload,
                 Math.min(10, cost * io.github.pinchan4273.reacademycraft.config.AcademyConfig.maxOverloadIncrRate())));
         bonusOverload += overloadIncrease; maxOverload += overloadIncrease;
     }
 
-    // ---- v1.5.0 §14 CPセーフティ（全系統共通） ----
+    // ---- v1.5.0 CPセーフティ（全系統共通） ----
     /**
-     * セーフティの既定。製品ではON。v1.4.1以前の試験はCPをちょうど使い切る形で書かれているので、試験の起動だけプロパティでOFFにできる
-     * （セーフティ自身の試験は値を明示して確かめる）。
+     * セーフティの既定。製品ではON。v1.4.1以前のテストはCPをちょうど使い切る形で書かれているので、テストの起動だけプロパティでOFFにできる
+     * （セーフティ自身のテストは値を明示して確かめる）。
      */
     private static final boolean DEFAULT_CP_SAFETY = !Boolean.getBoolean("academy.test.cpSafetyDefaultOff");
     public static final int CP_SAFETY_DEFAULT_PERCENT = 10, CP_SAFETY_MIN_PERCENT = 1, CP_SAFETY_MAX_PERCENT = 95;
@@ -656,7 +1037,30 @@ public final class PlayerAbilityData {
         cpSafetyPercent = percent;
     }
     /** 停止ライン（最大CPの割合）。 */
-    public float safetyLine() { return maxCp * cpSafetyPercent / 100f; }
+    /**
+     * セーフティのライン（最大CPに対する%）。1.5.2: 未元物質人間は、形態の予約の%を足した点で止める・断る
+     * （例: ライン10%＋予約5%＝15%）。セーフティがオフの間は、ラインも予約も使わない（呼ぶ側がオンのときだけ見る）。
+     */
+    public float safetyLine() { return maxCp * (cpSafetyPercent + (darkBody ? formReservePercent : 0)) / 100f; }
+
+    /** 形態の予約（最大CPに対する整数の%）: 既定5、範囲0〜30（1.5.2）。 */
+    public static final int FORM_RESERVE_DEFAULT = 5, FORM_RESERVE_MIN = 0, FORM_RESERVE_MAX = 30;
+    private int formReservePercent = FORM_RESERVE_DEFAULT;
+    public int getFormReservePercent() { return formReservePercent; }
+    public void setFormReservePercent(int percent) {
+        if (percent < FORM_RESERVE_MIN || percent > FORM_RESERVE_MAX) throw new IllegalArgumentException("Form reserve percent out of range: " + percent);
+        formReservePercent = percent;
+    }
+    /** プリセットごとのセーフティの並び（{@link SafetyPriority#encode}の文字列。空は既定の並び）。 */
+    private final String[] safetyOrders = {"", "", "", ""};
+    /** そのプリセットのセーフティの並びの文字列（範囲の外は空）。 */
+    public String getSafetyOrder(int preset) { return preset >= 0 && preset < safetyOrders.length ? safetyOrders[preset] : ""; }
+    /** そのプリセットのセーフティの並びを置く。読めない値は例外。 */
+    public void setSafetyOrder(int preset, String code) {
+        if (preset < 0 || preset >= safetyOrders.length) throw new IllegalArgumentException("Preset out of range: " + preset);
+        if (!SafetyPriority.valid(code)) throw new IllegalArgumentException("Invalid safety order: " + code);
+        safetyOrders[preset] = code;
+    }
     /** この額（倍率の後の最終の費用）を払った後のCPがラインを超えるか。回復の予定は先取りしない。セーフティOFFなら常にtrue。 */
     public boolean safetyClears(float finalCost) { return !cpSafety || cp - finalCost > safetyLine(); }
     /** 技能の費用をセーフティが通すか（技能の倍率を掛けてから判定する）。止めるなら作動させる。クリエイティブは費用が無いので止めない。 */
@@ -692,53 +1096,89 @@ public final class PlayerAbilityData {
      * 原作AbilityContext.canConsumeCPは、与えられたコストのままCPData.canPerformに問う: consumeと違い、技能のcp_consume_speedを掛けない。
      */
     public boolean canConsumeCp(ResourceLocation skill, float cpCost) { return canConsumeCp(cpCost); }
+    /** 技能のcp_consume_speedを掛けた、実際に払うCP（1.5.2: 呼ぶ側が払えるかを確かめるときに使う）。 */
+    public static float skillCp(ResourceLocation skill, float cpCost) { return cpFor(skill, cpCost); }
     public boolean consume(ResourceLocation skill, float cpCost, float overloadCost, boolean creative) {
-        return consume(cpFor(skill, cpCost), overloadFor(skill, overloadCost), creative);
+        return pay(skill, cpFor(skill, cpCost), overloadFor(skill, overloadCost), creative, true, true, true, true);
     }
+    /**
+     * consumeと同じだが、能力がオフでも払える。1.5.2から、オーバーロードのロック中は拒否する（ロック中はどの技能も
+     * 始められない）。既に動いているモードの支払いには{@link #consumeRunning}を使う。
+     */
     public boolean consumeInMode(ResourceLocation skill, float cpCost, float overloadCost, boolean creative) {
-        return consumeInMode(cpFor(skill, cpCost), overloadFor(skill, overloadCost), creative);
+        return pay(skill, cpFor(skill, cpCost), overloadFor(skill, overloadCost), creative, false, true, true, true);
     }
+    /** 原作CPData.performWithForceの形（{@link #consumeWithForce(float, float, boolean)}）。技能の倍率と熟練度を使う。 */
     public boolean consumeWithForce(ResourceLocation skill, float cpCost, float overloadCost, boolean creative) {
-        return consumeWithForce(cpFor(skill, cpCost), overloadFor(skill, overloadCost), creative);
+        return pay(skill, cpFor(skill, cpCost), overloadFor(skill, overloadCost), creative, false, false, true, true);
     }
-    /** 回復待ちを作らず・延ばさずに払う開始の費用（光線・甲虫・領域。§3）。他の技能が作った待ちは解除しない。 */
+    /**
+     * 既に動いているモードの支払い（Vector Deviation・Vector Reflectionの止め・反射）。原作CPData.performと同じく、オーバーロードの
+     * ロックや有効状態に関係なく、CP不足でだけ拒否する。防御の支払いなので、CPの回復待ちはやり直さない。
+     * 新しく始めるときには使わない（ロック中の開始は{@link #consumeInMode}などが拒否する）。
+     */
+    public boolean consumeRunning(ResourceLocation skill, float cpCost, float overloadCost, boolean creative) {
+        return pay(skill, cpFor(skill, cpCost), overloadFor(skill, overloadCost), creative, false, true, false, false);
+    }
+    /** {@link #consumeRunning}と同じだが、足りるか確かめずに課し、CPは0で止まる（原作CPData.performWithForce）。CPセーフティだけは止める。 */
+    public boolean consumeRunningWithForce(ResourceLocation skill, float cpCost, float overloadCost, boolean creative) {
+        return pay(skill, cpFor(skill, cpCost), overloadFor(skill, overloadCost), creative, false, false, false, false);
+    }
+    /** 回復待ちを作らず・延ばさずに払う開始の費用（光線・甲虫・領域）。他の技能が作った待ちは解除しない。 */
     public boolean consumeQuiet(ResourceLocation skill, float cpCost, float overloadCost, boolean creative) {
         int wait = cpRecoveryDelay;
         boolean paid = consume(skill, cpCost, overloadCost, creative);
         cpRecoveryDelay = wait;
         return paid;
     }
-    /** 防御の費用: CPだけを減らす。回復待ち・過負荷・最大値の成長は動かさない（§8）。判定は呼ぶ側が済ませる。 */
-    public void payWithoutWait(float cpCost) { requireNonnegativeFinite(cpCost); if (!readOnly) cp = Math.max(0, cp - cpCost); }
-    /** 不可分な資源の取引。原作と同じく、クリエイティブは消費を免除する。 */
-    public boolean consume(float cpCost, float overloadCost, boolean creative) {
-        requireNonnegativeFinite(cpCost); requireNonnegativeFinite(overloadCost);
-        var perform = perform(cpCost, overloadCost); cpCost = perform[0]; overloadCost = perform[1];
-        if (readOnly || !hasAbility() || !active || overloadLocked || (!creative && cp < cpCost)) return false;
-        if (!creative && !safetyClears(cpCost)) { tripSafety(cpCost); return false; }
-        charge(cpCost, overloadCost, creative);
-        return true;
+    /**
+     * 防御などの費用: CPだけを減らす。回復待ちと過負荷は動かさない。判定は呼ぶ側が済ませる。技能の倍率は掛けない
+     * （掛けるなら{@link #payWithoutWait(ResourceLocation, float)}）。1.5.2から、払った分だけ最大CPが伸びる。
+     */
+    public void payWithoutWait(float cpCost) {
+        requireNonnegativeFinite(cpCost);
+        if (readOnly) return;
+        cp = Math.max(0, cp - cpCost);
+        if (hasAbility()) growMaxCp(cpCost);
     }
     /**
-     * 原作CPData.performそのもの: オーバーロードや有効状態に関係なく、CP不足でだけ拒否する（クリエイティブは拒否されない）。
-     * 原作の切り替え型モード（Vector Deviation、Storm Wing、Vector Reflection）は、オーバーロードで中断されるのは押し続けのキーだけ
-     * だったので、オーバーロード中もこの方法で払い続けた。上のconsume()は、押し続けのキーの中断と同じくオーバーロードのロックで拒否する。
+     * {@link #payWithoutWait(float)}に、技能のcp_consume_speedを掛けて払う（1.5.2）。呼ぶ側は払えるかを
+     * {@link #skillCp}の額で確かめる。
+     */
+    public void payWithoutWait(ResourceLocation skill, float cpCost) {
+        requireNonnegativeFinite(cpCost);
+        payWithoutWait(cpFor(skill, cpCost));
+    }
+    /** アトミックな資源のトランザクション。原作と同じく、クリエイティブは消費を免除する。技能が分からないので、熟練度0%として扱う。 */
+    public boolean consume(float cpCost, float overloadCost, boolean creative) {
+        return pay(null, cpCost, overloadCost, creative, true, true, true, true);
+    }
+    /**
+     * 原作CPData.performの形: 有効状態に関係なく、CP不足で拒否する（クリエイティブは拒否されない）。原作の切り替え型モード
+     * （Vector Deviation、Storm Wing、Vector Reflection）はオーバーロード中もこの方法で払い続けたが、1.5.2から
+     * オーバーロードのロック中は拒否する。動いているモードの支払いは{@link #consumeRunning}。
      */
     public boolean consumeInMode(float cpCost, float overloadCost, boolean creative) {
-        requireNonnegativeFinite(cpCost); requireNonnegativeFinite(overloadCost);
-        var perform = perform(cpCost, overloadCost); cpCost = perform[0]; overloadCost = perform[1];
-        if (readOnly || !hasAbility() || (!creative && cp < cpCost)) return false;
-        if (!creative && !safetyClears(cpCost)) { tripSafety(cpCost); return false; }
-        charge(cpCost, overloadCost, creative);
-        return true;
+        return pay(null, cpCost, overloadCost, creative, false, true, true, true);
     }
-    /** 原作CPData.performWithForce: 足りるか確かめずに課し、CPは拒否せず0で止まる。テレポーターの移動技能は距離をこの方法で払う。CPセーフティだけは止める（falseを返す。v1.5.0 §14）。 */
+    /**
+     * 原作CPData.performWithForce: 足りるか確かめずに課し、CPは拒否せず0で止まる。テレポーターの移動技能は距離をこの方法で払う。
+     * CPセーフティは止める（falseを返す。v1.5.0）。1.5.2から、オーバーロードのロック中も拒否する。
+     */
     public boolean consumeWithForce(float cpCost, float overloadCost, boolean creative) {
+        return pay(null, cpCost, overloadCost, creative, false, false, true, true);
+    }
+    /**
+     * 支払いの共通の流れ。needActive: 能力がオフなら拒否。needCp: CP不足なら拒否（falseは強制で、0で止まる）。refuseLocked:
+     * オーバーロードのロック中なら拒否。castWait: CPを払ったらCPの回復待ちをやり直す（技能の発動の支払い）。
+     */
+    private boolean pay(@Nullable ResourceLocation skill, float cpCost, float overloadCost, boolean creative,
+                        boolean needActive, boolean needCp, boolean refuseLocked, boolean castWait) {
         requireNonnegativeFinite(cpCost); requireNonnegativeFinite(overloadCost);
         var perform = perform(cpCost, overloadCost); cpCost = perform[0]; overloadCost = perform[1];
-        if (readOnly || !hasAbility()) return false;
+        if (readOnly || !hasAbility() || (needActive && !active) || (refuseLocked && lockBlocks(skill)) || (needCp && !creative && cp < cpCost)) return false;
         if (!creative && !safetyClears(cpCost)) { tripSafety(cpCost); return false; }
-        charge(cpCost, overloadCost, creative);
+        charge(skill, cpCost, overloadCost, creative, castWait);
         return true;
     }
     /** 原作CalcEvent.SkillPerform: リスナーが残した[cp, overload]。負にはしない。 */
@@ -750,23 +1190,70 @@ public final class PlayerAbilityData {
         float overloadAfter = Float.isFinite(event.overload) ? Math.max(0, event.overload) : overloadCost;
         return new float[]{cpAfter, overloadAfter};
     }
-    private void charge(float cpCost, float overloadCost, boolean creative) {
+    /**
+     * 資源を課す。1.5.2の回復待ち:
+     * <ul>
+     * <li>CPの回復待ちは、技能の発動でCPを実際に払った（0より多い）ときだけやり直す（castWait）。過負荷だけの起動では触れない。</li>
+     * <li>過負荷の回復待ちは、過負荷が実際に増えた（0より多い）ときだけやり直す。長さはコースで決まる待ち（{@link #overloadWait}。
+     * 熟練度では縮まない）。待ちの間の回復の割合は{@link #overloadWaitRecovery}。CPだけの支払いでは触れない。他の技能が作った、より長い待ちは縮めない。</li>
+     * </ul>
+     */
+    private void charge(@Nullable ResourceLocation skill, float cpCost, float overloadCost, boolean creative, boolean castWait) {
         if (!creative) {
             cp = Math.max(0, cp - cpCost); overload = Math.min(maxOverload, overload + overloadCost);
             int course = GenericSkills.topCourse(this);
-            cpRecoveryDelay = io.github.pinchan4273.reacademycraft.config.AcademyConfig.cpRecoverCooldown(course);
-            overloadRecoveryDelay = io.github.pinchan4273.reacademycraft.config.AcademyConfig.overloadRecoverCooldown(course);
-            if (overload >= maxOverload && !overloadLocked) { overloadLocked = true; post(io.github.pinchan4273.reacademycraft.event.AbilityEvent.Overload::new); }
+            if (castWait && cpCost > 0) cpRecoveryDelay = io.github.pinchan4273.reacademycraft.config.AcademyConfig.cpRecoverCooldown(course);
+            if (overloadCost > 0) {
+                float rate = overloadWaitRecovery(skill, course);
+                overloadWaitRate = overloadRecoveryDelay > 0 ? Math.min(overloadWaitRate, rate) : rate;
+                overloadRecoveryDelay = Math.max(overloadRecoveryDelay, overloadWait(skill, course));
+            }
+            if (overload >= maxOverload && !overloadLocked) { overloadLocked = true; lockAllowed.clear(); post(io.github.pinchan4273.reacademycraft.event.AbilityEvent.Overload::new); }
         }
-        float cpIncrease = Math.max(0, Math.min(io.github.pinchan4273.reacademycraft.config.AcademyConfig.addCp(level) - bonusCp,
-                cpCost * io.github.pinchan4273.reacademycraft.config.AcademyConfig.maxCpIncrRate()));
+        growMaxCp(cpCost);
         float overloadIncrease = Math.max(0, Math.min(io.github.pinchan4273.reacademycraft.config.AcademyConfig.addOverload(level) - bonusOverload,
                 Math.min(10, overloadCost * io.github.pinchan4273.reacademycraft.config.AcademyConfig.maxOverloadIncrRate())));
-        bonusCp += cpIncrease; maxCp += cpIncrease;
         bonusOverload += overloadIncrease; maxOverload += overloadIncrease;
     }
+    /**
+     * 過負荷が増えたときの回復待ち（1.5.2）: コースで決まる待ち（1.5.1 と同じく熟練度では縮まない）。
+     * 払った技能の熟練度は、待ちの間の回復の割合（{@link #overloadWaitRecovery}）にだけ使う。
+     */
+    public int overloadWait(@Nullable ResourceLocation skill, int course) {
+        return io.github.pinchan4273.reacademycraft.config.AcademyConfig.overloadRecoverCooldown(course);
+    }
+    /**
+     * 回復待ちの間に残る回復の割合（1.5.2）: 払った技能の熟練度 × コースごとの熟練度100%の割合（既定 0.12/0.13/0.14/0.15）。
+     * 熟練度0%は0（1.5.1 と同じく待ちの間は回復しない）。技能が分からない支払いは0%として扱う。
+     */
+    public float overloadWaitRecovery(@Nullable ResourceLocation skill, int course) {
+        float p = skill == null ? 0 : Math.max(0, Math.min(1, getProficiency(skill)));
+        return p * io.github.pinchan4273.reacademycraft.config.AcademyConfig.overloadWaitRecoveryAtFull(course);
+    }
+    /** 払ったCPに応じて最大CPを伸ばす（成長の枠まで）。1.5.2から、維持費・防御などのどの支払いでも伸びる。 */
+    private void growMaxCp(float paid) {
+        if (!(paid > 0) || !hasAbility()) return;
+        float cpIncrease = Math.max(0, Math.min(io.github.pinchan4273.reacademycraft.config.AcademyConfig.addCp(level) - bonusCp,
+                paid * io.github.pinchan4273.reacademycraft.config.AcademyConfig.maxCpIncrRate()));
+        // 1.5.2: 小さい伸びを maxCp へ直接足し続けると、桁の大きい maxCp の方だけ float の丸めがたまり、
+        // 伸びが上限に着いても最大CPが手前（例: 24000 に対して 23954.8）で止まった。伸びの外の部分（基礎）を double で持ち、
+        // 最大CP＝基礎＋伸び を毎回1回の丸めで決める。最大CPを外から変えたとき（昇級・設定・コマンド・読み込み）は、その値を基礎にし直す。
+        if (maxCp != grownMax) grownBase = (double) maxCp - bonusCp;
+        bonusCp += cpIncrease;
+        maxCp = (float) (grownBase + bonusCp);
+        // 前の版で取り残された分（丸めの差。最大CPの0.5%まで）は、伸びが上限に着いているときに合わせる。大きく違う値（管理者・テストの
+        // 設定・外部の特殊な値）は、丸めの差ではないので変えない。
+        if (bonusCp >= io.github.pinchan4273.reacademycraft.config.AcademyConfig.addCp(level)) {
+            float target = initialCp() + bonusCp, gap = target - maxCp;
+            if (gap > 0 && gap <= target * .005f) { maxCp = target; grownBase = (double) maxCp - bonusCp; }
+        }
+        grownMax = maxCp;
+    }
+    /** growMaxCp が最後に決めた最大CPと、そのときの基礎（最大CP − 伸び）。保存しない（読み込み直後は決め直す）。 */
+    private float grownMax = Float.NaN;
+    private double grownBase;
 
-    /** schema 2（{@link AbilityDataSchema}）で書く。読んだときにあった知らないキーは、根にも各区分にも残す。 */
+    /** schema 2（{@link AbilityDataSchema}）で書く。読んだときにあった知らないキーは、ルートにも各区分にも残す。 */
     public CompoundTag save() {
         CompoundTag tag = preserved.copy();
         if (readOnly) return tag;
@@ -815,6 +1302,13 @@ public final class PlayerAbilityData {
         else if (tag.contains(SETTINGS)) tag.getCompound(SETTINGS).remove(CP_SAFETY);
         if (cpSafetyPercent != CP_SAFETY_DEFAULT_PERCENT) section(tag, SETTINGS).putInt(CP_SAFETY_PERCENT, cpSafetyPercent);
         else if (tag.contains(SETTINGS)) tag.getCompound(SETTINGS).remove(CP_SAFETY_PERCENT);
+        // 1.5.2: セーフティの並び（プリセットごと）と形態の予約（既定なら書かない）。
+        for (int i = 0; i < safetyOrders.length; i++) {
+            if (!safetyOrders[i].isEmpty()) section(tag, SETTINGS).putString(AbilityDataSchema.CP_SAFETY_ORDER + i, safetyOrders[i]);
+            else if (tag.contains(SETTINGS)) tag.getCompound(SETTINGS).remove(AbilityDataSchema.CP_SAFETY_ORDER + i);
+        }
+        if (formReservePercent != FORM_RESERVE_DEFAULT) section(tag, SETTINGS).putInt(AbilityDataSchema.FORM_RESERVE, formReservePercent);
+        else if (tag.contains(SETTINGS)) tag.getCompound(SETTINGS).remove(AbilityDataSchema.FORM_RESERVE);
         if (electronMissileAimMode != null) section(tag, SETTINGS).putString(ELECTRON_MISSILE_AIM, electronMissileAimMode.id());
         if (!electronMissileTargets.isEmpty()) {
             CompoundTag targets = section(section(tag, SETTINGS), ELECTRON_MISSILE_TARGETS);
@@ -836,11 +1330,35 @@ public final class PlayerAbilityData {
         else if (tag.contains(SETTINGS)) tag.getCompound(SETTINGS).remove(DARK_BODY_RESPAWN);
         if (flightDoubleTap) section(tag, SETTINGS).putBoolean(FLIGHT_DOUBLE_TAP, true);
         else if (tag.contains(SETTINGS)) tag.getCompound(SETTINGS).remove(FLIGHT_DOUBLE_TAP);
+        // 1.5.2: 反射方向とPvPの候補（既定なら書かない）。
+        if (reflectionDirection != ReflectionDirection.DEFAULT) section(tag, SETTINGS).putString(REFLECTION_DIRECTION, reflectionDirection.id());
+        else if (tag.contains(SETTINGS)) tag.getCompound(SETTINGS).remove(REFLECTION_DIRECTION);
+        if (reflectionPvp) section(tag, SETTINGS).putBoolean(REFLECTION_PVP, true);
+        else if (tag.contains(SETTINGS)) tag.getCompound(SETTINGS).remove(REFLECTION_PVP);
+        // 1.5.2: パッシブに切り替えた技能（空なら書かない）。
+        if (!passiveSkills.isEmpty()) {
+            ListTag passive = new ListTag();
+            passiveSkills.forEach(id -> passive.add(StringTag.valueOf(id.toString())));
+            section(tag, SETTINGS).put(PASSIVE_SKILLS, passive);
+        } else if (tag.contains(SETTINGS)) tag.getCompound(SETTINGS).remove(PASSIVE_SKILLS);
         CompoundTag heaven = heavenSettings.save();
         if (!heaven.isEmpty()) section(tag, SETTINGS).put(HEAVEN_SETTINGS, heaven);
         else if (tag.contains(SETTINGS)) tag.getCompound(SETTINGS).remove(HEAVEN_SETTINGS);
         if (beetleRecords.isEmpty()) tag.remove(BEETLE_RECORDS);
         else tag.put(BEETLE_RECORDS, beetleRecords.copy());
+        // 1.5.2: 解析度（空なら書かない）。
+        if (analysis.isEmpty()) tag.remove(VECTOR_ANALYSIS);
+        else {
+            CompoundTag analysed = new CompoundTag();
+            analysis.forEach((key, value) -> {
+                CompoundTag entry = new CompoundTag();
+                entry.putFloat(ANALYSIS_VALUE, value);
+                String label = analysisLabels.get(key);
+                if (label != null) entry.putString(ANALYSIS_LABEL, label);
+                analysed.put(key, entry);
+            });
+            tag.put(VECTOR_ANALYSIS, analysed);
+        }
         return tag;
     }
 
@@ -850,7 +1368,7 @@ public final class PlayerAbilityData {
      */
     public void load(CompoundTag tag) {
         loads++; clearSkills(); cpRecoveryDelay = overloadRecoveryDelay = 0; upkeeps.clear();
-        overloadLocked = false; bonusCp = bonusOverload = 0;
+        overloadLocked = false; lockAllowed.clear(); bonusCp = bonusOverload = 0;
         ability = null;
         level = 0;
         levelExperience = 0;
@@ -863,9 +1381,12 @@ public final class PlayerAbilityData {
         electronMissileTargets.clear();
         beetleContactBreak = true; beetleRepair = DarkMatterBeetles.Repair.AUTO; beetleStance = DarkMatterBeetles.Stance.MID; beetleFollow = DarkMatterBeetles.FOLLOW_DEFAULT; beetleRecords = new ListTag();
         beetleTargets.clear();
-        darkBody = false; darkBodyRespawn = true; darkBodyLossRate = -1; flightDoubleTap = false; bodyDamage = 0;
+        darkBody = false; darkBodyRespawn = true; darkBodyLossRate = -1; flightDoubleTap = false; bodyDamage = 0; passiveRunning = 0;
+        reflectionDirection = ReflectionDirection.DEFAULT; reflectionPvp = false;
         cpSafety = DEFAULT_CP_SAFETY; cpSafetyPercent = CP_SAFETY_DEFAULT_PERCENT; safetyBlockedCost = -1; safetyTripped = false;
+        java.util.Arrays.fill(safetyOrders, ""); formReservePercent = FORM_RESERVE_DEFAULT; safetyEnded.clear(); lastUpkeepPerTick = 0;
         heavenSettings = new HeavenSettings();
+        analysis.clear(); analysisLabels.clear(); analysisVersion++;
         CompoundTag source = PlayerDataMigration.needed(tag) ? PlayerDataMigration.fromSchemaOne(tag) : tag;
         preserved = source.copy();
         readOnly = !source.contains(VERSION_KEY, Tag.TAG_INT) || source.getInt(VERSION_KEY) != VERSION;
@@ -875,7 +1396,7 @@ public final class PlayerAbilityData {
         CompoundTag presetPart = source.getCompound(PRESET), cooling = source.getCompound(COOLDOWN);
         String category = abilityPart.getString(CATEGORY);
         if (!category.isEmpty()) ability = ResourceLocation.tryParse(category);
-        // 1.4.0のS2（司令室11の裁定D8）: 解析できないカテゴリIDを含む保存データは壊さない。能力が無いと読むと、保存のときに学んだ技能まで
+        // 1.4.0: 解析できないカテゴリIDを含む保存データは壊さない。能力が無いと読むと、保存のときに学んだ技能まで
         // 消えていたので、読み取り専用（休眠）にして、元のNBTをそのまま保つ（より新しい版のデータと同じ扱い）。
         if (!category.isEmpty() && ability == null) { readOnly = true; return; }
         level = hasAbility() ? Math.max(1, Math.min(5, abilityPart.getInt(LEVEL))) : 0;
@@ -895,6 +1416,14 @@ public final class PlayerAbilityData {
         // 設定が決して生まない値だけを拒否する。
         cpRecoveryDelay = Math.max(0, Math.min(io.github.pinchan4273.reacademycraft.config.AcademyConfig.MAX_RECOVER_COOLDOWN, cpPart.getInt(UNTIL_RECOVER)));
         overloadRecoveryDelay = Math.max(0, Math.min(io.github.pinchan4273.reacademycraft.config.AcademyConfig.MAX_RECOVER_COOLDOWN, cpPart.getInt(UNTIL_OVERLOAD_RECOVER)));
+        // 1.5.2: 待ちの間の回復の割合は保存しない。読み込んだ待ちの間は0（回復しない）とし、前の値を残さない。
+        overloadWaitRate = 0;
+        // 1.5.2: 能力の飛行中かどうかも保存しない。読み込んだ直後は飛んでいないものとし、次のtickの始めに決め直す。
+        abilityFlight = false;
+        // 1.5.2: 稼働の残りも保存しない。読み込み直後は稼働していない。
+        actionLeft.clear();
+        // 天界発現の CP の回復（未元物質人間）も保存しない。
+        heavenCpShare = 0; heavenCpLeft = 0;
         bonusCp = Math.min(maxCp, Math.min(io.github.pinchan4273.reacademycraft.config.AcademyConfig.addCp(level), readNonnegativeFinite(cpPart, ADD_MAX_CP, 0)));
         bonusOverload = Math.min(maxOverload, Math.min(io.github.pinchan4273.reacademycraft.config.AcademyConfig.addOverload(level), readNonnegativeFinite(cpPart, ADD_MAX_OVERLOAD, 0)));
         currentPreset = Math.max(0, Math.min(PRESET_COUNT - 1, presetPart.getInt(PRESET_ID)));
@@ -907,13 +1436,21 @@ public final class PlayerAbilityData {
             int cooldown = Math.max(0, Math.min(72000, cooling.getInt(id)));
             if (cooldown > 0) cooldowns.put(skill, cooldown);
         }
+        // 1.5.2: パッシブに切り替えた技能。習得済みで切り替えられる技能だけを読む（プリセットより先に読み、パッシブの技能をスロットに入れない）。
+        ListTag passive = source.getCompound(SETTINGS).getList(PASSIVE_SKILLS, Tag.TAG_STRING);
+        for (int i = 0; hasAbility() && i < Math.min(PassiveSkills.SWITCHABLE.size(), passive.size()); i++) {
+            ResourceLocation skill = ResourceLocation.tryParse(passive.getString(i));
+            if (skill != null && skills.containsKey(skill) && PassiveSkills.switchable(skill)) passiveSkills.add(skill);
+        }
         ListTag table = presetPart.getList(PRESETS, Tag.TAG_LIST);
         for (int p = 0; p < Math.min(PRESET_COUNT, table.size()); p++) {
             ListTag row = table.getList(p);
             for (int s = 0; s < Math.min(SLOT_COUNT, row.size()); s++) {
                 String id = row.getElementType() == Tag.TAG_STRING ? row.getString(s) : "";
                 ResourceLocation skill = id.isEmpty() ? null : ResourceLocation.tryParse(id);
-                if (skill != null && skills.containsKey(skill) && !GenericSkills.isPassive(skill)) presets[p][s] = skill;
+                // 1.5.2: 廃止した本体の技能の旧ID（未元装甲）は、習得の記録が残っていてもスロットへ戻さない（空きにする。再保存でも消える）。
+                if (skill != null && skills.containsKey(skill) && !GenericSkills.isPassive(skill) && !passiveSkills.contains(skill)
+                        && !DarkMatter.retired(skill)) presets[p][s] = skill;
             }
         }
         if (hasAbility() && !(cpPart.contains(CP_MODEL, Tag.TAG_INT) && cpPart.getInt(CP_MODEL) >= CURRENT_CP_MODEL)) migrateCapacity(cpPart);
@@ -922,6 +1459,15 @@ public final class PlayerAbilityData {
         if (source.getCompound(SETTINGS).contains(CP_SAFETY, Tag.TAG_BYTE)) cpSafety = source.getCompound(SETTINGS).getBoolean(CP_SAFETY);
         if (source.getCompound(SETTINGS).contains(CP_SAFETY_PERCENT, Tag.TAG_INT))
             cpSafetyPercent = net.minecraft.util.Mth.clamp(source.getCompound(SETTINGS).getInt(CP_SAFETY_PERCENT), CP_SAFETY_MIN_PERCENT, CP_SAFETY_MAX_PERCENT);
+        // 1.5.2: 読めない並びと範囲の外の予約は既定に戻す。
+        for (int i = 0; i < safetyOrders.length; i++) {
+            String code = source.getCompound(SETTINGS).getString(AbilityDataSchema.CP_SAFETY_ORDER + i);
+            safetyOrders[i] = SafetyPriority.valid(code) ? code : "";
+        }
+        if (source.getCompound(SETTINGS).contains(AbilityDataSchema.FORM_RESERVE, Tag.TAG_INT)) {
+            int reserve = source.getCompound(SETTINGS).getInt(AbilityDataSchema.FORM_RESERVE);
+            formReservePercent = reserve >= FORM_RESERVE_MIN && reserve <= FORM_RESERVE_MAX ? reserve : FORM_RESERVE_DEFAULT;
+        }
         electronMissileAimMode = ElectronMissileAimMode.parse(source.getCompound(SETTINGS).getString(ELECTRON_MISSILE_AIM));
         CompoundTag targets = source.getCompound(SETTINGS).getCompound(ELECTRON_MISSILE_TARGETS);
         for (var kind : ElectronMissileTargetKind.values())
@@ -931,6 +1477,10 @@ public final class PlayerAbilityData {
         if (settings.contains(BEETLE_CONTACT_BREAK, Tag.TAG_BYTE)) beetleContactBreak = settings.getBoolean(BEETLE_CONTACT_BREAK);
         if (settings.contains(DARK_BODY_RESPAWN, Tag.TAG_BYTE)) darkBodyRespawn = settings.getBoolean(DARK_BODY_RESPAWN);
         if (settings.contains(FLIGHT_DOUBLE_TAP, Tag.TAG_BYTE)) flightDoubleTap = settings.getBoolean(FLIGHT_DOUBLE_TAP);
+        // 1.5.2: 旧セーブ（キー無し）と知らない値は既定（攻撃者へ・PvPの相手を含めない）。
+        var direction = ReflectionDirection.parse(settings.getString(REFLECTION_DIRECTION));
+        if (direction != null) reflectionDirection = direction;
+        if (settings.contains(REFLECTION_PVP, Tag.TAG_BYTE)) reflectionPvp = settings.getBoolean(REFLECTION_PVP);
         var repair = DarkMatterBeetles.Repair.parse(settings.getString(BEETLE_REPAIR));
         if (repair != null) beetleRepair = repair;
         var stance = DarkMatterBeetles.Stance.parse(settings.getString(BEETLE_STANCE));
@@ -940,6 +1490,18 @@ public final class PlayerAbilityData {
         CompoundTag beetleTargetTag = settings.getCompound(BEETLE_TARGETS);
         for (var kind : ElectronMissileTargetKind.values())
             if (beetleTargetTag.contains(kind.id(), Tag.TAG_BYTE)) beetleTargets.put(kind, beetleTargetTag.getBoolean(kind.id()));
+        // 1.5.2: 解析度は系統に関わらず読む。形の違う要素・範囲外の値は読まない（上限の数まで）。
+        CompoundTag analysed = source.getCompound(VECTOR_ANALYSIS);
+        for (String key : analysed.getAllKeys()) {
+            if (analysis.size() >= MAX_ANALYSIS_ENTRIES) break;
+            if (key.isEmpty() || key.length() > 256 || !analysed.contains(key, Tag.TAG_COMPOUND)) continue;
+            CompoundTag entry = analysed.getCompound(key);
+            float value = Math.min(1, readNonnegativeFinite(entry, ANALYSIS_VALUE, 0));
+            if (value <= 0) continue;
+            analysis.put(key, value);
+            String label = entry.getString(ANALYSIS_LABEL);
+            if (!label.isEmpty()) analysisLabels.put(key, label.length() > 64 ? label.substring(0, 64) : label);
+        }
         // 記録は系統が未元物質のときだけ読む。形の違う要素は読まない（最大で3体）。
         if (DarkMatter.CATEGORY.equals(ability)) {
             ListTag records = source.getList(BEETLE_RECORDS, Tag.TAG_COMPOUND);
@@ -948,7 +1510,7 @@ public final class PlayerAbilityData {
     }
 
     /**
-     * 1.0.0（と1.0.0の後の試遊候補）のセーブの最大CPを、新しい容量へ一度だけ移す（CPDataにCP_MODELが無いデータ）。
+     * 1.0.0（と1.0.0の後の開発版）のセーブの最大CPを、新しい容量へ一度だけ移す（CPDataにCP_MODELが無いデータ）。
      * 1.0.0の標準の式（旧init_cp + コースのボーナス + 使用による成長）どおりのデータは、コースのボーナスを除いた容量（育てた容量）を
      * 昇級と同じ規則で引き継ぐ: 新しい最大 = 新しい基礎と新しい上限（基礎 + 成長枠）の間に収めた値、成長済み = 最大 − 基礎。
      * コースのボーナスは回復へ置き換わったので、容量には二重に残さない。式に合わない最大CP（外部mod・管理者・コマンドによる特殊な値）は
@@ -994,7 +1556,7 @@ public final class PlayerAbilityData {
         lightShieldMode = java.util.Objects.requireNonNull(mode);
     }
 
-    /** Electron Missileの照準のモード（F9-02）。選んでいなければ{@link ElectronMissileAimMode#DEFAULT}（AUTO）。 */
+    /** Electron Missileの照準のモード。選んでいなければ{@link ElectronMissileAimMode#DEFAULT}（AUTO）。 */
     public ElectronMissileAimMode getElectronMissileAimMode() {
         return electronMissileAimMode == null ? ElectronMissileAimMode.DEFAULT : electronMissileAimMode;
     }
@@ -1005,7 +1567,7 @@ public final class PlayerAbilityData {
         requireWritable();
         electronMissileAimMode = java.util.Objects.requireNonNull(mode);
     }
-    /** Electron Missileがこの分類を撃ってよいか（F9-02）。選んでいなければ既定。 */
+    /** Electron Missileがこの分類を撃ってよいか。選んでいなければ既定。 */
     public boolean electronMissileTargets(ElectronMissileTargetKind kind) {
         return electronMissileTargets.getOrDefault(kind, kind.defaultOn());
     }
@@ -1017,20 +1579,20 @@ public final class PlayerAbilityData {
         electronMissileTargets.put(java.util.Objects.requireNonNull(kind), on);
     }
 
-    /** §9: 甲虫の接触ブロック破壊の設定。 */
+    /** 甲虫の接触ブロック破壊の設定。 */
     public boolean isBeetleContactBreak() { return beetleContactBreak; }
     public void setBeetleContactBreak(boolean on) { requireWritable(); beetleContactBreak = on; }
-    /** §9: 甲虫の修復方式。 */
+    /** 甲虫の修復方式。 */
     public DarkMatterBeetles.Repair getBeetleRepair() { return beetleRepair; }
     public void setBeetleRepair(DarkMatterBeetles.Repair repair) { requireWritable(); beetleRepair = java.util.Objects.requireNonNull(repair); }
-    /** §9: 甲虫の攻撃方針。 */
+    /** 甲虫の攻撃方針。 */
     public DarkMatterBeetles.Stance getBeetleStance() { return beetleStance; }
     public void setBeetleStance(DarkMatterBeetles.Stance stance) { requireWritable(); beetleStance = java.util.Objects.requireNonNull(stance); }
-    /** §9（ユーザーの決定）: 甲虫がこの分類を自動で狙ってよいか。選んでいなければ既定（{@link ElectronMissileTargetKind#defaultOn()}）。 */
+    /** 甲虫がこの分類を自動で狙ってよいか。選んでいなければ既定（{@link ElectronMissileTargetKind#defaultOn()}）。 */
     public boolean beetleTargets(ElectronMissileTargetKind kind) { return beetleTargets.getOrDefault(kind, kind.defaultOn()); }
     /** この分類のON／OFFを選ぶ。読み取り専用のデータでは例外（呼び出し元の{@link AbilitySettings}が先に断る）。 */
     public void setBeetleTarget(ElectronMissileTargetKind kind, boolean on) { requireWritable(); beetleTargets.put(java.util.Objects.requireNonNull(kind), on); }
-    /** §9: 甲虫の追従開始距離（ブロック。{@link DarkMatterBeetles#validFollow}の値）。 */
+    /** 甲虫の追従開始距離（ブロック。{@link DarkMatterBeetles#validFollow}の値）。 */
     public int getBeetleFollow() { return beetleFollow; }
     /** 追従開始距離を置く。許されない値は例外（呼び出し元の{@link AbilitySettings}が先に断る）。 */
     public void setBeetleFollow(int blocks) {
@@ -1038,24 +1600,24 @@ public final class PlayerAbilityData {
         if (!DarkMatterBeetles.validFollow(blocks)) throw new IllegalArgumentException("Invalid beetle follow distance: " + blocks);
         beetleFollow = blocks;
     }
-    /** §9: 甲虫の個体の記録の写し。 */
+    /** 甲虫の個体の記録の写し。 */
     public ListTag getBeetleRecords() { return beetleRecords.copy(); }
     public void setBeetleRecords(ListTag records) { if (!readOnly) beetleRecords = records.copy(); }
-    /** §10〜§12: 天界発現の設定（領域は毎回ここを読む）。 */
+    /** 天界発現の設定（領域は毎回ここを読む）。 */
     public HeavenSettings getHeavenSettings() { return heavenSettings; }
 
-    /** §15: 未元物質人間か。 */
+    /** 未元物質人間か。 */
     public boolean isDarkBody() { return darkBody; }
-    /** §15: 未元物質人間へ変わる。CPは全回復し、回復待ちとセーフティの点滅の条件を解除する。 */
+    /** 未元物質人間へ変わる。CPは全回復し、回復待ちとセーフティの点滅の条件を解除する。 */
     public void becomeDarkBody() { requireWritable(); darkBody = true; cp = maxCp; cpRecoveryDelay = 0; safetyBlockedCost = -1; bodyDamage = 0; }
     /**
-     * 未元物質人間の身体に通った最終ダメージを、1HP＝1CPで一度だけCPから引き、同額（実際に引けた分）を未修復の身体損傷に記録する。
-     * 回復待ちは付けない。CPセーフティは見ない（生命へのダメージを肩代わりしない）。
+     * 未元物質人間の身体に通った最終ダメージ（HP）を、1 HP＝{@link #BODY_CP_PER_HP} CP で一度だけCPから引き（1.5.2）、
+     * 同額（実際に引けた分）を未修復の身体損傷（CP）に記録する。回復待ちは付けない。CPセーフティは見ない（生命へのダメージを肩代わりしない）。
      */
     public void takeBodyDamage(float amount) {
         requireNonnegativeFinite(amount);
         if (readOnly) return;
-        float taken = Math.min(cp, amount);
+        float taken = Math.min(cp, amount * BODY_CP_PER_HP);
         cp -= taken;
         if (darkBody) bodyDamage = Math.min(maxCp, bodyDamage + taken);
     }
@@ -1063,19 +1625,80 @@ public final class PlayerAbilityData {
     public float getBodyDamage() { clampBodyDamage(); return bodyDamage; }
     /**
      * 損傷 ≤ 最大CP−現在CP（明示的な回復で戻った分は損傷も減る）。未元物質人間でなければ0。
-     * CPを明示的に上げる処理（setCp・recoverAll・習得・レベルアップ・最大CPの変更）は、その場でこれを呼ぶ（C217-F01）。
+     * CPを明示的に上げる処理（setCp・recoverAll・習得・レベルアップ・最大CPの変更）は、その場でこれを呼ぶ。
      */
     private void clampBodyDamage() { bodyDamage = darkBody ? Math.max(0, Math.min(bodyDamage, maxCp - cp)) : 0; }
-    /** §15: 死亡後の復活形態（trueは未元物質人間）。今の形態は変えない。 */
+    /** 死亡後の復活形態（trueは未元物質人間）。今の形態は変えない。 */
     public boolean isDarkBodyRespawn() { return darkBodyRespawn; }
     public void setDarkBodyRespawn(boolean body) { requireWritable(); darkBodyRespawn = body; }
     /** 白翼飛行の飛び立ちと停止の操作が連打か（falseなら長押し）。 */
     public boolean isFlightDoubleTap() { return flightDoubleTap; }
     public void setFlightDoubleTap(boolean on) { requireWritable(); flightDoubleTap = on; }
-    /** §15: 未元物質人間として死亡した後の復活に、設定の形態を適用する。通常人間のままの死亡では形態を変えない。 */
+    /** 1.5.2: ベクトル反射の反射方向。 */
+    public ReflectionDirection getReflectionDirection() { return reflectionDirection; }
+    public void setReflectionDirection(ReflectionDirection direction) { requireWritable(); reflectionDirection = java.util.Objects.requireNonNull(direction); }
+    /** 1.5.2: 反射方向の自動の2方式で、PvPの相手プレイヤーを候補に含めるか。 */
+    public boolean isReflectionPvp() { return reflectionPvp; }
+    public void setReflectionPvp(boolean on) { requireWritable(); reflectionPvp = on; }
+    /** 未元物質人間として死亡した後の復活に、設定の形態を適用する。通常人間のままの死亡では形態を変えない。 */
     public void applyRespawnForm() { if (!readOnly && darkBody && !darkBodyRespawn) { darkBody = false; bodyDamage = 0; } }
     /** 系統の喪失の直前の残量率を受け取る（1回だけ）。喪失していなければ負。 */
     public float takeDarkBodyLossRate() { float rate = darkBodyLossRate; darkBodyLossRate = -1; return rate; }
+
+    // ---- 1.5.2: ベクトル操作の解析度（判定と分類は{@link VectorAnalysis}） ----
+    /** 保存されたこの分類の解析度（0〜1。持っていなければ0）。バニラの物理がいつも100%であることは{@link VectorAnalysis}が扱う。 */
+    public float getAnalysis(String key) { return analysis.getOrDefault(key, 0f); }
+    /** この分類の表示の名前（未元物質の使い手の名前など）。無ければnull。 */
+    public @Nullable String getAnalysisLabel(String key) { return analysisLabels.get(key); }
+    /** 持っている解析度の写し（分類のキー → 0〜1、覚えた順）。 */
+    public Map<String, Float> analysisEntries() { return java.util.Collections.unmodifiableMap(new LinkedHashMap<>(analysis)); }
+    /** 解析度が変わった回数（保存しない。同期の判定用）。 */
+    public int analysisVersion() { return analysisVersion; }
+    /**
+     * この分類の解析度を置く（0〜1に収める。0なら忘れる）。labelがnullでなければ表示の名前も置き換える。読み取り専用のデータでは何もしない。
+     * 上限（{@link #MAX_ANALYSIS_ENTRIES}）を超える新しい分類は、いちばん低い分類を忘れてから覚える。
+     */
+    public void setAnalysis(String key, float value, @Nullable String label) {
+        if (readOnly || key == null || key.isEmpty() || key.length() > 256) return;
+        float v = Float.isFinite(value) ? Math.max(0, Math.min(1, value)) : 0;
+        Float old = analysis.get(key);
+        if (v <= 0) {
+            if (old != null) { analysis.remove(key); analysisLabels.remove(key); analysisVersion++; }
+            return;
+        }
+        if (old == null && analysis.size() >= MAX_ANALYSIS_ENTRIES) {
+            String lowest = null; float min = Float.MAX_VALUE;
+            for (var entry : analysis.entrySet()) if (entry.getValue() < min) { min = entry.getValue(); lowest = entry.getKey(); }
+            if (lowest != null) { analysis.remove(lowest); analysisLabels.remove(lowest); }
+        }
+        boolean changed = old == null || old != v;
+        analysis.put(key, v);
+        if (label != null && !label.isEmpty()) {
+            String trimmed = label.length() > 64 ? label.substring(0, 64) : label;
+            changed |= !trimmed.equals(analysisLabels.put(key, trimmed));
+        }
+        if (changed) analysisVersion++;
+    }
+    /** キーがprefixで始まる分類の解析度を、それぞれamountだけ下げる（0になったら忘れる）。何か変わったらtrue。 */
+    public boolean decayAnalysis(String prefix, float amount) {
+        if (readOnly || !(amount > 0) || analysis.isEmpty()) return false;
+        boolean changed = false;
+        for (var it = analysis.entrySet().iterator(); it.hasNext(); ) {
+            var entry = it.next();
+            if (!entry.getKey().startsWith(prefix)) continue;
+            float next = entry.getValue() - amount;
+            if (next <= 1e-6f) { it.remove(); analysisLabels.remove(entry.getKey()); }
+            else entry.setValue(next);
+            changed = true;
+        }
+        if (changed) analysisVersion++;
+        return changed;
+    }
+    /** すべての解析度を忘れる（テストと管理用）。 */
+    public void clearAnalysis() {
+        if (readOnly || analysis.isEmpty()) return;
+        analysis.clear(); analysisLabels.clear(); analysisVersion++;
+    }
 
     public void copyFrom(PlayerAbilityData other) {
         load(other.save());

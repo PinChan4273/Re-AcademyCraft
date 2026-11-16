@@ -49,7 +49,7 @@ public final class TutorialNotifyHud {
     }
 
     /**
-     * F4（DebugConsole）が避ける、通知のカードの範囲（GUI座標、WORK-045のFQ-03）。カード（517x170の0.25倍）を表示している6秒の間だけ。
+     * F4（DebugConsole）が避ける、通知のカードの範囲（GUI座標）。カード（517x170の0.25倍）を表示している6秒の間だけ。
      * アイコンと文字はカードの中に描く。描き方は変えない。表示していなければnull。
      */
     @Nullable public static DebugConsoleLayout.Area area(int guiWidth, int guiHeight) {

@@ -64,6 +64,8 @@ public final class ThreateningTeleport {
                 && player.containerMenu == player.inventoryMenu;
     }
     public static double range(float exp) { return ArcGen.lerp(8, 15, exp); }
+    /** 1回のCP（1.5.2でlerp(36, 100)からlerp(36, 72)へ）。 */
+    public static float consumption(float exp) { return ArcGen.lerp(36, 72, exp); }
 
     public static String start(ServerPlayer player, PlayerAbilityData data, int slot) {
         if (slot < 0 || slot >= 4 || !ID.equals(data.getSlot(data.getCurrentPreset(), slot))
@@ -111,8 +113,9 @@ public final class ThreateningTeleport {
 
     private static void execute(ServerPlayer player, PlayerAbilityData data, float exp, double dropRoll) {
         var stack = player.getMainHandItem();
-        // 原作はここで自身の宣言順でconsume(overload, cp)を課す: 18〜10と35〜100。CPの始点は1.1.0（T178-12、基準値の偶数化）で36。
-        if (stack.isEmpty() || !data.consume(ID, ArcGen.lerp(36, 100, exp), ArcGen.lerp(18, 10, exp), player.getAbilities().instabuild))
+        // 原作はここで自身の宣言順でconsume(overload, cp)を課す: 18〜10と35〜100。CPの始点は1.1.0（基準値の偶数化）で36、
+        // 終点は1.5.2で100から72へ下げた。
+        if (stack.isEmpty() || !data.consume(ID, consumption(exp), ArcGen.lerp(18, 10, exp), player.getAbilities().instabuild))
             return;
         var drop = stack.copyWithCount(1);
         var aim = aim(player, exp);

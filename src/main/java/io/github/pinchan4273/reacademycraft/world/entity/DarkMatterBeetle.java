@@ -31,7 +31,7 @@ import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 
 /**
- * 未元物質の甲虫（§9）。当たり判定は幅2.0・高さ1.75（ユーザーの判断で見た目に合わせた。判定の水平は正方形なので、幅は体の横幅2.0に合わせ、前後の端は少し外へ出る。
+ * 未元物質の甲虫。当たり判定は幅2.0・高さ1.75（見た目に合わせた。判定の水平は正方形なので、幅は体の横幅2.0に合わせ、前後の端は少し外へ出る。
  * 高さは上角の先までで、細い主角の上部は含めない）。
  * <p>
  * 技能（{@link DarkMatterBeetles}）からだけ生成する。チャンクには保存しない（型が{@code noSave}）: 個体の状態は所有者の能力データに置き、
@@ -43,9 +43,9 @@ import net.minecraft.world.phys.Vec3;
  * 描画のために同期する値: {@link #ownerId()}、{@link #flying()}、{@link #attackKind()}、{@link #attackSerial()}、{@link #emergeLeft()}。
  * <p>
  * 出現の演出（v1.5.1）: 技能が生成した個体は、まず{@link #EMERGE_TICKS}tickの間「現れる途中」で、体は描かず、甲虫より大きい輪だけを描く。
- * その間は攻撃・被弾・AI・当たり判定のどれにも参加しない（{@link #inert()}）。残りのtickは実体の同期データなので、追加の通信は無く、
+ * その間は攻撃・被弾・AI・当たり判定のどれにも参加しない（{@link #inert()}）。残りのtickはエンティティの同期データなので、追加の通信は無く、
  * 途中から見えるようになった人にも残りの分だけ見える。状態は保存しない（収納や復帰の後は、また最初から現れる）。
- * 回収で消える時は、消す直前に実体のイベント（{@link #EVENT_RECALL}、バニラの仕組み）を送り、クライアントが逆の演出を描く。
+ * 回収で消える時は、消す直前にエンティティのイベント（{@link #EVENT_RECALL}、バニラの仕組み）を送り、クライアントが逆の演出を描く。
  */
 public final class DarkMatterBeetle extends PathfinderMob {
     private static final EntityDataAccessor<Optional<UUID>> OWNER = SynchedEntityData.defineId(DarkMatterBeetle.class, EntityDataSerializers.OPTIONAL_UUID);
@@ -56,13 +56,13 @@ public final class DarkMatterBeetle extends PathfinderMob {
     private static final EntityDataAccessor<Integer> EMERGE = SynchedEntityData.defineId(DarkMatterBeetle.class, EntityDataSerializers.INT);
     /** 出現の演出の長さ（tick。0.6秒）。この間に輪が出て、終わった瞬間に甲虫が現れる。 */
     public static final int EMERGE_TICKS = 12;
-    /** 回収の演出を始める実体のイベントの番号（バニラの番号と重ならない値）。 */
+    /** 回収の演出を始めるエンティティのイベントのID（バニラのIDと重ならない値）。 */
     public static final byte EVENT_RECALL = 101;
     /** 同期する攻撃の種類。近接と砲撃は{@link #ATTACK_LOCK}tickの間、突進は終わるまでこの値のまま。 */
     public static final byte ATTACK_NONE = 0, ATTACK_MELEE = 1, ATTACK_DASH = 2, ATTACK_SHOT = 3;
     /**
-     * 砲口の位置（実体の足元が原点、+zが前、ブロック単位）。モデルのmuzzle骨を、root→body→head→horn_main（取付-42度）→mid→end→
-     * horn_plate（取付-40度）の順にたどった点。{@code generate_beetle_facets.py}のBODY_SCALE・HORN_SCALEは骨の位置
+     * 砲口の位置（エンティティの足元が原点、+zが前、ブロック単位）。モデルのmuzzleボーンを、root→body→head→horn_main（取付-42度）→mid→end→
+     * horn_plate（取付-40度）の順にたどった点。{@code generate_beetle_facets.py}のBODY_SCALE・HORN_SCALEはボーンの位置
      * （{@code DarkBeetleMesh}）に入っている。頭と角の動きは入れない固定の値。
      */
     public static final Vec3 MUZZLE = new Vec3(0, 1.9635, 2.3764);
@@ -127,7 +127,7 @@ public final class DarkMatterBeetle extends PathfinderMob {
     public boolean inert() { return emerging(); }
     /** 技能が生成の直後（世界へ足す前）に呼ぶ: 現れる途中から始める。 */
     public void startEmerging() { entityData.set(EMERGE, EMERGE_TICKS); }
-    /** 試験用の入口: 出現の演出を今すぐ終える。 */
+    /** テスト用の入口: 出現の演出を今すぐ終える。 */
     public void finishEmergingForTest() { entityData.set(EMERGE, 0); }
 
     // ---- クライアントの描画用（サーバーでは使わない） ----
@@ -167,7 +167,7 @@ public final class DarkMatterBeetle extends PathfinderMob {
         // 現れた瞬間の音（バニラの音の通知で、近くの人に届く）。
         if (left == 1) level().playSound(null, getX(), getY(), getZ(), net.minecraft.sounds.SoundEvents.AMETHYST_CLUSTER_BREAK, getSoundSource(), 1f, .8f);
     }
-    /** 回収の演出の通知を受けたクライアント（この直後に実体は消える）。 */
+    /** 回収の演出の通知を受けたクライアント（この直後にエンティティは消える）。 */
     @Override public void handleEntityEvent(byte id) {
         if (id == EVENT_RECALL) {
             // Forge版のDistExecutor.unsafeRunWhenOn(CLIENT)に当たる（クライアントのclassは、クライアントの環境でだけ読み込む）。
@@ -192,7 +192,7 @@ public final class DarkMatterBeetle extends PathfinderMob {
     /** 攻撃を始めるたびに1増える。同じ種類が続いても動きを最初から始められる。 */
     public int attackSerial() { return entityData.get(ATTACK_SERIAL); }
     public boolean isOwnedBy(Entity entity) { return entity.getUUID().equals(ownerId()); }
-    /** 所有者本人か、同じ所有者の個体か（§9の誤射の保護の範囲）。 */
+    /** 所有者本人か、同じ所有者の個体か（誤射の保護の範囲）。 */
     public boolean isFriendly(@Nullable Entity entity) {
         if (entity == null) return false;
         if (entity == this || isOwnedBy(entity)) return true;
@@ -243,8 +243,8 @@ public final class DarkMatterBeetle extends PathfinderMob {
     // ---- 保護と、普通の生き物の振る舞いの打ち消し ----
 
     /**
-     * 環境の損傷か（甲虫はこれを受けない。2026-11-03のユーザーの決定: 特定のMODへの個別の対応ではなく、汎用の環境ダメージ耐性）。
-     * 未元物質の構造物で、体温も呼吸も持たない。原因の実体（攻撃した者・飛び道具）の無い損傷のうち、爆発・状態異常（魔法・衰弱）・
+     * 環境の損傷か（甲虫はこれを受けない。特定のMODへの個別の対応ではなく、汎用の環境ダメージ耐性）。
+     * 未元物質の構造物で、体温も呼吸も持たない。原因のエンティティ（攻撃した者・飛び道具）の無い損傷のうち、爆発・状態異常（魔法・衰弱）・
      * 無敵を貫く物（奈落・/kill）を除いたもの。火・溶岩・凍結・窒息・サボテン・落雷や、他のMODの気候の損傷などが当たる。
      */
     public static boolean environmental(DamageSource source) {
@@ -253,17 +253,17 @@ public final class DarkMatterBeetle extends PathfinderMob {
         return !source.is(net.minecraft.world.damagesource.DamageTypes.MAGIC) && !source.is(net.minecraft.world.damagesource.DamageTypes.INDIRECT_MAGIC)
                 && !source.is(net.minecraft.world.damagesource.DamageTypes.WITHER);
     }
-    /** §9: 召喚者本人と同じ所有者の個体からの損傷を受けない。他のプレイヤーへの無敵ではない。環境の損傷（{@link #environmental}）も受けない。 */
+    /** 召喚者本人と同じ所有者の個体からの損傷を受けない。他のプレイヤーへの無敵ではない。環境の損傷（{@link #environmental}）も受けない。 */
     @Override public boolean isInvulnerableTo(DamageSource source) {
         // 現れる途中は何からも傷つかない（奈落と/killのような無敵を貫く物だけは通す）。
         if (inert() && !source.is(net.minecraft.tags.DamageTypeTags.BYPASSES_INVULNERABILITY)) return true;
         return isFriendly(source.getEntity()) || isFriendly(source.getDirectEntity()) || environmental(source) || super.isInvulnerableTo(source);
     }
-    /** §9: 召喚者本人と同じ所有者の個体からの状態異常を受けない。現れる途中は何からも受けない。 */
+    /** 召喚者本人と同じ所有者の個体からの状態異常を受けない。現れる途中は何からも受けない。 */
     @Override public boolean addEffect(MobEffectInstance effect, @Nullable Entity source) {
         return !inert() && !isFriendly(source) && super.addEffect(effect, source);
     }
-    /** §9: 召喚者本人と同じ所有者の個体の間で押し合わない。現れる途中は誰とも押し合わない。 */
+    /** 召喚者本人と同じ所有者の個体の間で押し合わない。現れる途中は誰とも押し合わない。 */
     @Override public void push(Entity entity) { if (!inert() && !isFriendly(entity)) super.push(entity); }
     @Override protected void doPush(Entity entity) { if (!inert() && !isFriendly(entity)) super.doPush(entity); }
     @Override public boolean isPushable() { return !inert() && super.isPushable(); }
@@ -275,7 +275,7 @@ public final class DarkMatterBeetle extends PathfinderMob {
         if (inert()) { setDeltaMovement(Vec3.ZERO); return; }
         super.travel(input);
     }
-    /** §9: 所有者本人のクライアントの照準は自分の甲虫を選ばない（照準の攻撃を遮らない）。他の人やサーバーの判定には今までどおり当たる。現れる途中は誰の照準にも当たらない。 */
+    /** 所有者本人のクライアントの照準は自分の甲虫を選ばない（照準の攻撃を遮らない）。他の人やサーバーの判定には今までどおり当たる。現れる途中は誰の照準にも当たらない。 */
     @Override public boolean isPickable() {
         if (inert()) return false;
         // Forge版のDistExecutor.unsafeCallWhenOn(CLIENT)に当たる（クライアントのclassは、クライアントの環境でだけ読み込む）。
@@ -304,7 +304,7 @@ public final class DarkMatterBeetle extends PathfinderMob {
         if (dashCooldown > 0) dashCooldown--;
         if (shotCooldown > 0) shotCooldown--;
         if (actionTicks > 0 && --actionTicks == 0 && dash == null) entityData.set(ATTACK_KIND, ATTACK_NONE);
-        // 開始済みの突進は最後まで（設定の変更も帰還も割り込まない。§9）。
+        // 開始済みの突進は最後まで（設定の変更も帰還も割り込まない）。
         if (dash != null) { tickDash(); return; }
         act(owner, p);
         keepApart(owner);
@@ -327,14 +327,14 @@ public final class DarkMatterBeetle extends PathfinderMob {
         else fight(owner, target, p);
     }
 
-    /** 所有者の後ろの、個体ごとの席へ向かう。着いたら、席が3ブロック以上ずれるか所有者が近づくまで休む（小刻みに動かない）。 */
+    /** 所有者の後ろの、個体ごとのスロットへ向かう。着いたら、スロットが3ブロック以上ずれるか所有者が近づくまで休む（小刻みに動かない）。 */
     private void follow(ServerPlayer owner, float p, double toOwner, boolean returning) {
         if (toOwner > CATCH_UP) catchingUp = true;
         else if (toOwner < CAUGHT_UP) catchingUp = false;
         boolean up = ownerAirborne(owner);
         Vec3 dest = DarkMatterBeetles.seat(party, this, up);
         if (dest == null) {
-            // 席が無い（狭い所など）。近くなら今の場所に留まり、遠ければ大まかな席へ向かう。
+            // スロットが無い（狭い所など）。近くなら今の場所に留まり、遠ければ大まかなスロットへ向かう。
             if (toOwner <= CATCH_UP) { getNavigation().stop(); if (flying() && up) setDeltaMovement(Vec3.ZERO); return; }
             dest = DarkMatterBeetles.roughSeat(party, this);
         }
@@ -351,7 +351,7 @@ public final class DarkMatterBeetle extends PathfinderMob {
         go(dest, p, returning || up || catchingUp);
     }
     private double horizontalDistance(Entity other) { return Math.sqrt(Mth.square(getX() - other.getX()) + Mth.square(getZ() - other.getZ())); }
-    /** 所有者と他の個体に重ならないよう少しずつ離れる。押し合いは無効（§9）なので、自分で動く。突進中はしない。 */
+    /** 所有者と他の個体に重ならないよう少しずつ離れる。押し合いは無効なので、自分で動く。突進中はしない。 */
     private void keepApart(ServerPlayer owner) {
         if (owner.level() != level()) return;
         Vec3 push = Vec3.ZERO;
@@ -438,7 +438,7 @@ public final class DarkMatterBeetle extends PathfinderMob {
     /** 角が届く距離か（体の判定の外1.5ブロック）。 */
     private boolean inMelee(LivingEntity other) { return getBoundingBox().inflate(1.5).intersects(other.getBoundingBox()); }
 
-    /** §9の近／中／遠。禁止リストではなく優先順位で、上から順に今できるものを選ぶ。 */
+    /** 構えの近／中／遠。禁止リストではなく優先順位で、上から順に今できるものを選ぶ。 */
     private void fight(ServerPlayer owner, LivingEntity t, float p) {
         var data = DarkMatterBeetles.data(owner);
         var stance = data == null ? DarkMatterBeetles.Stance.MID : data.getBeetleStance();
@@ -494,7 +494,7 @@ public final class DarkMatterBeetle extends PathfinderMob {
         face(t.position());
         meleeCooldown = io.github.pinchan4273.reacademycraft.skill.HeavenEffects.scaledInterval(this, DarkMatterBeetles.MELEE_INTERVAL); actionTicks = ATTACK_LOCK;
         begin(ATTACK_MELEE);
-        DarkMatterBeetles.strike(party, this, t, DarkMatterBeetles.meleeDamage(p));
+        DarkMatterBeetles.strike(party, this, t, DarkMatterBeetles.meleeDamage(p), true);
     }
     private void fire(LivingEntity t, float p) {
         face(t.position());
@@ -523,7 +523,7 @@ public final class DarkMatterBeetle extends PathfinderMob {
         // 最初の敵への命中で終わる。1回の突進で連続して当てない。
         var enemy = DarkMatterBeetles.firstEnemy(party, this, getBoundingBox().expandTowards(step).inflate(.2));
         if (enemy != null) {
-            DarkMatterBeetles.strike(party, this, enemy, now.damage);
+            DarkMatterBeetles.strike(party, this, enemy, now.damage, true);
             endDash();
             return;
         }
@@ -546,7 +546,7 @@ public final class DarkMatterBeetle extends PathfinderMob {
     }
 
     /**
-     * 次の動きstepで体が接触する、進路を塞ぐブロックを確かめ、壊せるものを壊す（§9）。足場として踏んでいるだけの床は、下へ動かない限り対象にしない。
+     * 次の動きstepで体が接触する、進路を塞ぐブロックを確かめ、壊せるものを壊す。足場として踏んでいるだけの床は、下へ動かない限り対象にしない。
      * walking（または壊せない設定の地上）では登れる高さ（1ブロック）の段差も塞いでいるとみなさない。衝突の無いブロックは数えない。
      * 上限（同じ所有者の全個体で1tick 12ブロック）に達したらWAITINGで、残りは次のtick。壊せないものが1つでもあればBLOCKED（壊せる分は壊す）。
      */
@@ -578,14 +578,14 @@ public final class DarkMatterBeetle extends PathfinderMob {
         for (AABB part : shape.toAabbs()) if (part.move(pos).intersects(box)) return true;
         return false;
     }
-    /** 試験用の入口: 行動を今すぐ1回決める。 */
+    /** テスト用の入口: 行動を今すぐ1回決める。 */
     public void aiStepForTest() { customServerAiStep(); }
-    /** 試験用の入口: 標的を選び直して持つ（動きと攻撃はしない）。 */
+    /** テスト用の入口: 標的を選び直して持つ（動きと攻撃はしない）。 */
     public void chooseForTest() { if (party != null) target = DarkMatterBeetles.chooseTarget(party, this, target); }
-    /** 試験用の入口: 突進を今すぐ始める。 */
+    /** テスト用の入口: 突進を今すぐ始める。 */
     public void startDashForTest(LivingEntity t, float p) { startDash(t, p); }
-    /** 試験用の入口: tへ1発撃つ。 */
+    /** テスト用の入口: tへ1発撃つ。 */
     public void fireForTest(LivingEntity t, float p) { fire(t, p); }
-    /** 試験用の入口: tへ角で1撃する。 */
+    /** テスト用の入口: tへ角で1撃する。 */
     public void meleeForTest(LivingEntity t, float p) { strikeMelee(t, p); }
 }
